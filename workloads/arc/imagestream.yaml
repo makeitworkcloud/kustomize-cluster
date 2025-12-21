@@ -7,13 +7,13 @@ metadata:
 apiVersion: image.openshift.io/v1
 kind: ImageStream
 metadata:
-  name: terraform-runner
+  name: runner
   namespace: public-registry
 spec:
   tags:
     - from:
         kind: DockerImage
-        name: ghcr.io/makeitworkcloud/terraform-runner
+        name: ghcr.io/makeitworkcloud/runner
       name: latest
       importPolicy:
         scheduled: true
