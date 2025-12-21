@@ -11,4 +11,5 @@ files:
   - ansible/certs.yaml
   - arc/arcrunners.yaml
   - grafana/grafana-admin-secret.yaml
+  - grafana/grafana-github-oauth-secret.yaml
   - grafana/certs.yaml
