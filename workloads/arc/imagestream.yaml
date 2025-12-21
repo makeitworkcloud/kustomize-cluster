@@ -10,6 +10,8 @@ metadata:
   name: runner
   namespace: public-registry
 spec:
+  lookupPolicy:
+    local: true
   tags:
     - from:
         kind: DockerImage
@@ -17,5 +19,3 @@ spec:
       name: latest
       importPolicy:
         scheduled: true
-      lookupPolicy:
-        local: true
