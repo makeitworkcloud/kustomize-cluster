@@ -7,9 +7,9 @@ metadata:
       exec:
         path: ksops
 files:
-  - ../ansible/awx.yaml
-  - ../ansible/certs.yaml
-  - ../arc/arcrunners.yaml
-  - ../arc/dindrunners.yaml
-  - ../grafana/grafana-admin-secret.yaml
-  - ../grafana/certs.yaml
+  - ansible/awx.yaml
+  - ansible/certs.yaml
+  - arc/arcrunners.yaml
+  - arc/dindrunners.yaml
+  - grafana/grafana-admin-secret.yaml
+  - grafana/certs.yaml
