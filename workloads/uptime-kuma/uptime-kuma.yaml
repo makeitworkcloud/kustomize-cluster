@@ -6,6 +6,22 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: uptime-kuma-anyuid
+  namespace: uptime-kuma
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: uptime-kuma
+---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -25,6 +41,11 @@ spec:
         persistence:
           enabled: true
           size: 1Gi
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+        podSecurityContext:
+          fsGroup: 1000
   destination:
     server: "https://kubernetes.default.svc"
     namespace: uptime-kuma
