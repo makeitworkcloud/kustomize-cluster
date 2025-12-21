@@ -1,0 +1,55 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uptime-kuma
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: uptime-kuma
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    chart: uptime-kuma
+    repoURL: https://helm.irsigler.cloud
+    targetRevision: 2.24.0
+    helm:
+      releaseName: uptime-kuma
+      valuesObject:
+        persistence:
+          enabled: true
+          size: 1Gi
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: uptime-kuma
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: uptime-kuma
+  namespace: uptime-kuma
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  host: status.makeitwork.cloud
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: uptime-kuma
+    weight: 100
+  port:
+    targetPort: 3001
