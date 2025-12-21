@@ -20,6 +20,8 @@ spec:
           containers:
             - name: grafana
               env:
+                - name: GF_SERVER_ROOT_URL
+                  value: "https://grafana.makeitwork.cloud"
                 - name: GF_SECURITY_ADMIN_USER
                   valueFrom:
                     secretKeyRef:
