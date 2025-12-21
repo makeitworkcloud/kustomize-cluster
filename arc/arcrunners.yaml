@@ -15,8 +15,8 @@ sops:
             L1dVQW9WODBGWUpvL00xWE9hK1B1SFUKY7y80019V+3Hg3xi3nMHp32dwh32D28i
             5ErMl32hZ9uYsyofHANDg+I9GAHleo9FoksMh4GHNX3IT4LepgQSMg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-07-11T02:37:55Z"
-    mac: ENC[AES256_GCM,data:HUiCDblFaR9U3XpwH5ZSinCCGM5AFpyeY7EHal1RSR3K/0IVmrMiF9vRx2p3RA8Z+lNMLB7IwtNJ+0vz7Uui46L80ZffNtmcMX5p1T4SZYneu7y5tBA8M58gGofb70aHSq+u9AGjchI9IeMc8/Ab16a5xSBGiw9yldNqgpdcEvc=,iv:cHlcBO2irbfjiiyNaTBz+4mhH9XSauNe8Q2wcObl5Xc=,tag:AEKYD05R86XCZVLl/nFjMA==,type:str]
+    lastmodified: "2025-12-21T19:54:50Z"
+    mac: ENC[AES256_GCM,data:4R2rCBUxhWU9+81t9+VxtHa8djKSl6PHONOiTRZwe+g/ERKpBhXTo1TnUmDJsZ8Xqs5EesfYFYz96tQqU3/Py+p8PsaFOf8nktt/s5lnEtqQswROaze3pN9+lXST5DIBEBTUjeLOI7LDEeqGOP1qqCn91/DRXiZeo63NRmvL3xk=,iv:XH1YZJgSY9H+Sdy9hvNicvBW4SpVA/xxVJPonztfdz0=,tag:7gu4fQBmGLZj2Iw8VAi9iA==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
 ---
@@ -40,8 +40,8 @@ sops:
             L1dVQW9WODBGWUpvL00xWE9hK1B1SFUKY7y80019V+3Hg3xi3nMHp32dwh32D28i
             5ErMl32hZ9uYsyofHANDg+I9GAHleo9FoksMh4GHNX3IT4LepgQSMg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-07-11T02:37:55Z"
-    mac: ENC[AES256_GCM,data:HUiCDblFaR9U3XpwH5ZSinCCGM5AFpyeY7EHal1RSR3K/0IVmrMiF9vRx2p3RA8Z+lNMLB7IwtNJ+0vz7Uui46L80ZffNtmcMX5p1T4SZYneu7y5tBA8M58gGofb70aHSq+u9AGjchI9IeMc8/Ab16a5xSBGiw9yldNqgpdcEvc=,iv:cHlcBO2irbfjiiyNaTBz+4mhH9XSauNe8Q2wcObl5Xc=,tag:AEKYD05R86XCZVLl/nFjMA==,type:str]
+    lastmodified: "2025-12-21T19:54:50Z"
+    mac: ENC[AES256_GCM,data:4R2rCBUxhWU9+81t9+VxtHa8djKSl6PHONOiTRZwe+g/ERKpBhXTo1TnUmDJsZ8Xqs5EesfYFYz96tQqU3/Py+p8PsaFOf8nktt/s5lnEtqQswROaze3pN9+lXST5DIBEBTUjeLOI7LDEeqGOP1qqCn91/DRXiZeo63NRmvL3xk=,iv:XH1YZJgSY9H+Sdy9hvNicvBW4SpVA/xxVJPonztfdz0=,tag:7gu4fQBmGLZj2Iw8VAi9iA==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
 ---
@@ -51,6 +51,7 @@ metadata:
     name: arc-runner-set
     namespace: openshift-gitops
     annotations:
+        argocd.argoproj.io/sync-wave: "1"
         kustomize.config.k8s.io/behavior: replace
 spec:
     syncPolicy:
@@ -157,8 +158,8 @@ sops:
             L1dVQW9WODBGWUpvL00xWE9hK1B1SFUKY7y80019V+3Hg3xi3nMHp32dwh32D28i
             5ErMl32hZ9uYsyofHANDg+I9GAHleo9FoksMh4GHNX3IT4LepgQSMg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-07-11T02:37:55Z"
-    mac: ENC[AES256_GCM,data:HUiCDblFaR9U3XpwH5ZSinCCGM5AFpyeY7EHal1RSR3K/0IVmrMiF9vRx2p3RA8Z+lNMLB7IwtNJ+0vz7Uui46L80ZffNtmcMX5p1T4SZYneu7y5tBA8M58gGofb70aHSq+u9AGjchI9IeMc8/Ab16a5xSBGiw9yldNqgpdcEvc=,iv:cHlcBO2irbfjiiyNaTBz+4mhH9XSauNe8Q2wcObl5Xc=,tag:AEKYD05R86XCZVLl/nFjMA==,type:str]
+    lastmodified: "2025-12-21T19:54:50Z"
+    mac: ENC[AES256_GCM,data:4R2rCBUxhWU9+81t9+VxtHa8djKSl6PHONOiTRZwe+g/ERKpBhXTo1TnUmDJsZ8Xqs5EesfYFYz96tQqU3/Py+p8PsaFOf8nktt/s5lnEtqQswROaze3pN9+lXST5DIBEBTUjeLOI7LDEeqGOP1qqCn91/DRXiZeo63NRmvL3xk=,iv:XH1YZJgSY9H+Sdy9hvNicvBW4SpVA/xxVJPonztfdz0=,tag:7gu4fQBmGLZj2Iw8VAi9iA==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
 ---
@@ -188,7 +189,7 @@ sops:
             L1dVQW9WODBGWUpvL00xWE9hK1B1SFUKY7y80019V+3Hg3xi3nMHp32dwh32D28i
             5ErMl32hZ9uYsyofHANDg+I9GAHleo9FoksMh4GHNX3IT4LepgQSMg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-07-11T02:37:55Z"
-    mac: ENC[AES256_GCM,data:HUiCDblFaR9U3XpwH5ZSinCCGM5AFpyeY7EHal1RSR3K/0IVmrMiF9vRx2p3RA8Z+lNMLB7IwtNJ+0vz7Uui46L80ZffNtmcMX5p1T4SZYneu7y5tBA8M58gGofb70aHSq+u9AGjchI9IeMc8/Ab16a5xSBGiw9yldNqgpdcEvc=,iv:cHlcBO2irbfjiiyNaTBz+4mhH9XSauNe8Q2wcObl5Xc=,tag:AEKYD05R86XCZVLl/nFjMA==,type:str]
+    lastmodified: "2025-12-21T19:54:50Z"
+    mac: ENC[AES256_GCM,data:4R2rCBUxhWU9+81t9+VxtHa8djKSl6PHONOiTRZwe+g/ERKpBhXTo1TnUmDJsZ8Xqs5EesfYFYz96tQqU3/Py+p8PsaFOf8nktt/s5lnEtqQswROaze3pN9+lXST5DIBEBTUjeLOI7LDEeqGOP1qqCn91/DRXiZeo63NRmvL3xk=,iv:XH1YZJgSY9H+Sdy9hvNicvBW4SpVA/xxVJPonztfdz0=,tag:7gu4fQBmGLZj2Iw8VAi9iA==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2

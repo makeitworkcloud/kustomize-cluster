@@ -19,6 +19,8 @@ kind: Subscription
 metadata:
   name: awx-operator
   namespace: awx
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   channel: alpha
   installPlanApproval: Automatic
