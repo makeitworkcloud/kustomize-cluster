@@ -59,22 +59,24 @@ spec:
       - mountPath: /.config/sops/age/key.txt
         name: sops-age-keys
         subPath: key.txt
-  # GitHub OAuth via Dex
-  dex:
-    openShiftOAuth: false
-    config: |
-      connectors:
-        - type: github
-          id: github
-          name: GitHub
-          config:
-            clientID: $dex.github.clientID
-            clientSecret: $dex.github.clientSecret
-            orgs:
-              - name: makeitworkcloud
-            loadAllGroups: true
-            teamNameField: slug
-            useLoginAsID: true
+  # GitHub OAuth via Dex (SSO)
+  sso:
+    provider: dex
+    dex:
+      openShiftOAuth: false
+      config: |
+        connectors:
+          - type: github
+            id: github
+            name: GitHub
+            config:
+              clientID: $dex.github.clientID
+              clientSecret: $dex.github.clientSecret
+              orgs:
+                - name: makeitworkcloud
+              loadAllGroups: true
+              teamNameField: slug
+              useLoginAsID: true
   # RBAC with GitHub team mapping
   rbac:
     defaultPolicy: ''
