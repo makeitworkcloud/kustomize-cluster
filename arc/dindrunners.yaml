@@ -3,6 +3,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: arc-dind-runners
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -10,6 +12,7 @@ metadata:
   name: docker-daemon-config
   namespace: arc-dind-runners
   annotations:
+    argocd.argoproj.io/sync-wave: "0"
     kustomize.config.k8s.io/behavior: merge
 data:
   daemon.json: '{"registry-mirrors": ["http://registry.docker-registry.svc:5000"], "insecure-registries": ["registry.docker-registry.svc:5000", "registry.docker-registry.svc.cluster.local:5000", "image-registry.openshift-image-registry.svc:5000", "image-registry.openshift-image-registry.svc.cluster.local:5000", "default-route-openshift-image-registry.apps.makeitwork.cloud"]}'
