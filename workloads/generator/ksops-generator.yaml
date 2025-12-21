@@ -10,6 +10,6 @@ files:
   - ../ansible/awx.yaml
   - ../ansible/certs.yaml
   - ../arc/arcrunners.yaml
-  - ../arc/dindsystem.yaml
+  - ../arc/dindrunners.yaml
   - ../grafana/grafana-admin-secret.yaml
   - ../grafana/certs.yaml
