@@ -7,3 +7,5 @@ resources:
   - ansible
   - arc
   - grafana
+generators:
+  - generator/ksops-generator.yaml
