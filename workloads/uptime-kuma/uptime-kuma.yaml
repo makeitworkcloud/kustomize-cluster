@@ -16,7 +16,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: system:openshift:scc:anyuid
+  name: system:openshift:scc:privileged
 subjects:
   - kind: ServiceAccount
     name: default
@@ -41,11 +41,6 @@ spec:
         persistence:
           enabled: true
           size: 1Gi
-        securityContext:
-          runAsUser: 1000
-          runAsGroup: 1000
-        podSecurityContext:
-          fsGroup: 1000
   destination:
     server: "https://kubernetes.default.svc"
     namespace: uptime-kuma
