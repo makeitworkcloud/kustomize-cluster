@@ -1,0 +1,21 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: public-registry
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: terraform-runner
+  namespace: public-registry
+spec:
+  tags:
+    - from:
+        kind: DockerImage
+        name: ghcr.io/makeitworkcloud/terraform-runner
+      name: latest
+      importPolicy:
+        scheduled: true
+      lookupPolicy:
+        local: true

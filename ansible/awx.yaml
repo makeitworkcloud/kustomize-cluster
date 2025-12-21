@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: makeitwork-admin-password
+    namespace: awx
+    annotations:
+        kustomize.config.k8s.io/behavior: replace
+type: Opaque
+data:
+    password: ENC[AES256_GCM,data:9CMjnNKU96N4GZTjmNVqpdWWV/oRpoZBrbsQ8n1OZ9w=,iv:gD+vRyU/yF2gtjNOReqDj01muFuRoYSnjRZJf1Iynyk=,tag:RPwyz7bBZCFlZTLi3LRlyg==,type:str]
+sops:
+    age:
+        - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAzK25WRGE5czJBTFYvNDhr
+            UDFKeTNlWTN0MUllR3drdjFGYUFMTnQ5MlJNCktROFd5M1VFZHJTT1A1WThuaHM1
+            VklkbkZuY0tscHY5Y09sNkFEZTNQZWsKLS0tIDJ6aWUxSHR6K2RkVWNzRlJmLzR0
+            WENSaTE0ck5pSFpsd3BPdERreFpndUEKUarJvMHr6BwHcutwMxryHY+9diADtgqb
+            OQieidE4PilPlG/mSQBL+Q4oTTEdFbRINjtOjAMs2+qt+XrrQADwIg==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-12-21T17:10:30Z"
+    mac: ENC[AES256_GCM,data:jFcWnUOymSvxkkL+31ugdC8RGiMtzA8XabnkT2cJUolltZJwtAZ2TH15qqGge7j44SjnqPRvMh8enqiDhYb+3IxO4anjYIheBOFrQ9qET4N2MNXeE9bPL7sYGgPkFhBeGbjATP6has5TRtDMNltxqprCsJr2XtIb6jWyFiAGKK0=,iv:EbhDwji/7NNoE0eyIbKwfO/wP42Cp+c4j3EP5WjS46g=,tag:7gWuRW9COgYLkbLtUkDRSg==,type:str]
+    encrypted_regex: ^(password)$
+    version: 3.10.2
+---
+apiVersion: awx.ansible.com/v1beta1
+kind: AWX
+metadata:
+    name: awx
+    namespace: awx
+    annotations:
+        argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+        kustomize.config.k8s.io/behavior: merge
+spec:
+    ingress_type: Route
+    route_host: ansible.makeitwork.cloud
+    route_tls_secret: makeitwork-tls
+    admin_password_secret: makeitwork-admin-password
+sops:
+    age:
+        - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAzK25WRGE5czJBTFYvNDhr
+            UDFKeTNlWTN0MUllR3drdjFGYUFMTnQ5MlJNCktROFd5M1VFZHJTT1A1WThuaHM1
+            VklkbkZuY0tscHY5Y09sNkFEZTNQZWsKLS0tIDJ6aWUxSHR6K2RkVWNzRlJmLzR0
+            WENSaTE0ck5pSFpsd3BPdERreFpndUEKUarJvMHr6BwHcutwMxryHY+9diADtgqb
+            OQieidE4PilPlG/mSQBL+Q4oTTEdFbRINjtOjAMs2+qt+XrrQADwIg==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-12-21T17:10:30Z"
+    mac: ENC[AES256_GCM,data:jFcWnUOymSvxkkL+31ugdC8RGiMtzA8XabnkT2cJUolltZJwtAZ2TH15qqGge7j44SjnqPRvMh8enqiDhYb+3IxO4anjYIheBOFrQ9qET4N2MNXeE9bPL7sYGgPkFhBeGbjATP6has5TRtDMNltxqprCsJr2XtIb6jWyFiAGKK0=,iv:EbhDwji/7NNoE0eyIbKwfO/wP42Cp+c4j3EP5WjS46g=,tag:7gWuRW9COgYLkbLtUkDRSg==,type:str]
+    encrypted_regex: ^(password)$
+    version: 3.10.2
