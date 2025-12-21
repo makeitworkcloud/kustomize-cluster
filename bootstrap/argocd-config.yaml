@@ -33,11 +33,16 @@ spec:
         secret:
           secretName: sops-age-keys
     initContainers:
+      # Use alpine to download and install KSOPS binaries
       - name: install-ksops
-        image: viaductoss/ksops:latest-amd64
+        image: docker.io/alpine:3.21
         command: ["/bin/sh", "-c"]
         args:
-          - echo "Installing KSOPS..."; cp ksops /custom-tools/; cp $GOPATH/bin/kustomize /custom-tools/; echo "Done.";
+          - |
+            set -e
+            echo "Downloading KSOPS v4.4.0..."
+            wget -qO- https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.4.0/ksops_4.4.0_Linux_x86_64.tar.gz | tar xz -C /custom-tools
+            echo "Done."
         volumeMounts:
           - mountPath: /custom-tools
             name: custom-tools
