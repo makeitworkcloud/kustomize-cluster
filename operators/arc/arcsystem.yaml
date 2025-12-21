@@ -21,6 +21,7 @@ spec:
       jqPathExpressions:
         - .metadata.annotations
         - .spec.conversion
+        - .spec.preserveUnknownFields
         - .status
   syncPolicy:
     automated:

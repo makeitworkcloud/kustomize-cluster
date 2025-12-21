@@ -9,14 +9,14 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBTV2tyT1gxZFlrbTFlaEo5
-            TEVRRHpxNFdkMVhWNkZIVWdkdU16aWJpQ3h3ClJ5TlVPeGdvNlZqT0NvREFaWm5X
-            UjV0UWQvWXdISjRhOEJ1Q29pRUc0dWsKLS0tIHJuVzFpQy9SVU1ZUTMzbDJpNmxj
-            T0UzalFaS290QWpaL1FPSTR3cWgzdFEKiW8pc5OkKwFvdRLrmRTriP8DKpsntqD8
-            /tbYfoO1xRfK8q++FrRVTiJ5dgRof6SlgM2Yx+WZR5hwigSdBYOPew==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB0ZkU2SlBMd05hWitlVnZQ
+            cGIxNURpRlhkZnBjU1FpSGZaQit1cGR4YkhvCmN5bm1wZk9qb2dTdVVaeGxQSWVK
+            ajdoeVdjV05aMGo3dW9wY0Y4NG9XODAKLS0tIGh5Nm5PZytkOUh0Ym9LQmhsZStR
+            YTRDdGYyenlFVDJyQVRlaDRVNUhRN3cKbYt2kYBE9JT021+lZ75CEGFc89+zhZcj
+            QGsurd6egPwCEgoKYLEEMwalRbk4TAqK4OeYjRjRNsG8k2I0ipSr9w==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T22:15:41Z"
-    mac: ENC[AES256_GCM,data:U+180pmCyB4qJ8/rpi/GIUenPbn4q7AZibedhamVsE4ZByhGQOsOY2uO/jN8tU8KMNwsy2NMaWqXblO0JsAQmWRkAN+PVVUNjNgrgYoT1DRO/i35iAepzZe/2wsJbQXMD54J31dry1TrVY95yHZ364Hx+S+8N5YtFdkRI+YlKVk=,iv:Bh2yz25PKGBK9Cg2dlcqVjnKFiNLgLoe7c0+fH064bI=,tag:fqb/edlMYQVC6woVhxxR0w==,type:str]
+    lastmodified: "2025-12-21T22:24:30Z"
+    mac: ENC[AES256_GCM,data:3C1fziZsm8VNE2/4bz+PnSerH0qEGizo5Tn3zlha1Ee52OYy3F0EDWCO1Cr77b0NaTFhw45I75EmUpnSyFiDlem+g8ZkipYX/FtMYMKV9MO8RndTYbgRYsj6KkjnRQVOy9vPDi9FF3hF83y01dJ5Nq8NX3ATP1Or5lrtbvZ/0qk=,iv:7ceIeyEMOqC3yrrtDZYsKDKf2O/PAUkr0EFXuugbnKs=,tag:wh8ZNDTU0tUUmuonHPpSlw==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
 ---
@@ -38,6 +38,7 @@ spec:
           jqPathExpressions:
             - .metadata.annotations
             - .spec.conversion
+            - .spec.preserveUnknownFields
             - .status
     project: default
     source:
@@ -47,7 +48,7 @@ spec:
             valuesObject:
                 authSecret:
                     create: true
-                    github_token: ENC[AES256_GCM,data:ks+3wZNP3DzBacPC+G/h1UYUX+QaBEX4f6spnnzsvmMuXcjeJQgepQ==,iv:LAqJ5t/T0brqGOaciZ+M3t2rtzIWGZpwkndQHcN9iCw=,tag:xN5DGFdLjLCfKj1U/1hYiQ==,type:str]
+                    github_token: ENC[AES256_GCM,data:wrUyaYP//kIu+ZNXBkmzo8NZUtSAxklqWkfYa6q8QCnSHf7wX9q8uw==,iv:3dO9Ntm4OKSLZrcSvR+DaD9UgVtSQTyOacuRzfqpv5k=,tag:ekxApSCnRLr1/WMVP8UsrQ==,type:str]
                 scope:
                     singleNamespace: true
                     watchNamespace: arc-dind-runners
@@ -65,14 +66,14 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBTV2tyT1gxZFlrbTFlaEo5
-            TEVRRHpxNFdkMVhWNkZIVWdkdU16aWJpQ3h3ClJ5TlVPeGdvNlZqT0NvREFaWm5X
-            UjV0UWQvWXdISjRhOEJ1Q29pRUc0dWsKLS0tIHJuVzFpQy9SVU1ZUTMzbDJpNmxj
-            T0UzalFaS290QWpaL1FPSTR3cWgzdFEKiW8pc5OkKwFvdRLrmRTriP8DKpsntqD8
-            /tbYfoO1xRfK8q++FrRVTiJ5dgRof6SlgM2Yx+WZR5hwigSdBYOPew==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB0ZkU2SlBMd05hWitlVnZQ
+            cGIxNURpRlhkZnBjU1FpSGZaQit1cGR4YkhvCmN5bm1wZk9qb2dTdVVaeGxQSWVK
+            ajdoeVdjV05aMGo3dW9wY0Y4NG9XODAKLS0tIGh5Nm5PZytkOUh0Ym9LQmhsZStR
+            YTRDdGYyenlFVDJyQVRlaDRVNUhRN3cKbYt2kYBE9JT021+lZ75CEGFc89+zhZcj
+            QGsurd6egPwCEgoKYLEEMwalRbk4TAqK4OeYjRjRNsG8k2I0ipSr9w==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T22:15:41Z"
-    mac: ENC[AES256_GCM,data:U+180pmCyB4qJ8/rpi/GIUenPbn4q7AZibedhamVsE4ZByhGQOsOY2uO/jN8tU8KMNwsy2NMaWqXblO0JsAQmWRkAN+PVVUNjNgrgYoT1DRO/i35iAepzZe/2wsJbQXMD54J31dry1TrVY95yHZ364Hx+S+8N5YtFdkRI+YlKVk=,iv:Bh2yz25PKGBK9Cg2dlcqVjnKFiNLgLoe7c0+fH064bI=,tag:fqb/edlMYQVC6woVhxxR0w==,type:str]
+    lastmodified: "2025-12-21T22:24:30Z"
+    mac: ENC[AES256_GCM,data:3C1fziZsm8VNE2/4bz+PnSerH0qEGizo5Tn3zlha1Ee52OYy3F0EDWCO1Cr77b0NaTFhw45I75EmUpnSyFiDlem+g8ZkipYX/FtMYMKV9MO8RndTYbgRYsj6KkjnRQVOy9vPDi9FF3hF83y01dJ5Nq8NX3ATP1Or5lrtbvZ/0qk=,iv:7ceIeyEMOqC3yrrtDZYsKDKf2O/PAUkr0EFXuugbnKs=,tag:wh8ZNDTU0tUUmuonHPpSlw==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
 ---
@@ -96,14 +97,14 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBTV2tyT1gxZFlrbTFlaEo5
-            TEVRRHpxNFdkMVhWNkZIVWdkdU16aWJpQ3h3ClJ5TlVPeGdvNlZqT0NvREFaWm5X
-            UjV0UWQvWXdISjRhOEJ1Q29pRUc0dWsKLS0tIHJuVzFpQy9SVU1ZUTMzbDJpNmxj
-            T0UzalFaS290QWpaL1FPSTR3cWgzdFEKiW8pc5OkKwFvdRLrmRTriP8DKpsntqD8
-            /tbYfoO1xRfK8q++FrRVTiJ5dgRof6SlgM2Yx+WZR5hwigSdBYOPew==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB0ZkU2SlBMd05hWitlVnZQ
+            cGIxNURpRlhkZnBjU1FpSGZaQit1cGR4YkhvCmN5bm1wZk9qb2dTdVVaeGxQSWVK
+            ajdoeVdjV05aMGo3dW9wY0Y4NG9XODAKLS0tIGh5Nm5PZytkOUh0Ym9LQmhsZStR
+            YTRDdGYyenlFVDJyQVRlaDRVNUhRN3cKbYt2kYBE9JT021+lZ75CEGFc89+zhZcj
+            QGsurd6egPwCEgoKYLEEMwalRbk4TAqK4OeYjRjRNsG8k2I0ipSr9w==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T22:15:41Z"
-    mac: ENC[AES256_GCM,data:U+180pmCyB4qJ8/rpi/GIUenPbn4q7AZibedhamVsE4ZByhGQOsOY2uO/jN8tU8KMNwsy2NMaWqXblO0JsAQmWRkAN+PVVUNjNgrgYoT1DRO/i35iAepzZe/2wsJbQXMD54J31dry1TrVY95yHZ364Hx+S+8N5YtFdkRI+YlKVk=,iv:Bh2yz25PKGBK9Cg2dlcqVjnKFiNLgLoe7c0+fH064bI=,tag:fqb/edlMYQVC6woVhxxR0w==,type:str]
+    lastmodified: "2025-12-21T22:24:30Z"
+    mac: ENC[AES256_GCM,data:3C1fziZsm8VNE2/4bz+PnSerH0qEGizo5Tn3zlha1Ee52OYy3F0EDWCO1Cr77b0NaTFhw45I75EmUpnSyFiDlem+g8ZkipYX/FtMYMKV9MO8RndTYbgRYsj6KkjnRQVOy9vPDi9FF3hF83y01dJ5Nq8NX3ATP1Or5lrtbvZ/0qk=,iv:7ceIeyEMOqC3yrrtDZYsKDKf2O/PAUkr0EFXuugbnKs=,tag:wh8ZNDTU0tUUmuonHPpSlw==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
 ---
@@ -127,13 +128,13 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBTV2tyT1gxZFlrbTFlaEo5
-            TEVRRHpxNFdkMVhWNkZIVWdkdU16aWJpQ3h3ClJ5TlVPeGdvNlZqT0NvREFaWm5X
-            UjV0UWQvWXdISjRhOEJ1Q29pRUc0dWsKLS0tIHJuVzFpQy9SVU1ZUTMzbDJpNmxj
-            T0UzalFaS290QWpaL1FPSTR3cWgzdFEKiW8pc5OkKwFvdRLrmRTriP8DKpsntqD8
-            /tbYfoO1xRfK8q++FrRVTiJ5dgRof6SlgM2Yx+WZR5hwigSdBYOPew==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB0ZkU2SlBMd05hWitlVnZQ
+            cGIxNURpRlhkZnBjU1FpSGZaQit1cGR4YkhvCmN5bm1wZk9qb2dTdVVaeGxQSWVK
+            ajdoeVdjV05aMGo3dW9wY0Y4NG9XODAKLS0tIGh5Nm5PZytkOUh0Ym9LQmhsZStR
+            YTRDdGYyenlFVDJyQVRlaDRVNUhRN3cKbYt2kYBE9JT021+lZ75CEGFc89+zhZcj
+            QGsurd6egPwCEgoKYLEEMwalRbk4TAqK4OeYjRjRNsG8k2I0ipSr9w==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T22:15:41Z"
-    mac: ENC[AES256_GCM,data:U+180pmCyB4qJ8/rpi/GIUenPbn4q7AZibedhamVsE4ZByhGQOsOY2uO/jN8tU8KMNwsy2NMaWqXblO0JsAQmWRkAN+PVVUNjNgrgYoT1DRO/i35iAepzZe/2wsJbQXMD54J31dry1TrVY95yHZ364Hx+S+8N5YtFdkRI+YlKVk=,iv:Bh2yz25PKGBK9Cg2dlcqVjnKFiNLgLoe7c0+fH064bI=,tag:fqb/edlMYQVC6woVhxxR0w==,type:str]
+    lastmodified: "2025-12-21T22:24:30Z"
+    mac: ENC[AES256_GCM,data:3C1fziZsm8VNE2/4bz+PnSerH0qEGizo5Tn3zlha1Ee52OYy3F0EDWCO1Cr77b0NaTFhw45I75EmUpnSyFiDlem+g8ZkipYX/FtMYMKV9MO8RndTYbgRYsj6KkjnRQVOy9vPDi9FF3hF83y01dJ5Nq8NX3ATP1Or5lrtbvZ/0qk=,iv:7ceIeyEMOqC3yrrtDZYsKDKf2O/PAUkr0EFXuugbnKs=,tag:wh8ZNDTU0tUUmuonHPpSlw==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
