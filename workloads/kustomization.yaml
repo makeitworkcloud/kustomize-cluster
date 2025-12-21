@@ -7,3 +7,4 @@ resources:
   - ../ansible
 generators:
   - generator/ksops-generator.yaml
+  - generator/ksops-github-oauth.yaml

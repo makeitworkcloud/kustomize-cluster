@@ -1,6 +1,8 @@
 ---
-# KSOPS configuration patch for OpenShift GitOps ArgoCD instance
-# This configures the repo-server to decrypt SOPS-encrypted secrets using AGE keys
+# OpenShift GitOps ArgoCD configuration
+# - KSOPS for SOPS-encrypted secrets using AGE keys
+# - GitHub OAuth authentication via Dex
+# - RBAC with GitHub org/team mapping
 apiVersion: argoproj.io/v1beta1
 kind: ArgoCD
 metadata:
@@ -9,6 +11,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
+  # KSOPS configuration
   kustomizeBuildOptions: "--enable-alpha-plugins --enable-exec"
   repo:
     resources:
@@ -48,3 +51,28 @@ spec:
       - mountPath: /.config/sops/age/key.txt
         name: sops-age-keys
         subPath: key.txt
+  # GitHub OAuth via Dex
+  dex:
+    openShiftOAuth: false
+    config: |
+      connectors:
+        - type: github
+          id: github
+          name: GitHub
+          config:
+            clientID: $dex.github.clientID
+            clientSecret: $dex.github.clientSecret
+            orgs:
+              - name: makeitworkcloud
+            loadAllGroups: true
+            teamNameField: slug
+            useLoginAsID: true
+  # RBAC with GitHub team mapping
+  rbac:
+    defaultPolicy: ''
+    policy: |
+      # Admin access for admins team
+      g, makeitworkcloud:admins, role:admin
+      # Read-only access for developers team
+      g, makeitworkcloud:developers, role:readonly
+    scopes: '[groups]'
