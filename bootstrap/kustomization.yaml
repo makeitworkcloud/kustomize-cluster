@@ -5,5 +5,8 @@ resources:
   # Wave 0: Configure ArgoCD (KSOPS + GitHub OAuth + RBAC)
   - argocd-config.yaml
   - wait-for-repo-server.yaml
-  # Wave 1: Deploy workloads after repo-server is ready
+  # Wave 1: Deploy operators (install CRDs)
+  - operators-app.yaml
+  - wait-for-crds.yaml
+  # Wave 2: Deploy workloads (CRs that depend on CRDs)
   - workloads-app.yaml
