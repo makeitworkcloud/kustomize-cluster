@@ -7,4 +7,4 @@ metadata:
       exec:
         path: ksops
 files:
-  - ../github-oauth-secret.yaml
+  - github-oauth-secret.yaml
