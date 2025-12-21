@@ -10,16 +10,22 @@ metadata:
     argocd.argoproj.io/sync-wave: "0"
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    ignore-check.kube-linter.io/non-existent-service-account: "SA created by GitOps operator"
 spec:
+  ttlSecondsAfterFinished: 300
   backoffLimit: 10
   activeDeadlineSeconds: 600
   template:
     spec:
       serviceAccountName: openshift-gitops-argocd-application-controller
       restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: wait
-          image: registry.redhat.io/openshift4/ose-cli:latest
+          image: registry.redhat.io/openshift4/ose-cli:v4.17
           command:
             - /bin/bash
             - -c
@@ -30,3 +36,15 @@ spec:
                 -n openshift-gitops \
                 --timeout=300s
               echo "Repo-server is ready"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
