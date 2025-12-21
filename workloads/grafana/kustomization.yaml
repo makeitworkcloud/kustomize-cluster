@@ -5,3 +5,4 @@ resources:
   - grafana.yaml
   - grafana-admin-secret.yaml
   - grafana-github-oauth-secret.yaml
+  - tor-proxy.yaml

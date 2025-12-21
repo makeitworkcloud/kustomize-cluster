@@ -1,0 +1,52 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tor-hidden-service-keys
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tor-proxy
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tor-proxy
+  template:
+    metadata:
+      labels:
+        app: tor-proxy
+    spec:
+      containers:
+        - name: tor
+          image: goldy/tor-hidden-service:v0.4.7.12-54c0e54
+          env:
+            - name: GRAFANA_TOR_SERVICE_HOSTS
+              value: "80:grafana-service:3000"
+          volumeMounts:
+            - name: tor-keys
+              mountPath: /var/lib/tor/hidden_service
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+      volumes:
+        - name: tor-keys
+          persistentVolumeClaim:
+            claimName: tor-hidden-service-keys
