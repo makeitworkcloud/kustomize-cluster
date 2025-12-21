@@ -1,0 +1,65 @@
+---
+# PostSync hook to wait for operator CRDs before workloads sync
+# Runs after operators app syncs, before workloads app syncs
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wait-for-crds
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    ignore-check.kube-linter.io/non-existent-service-account: "SA created by GitOps operator"
+    ignore-check.kube-linter.io/latest-tag: "Using cluster-managed OpenShift CLI imagestream"
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 30
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      serviceAccountName: openshift-gitops-argocd-application-controller
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: wait
+          image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Waiting for operator CRDs..."
+
+              # Wait for AWX CRD
+              echo "Checking for AWX CRD..."
+              until oc get crd awxs.awx.ansible.com 2>/dev/null; do
+                echo "Waiting for awxs.awx.ansible.com CRD..."
+                sleep 10
+              done
+              echo "AWX CRD ready"
+
+              # Wait for ARC CRDs
+              echo "Checking for ARC CRDs..."
+              until oc get crd runnerdeployments.actions.summerwind.dev 2>/dev/null; do
+                echo "Waiting for runnerdeployments.actions.summerwind.dev CRD..."
+                sleep 10
+              done
+              echo "ARC CRDs ready"
+
+              echo "All operator CRDs are available"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
