@@ -12,9 +12,24 @@ spec:
   config:
     log:
       mode: "console"
-  admin:
-    credentialsSecret:
-      name: grafana-admin-password
+  disableDefaultAdminSecret: true
+  deployment:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: grafana
+              env:
+                - name: GF_SECURITY_ADMIN_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-admin-password
+                      key: GF_SECURITY_ADMIN_USER
+                - name: GF_SECURITY_ADMIN_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-admin-password
+                      key: GF_SECURITY_ADMIN_PASSWORD
   persistentVolumeClaim:
     spec:
       accessModes:
