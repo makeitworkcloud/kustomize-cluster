@@ -1,0 +1,39 @@
+---
+name: Sync
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Connect to Cloudflare WARP
+        uses: Boostport/setup-cloudflare-warp@v1
+        with:
+          organization: makeitworkcloud
+          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
+          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
+
+      - name: Install OpenShift CLI
+        uses: redhat-actions/oc-installer@v1
+
+      - name: Login to OpenShift
+        uses: redhat-actions/oc-login@v1
+        with:
+          openshift_server_url: ${{ secrets.OPENSHIFT_SERVER_URL }}
+          openshift_username: ${{ secrets.OPENSHIFT_USERNAME }}
+          openshift_password: ${{ secrets.OPENSHIFT_PASSWORD }}
+          insecure_skip_tls_verify: true
+
+      - name: Sync ArgoCD application
+        run: |
+          oc -n openshift-gitops patch application kustomize-cluster \
+            --type=merge \
+            -p '{"operation":{"initiatedBy":{"username":"github-actions"},"sync":{"revision":"${{ github.sha }}"}}}'
