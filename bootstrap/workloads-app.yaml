@@ -16,6 +16,16 @@ spec:
     targetRevision: main
   destination:
     server: https://kubernetes.default.svc
+  # Ignore fields that OpenShift mutates on ImageStreams after import
+  ignoreDifferences:
+    - group: image.openshift.io
+      kind: ImageStream
+      jsonPointers:
+        - /spec/lookupPolicy
+        - /spec/tags/0/generation
+        - /spec/tags/0/importPolicy/importMode
+        - /spec/tags/0/referencePolicy
+        - /spec/tags/0/annotations
   syncPolicy:
     automated:
       prune: true
