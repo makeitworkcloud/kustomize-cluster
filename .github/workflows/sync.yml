@@ -2,9 +2,11 @@
 name: Sync
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["Run tests"]
+    branches: [main]
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -12,6 +14,11 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    # Only sync on successful test runs triggered by push to main (not PRs)
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
 
     steps:
       - name: Connect to Cloudflare WARP
@@ -36,4 +43,4 @@ jobs:
         run: |
           oc -n openshift-gitops patch application kustomize-cluster \
             --type=merge \
-            -p '{"operation":{"initiatedBy":{"username":"github-actions"},"sync":{"revision":"${{ github.sha }}"}}}'
+            -p '{"operation":{"initiatedBy":{"username":"github-actions"},"sync":{"revision":"${{ github.event.workflow_run.head_sha }}"}}}'
