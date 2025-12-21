@@ -40,8 +40,11 @@ spec:
         args:
           - |
             set -e
+            echo "Downloading kustomize v5.8.0..."
+            wget -qO- https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.0/kustomize_v5.8.0_linux_amd64.tar.gz | tar xz -C /custom-tools
             echo "Downloading KSOPS v4.4.0..."
             wget -qO- https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.4.0/ksops_4.4.0_Linux_x86_64.tar.gz | tar xz -C /custom-tools
+            chmod +x /custom-tools/kustomize /custom-tools/ksops
             echo "Done."
         volumeMounts:
           - mountPath: /custom-tools
