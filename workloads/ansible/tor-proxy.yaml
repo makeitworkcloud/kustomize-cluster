@@ -4,8 +4,6 @@ kind: PersistentVolumeClaim
 metadata:
   name: tor-hidden-service-keys
   namespace: awx
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
 spec:
   accessModes:
     - ReadWriteOnce
@@ -18,8 +16,6 @@ kind: Deployment
 metadata:
   name: tor-proxy
   namespace: awx
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
 spec:
   replicas: 1
   selector:
