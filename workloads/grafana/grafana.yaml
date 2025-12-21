@@ -30,6 +30,35 @@ spec:
                     secretKeyRef:
                       name: grafana-admin-password
                       key: GF_SECURITY_ADMIN_PASSWORD
+                # GitHub OAuth
+                - name: GF_AUTH_GITHUB_ENABLED
+                  value: "true"
+                - name: GF_AUTH_GITHUB_ALLOW_SIGN_UP
+                  value: "true"
+                - name: GF_AUTH_GITHUB_AUTO_LOGIN
+                  value: "false"
+                - name: GF_AUTH_GITHUB_CLIENT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-github-oauth
+                      key: GF_AUTH_GITHUB_CLIENT_ID
+                - name: GF_AUTH_GITHUB_CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-github-oauth
+                      key: GF_AUTH_GITHUB_CLIENT_SECRET
+                - name: GF_AUTH_GITHUB_SCOPES
+                  value: "user:email,read:org"
+                - name: GF_AUTH_GITHUB_AUTH_URL
+                  value: "https://github.com/login/oauth/authorize"
+                - name: GF_AUTH_GITHUB_TOKEN_URL
+                  value: "https://github.com/login/oauth/access_token"
+                - name: GF_AUTH_GITHUB_API_URL
+                  value: "https://api.github.com/user"
+                - name: GF_AUTH_GITHUB_ALLOWED_ORGANIZATIONS
+                  value: "makeitworkcloud"
+                - name: GF_AUTH_GITHUB_ROLE_ATTRIBUTE_PATH
+                  value: "contains(groups[*], '@makeitworkcloud/admins') && 'Admin' || contains(groups[*], '@makeitworkcloud/developers') && 'Viewer' || 'Viewer'"
   persistentVolumeClaim:
     spec:
       accessModes:
