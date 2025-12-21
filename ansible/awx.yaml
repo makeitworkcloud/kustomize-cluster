@@ -1,13 +1,14 @@
 apiVersion: v1
-kind: Secret
-metadata:
-    name: makeitwork-admin-password
-    namespace: awx
-    annotations:
-        kustomize.config.k8s.io/behavior: replace
-type: Opaque
 data:
     password: ENC[AES256_GCM,data:9CMjnNKU96N4GZTjmNVqpdWWV/oRpoZBrbsQ8n1OZ9w=,iv:gD+vRyU/yF2gtjNOReqDj01muFuRoYSnjRZJf1Iynyk=,tag:RPwyz7bBZCFlZTLi3LRlyg==,type:str]
+kind: Secret
+metadata:
+    annotations:
+        argocd.argoproj.io/sync-wave: "0"
+        kustomize.config.k8s.io/behavior: replace
+    name: makeitwork-admin-password
+    namespace: awx
+type: Opaque
 sops:
     age:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
@@ -19,24 +20,24 @@ sops:
             WENSaTE0ck5pSFpsd3BPdERreFpndUEKUarJvMHr6BwHcutwMxryHY+9diADtgqb
             OQieidE4PilPlG/mSQBL+Q4oTTEdFbRINjtOjAMs2+qt+XrrQADwIg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T19:54:28Z"
-    mac: ENC[AES256_GCM,data:COAJD3HJUno1NPBqj2m8KOVNFfL1KP1IIjbiZZTM8oY8PsCNIxzcSAKgMVTFLaR3jTSqpTQKvAdYWcE3bh8ywqz1vdBUf0vm+T1YmAFefEWUEVZNQ4NCXoaLMNiNmqCp7pQ5ipO6Gstp95aJLh+z0i1PHDm+mbF04CQQziPobg4=,iv:f0Rs2Eysnan/rSuPvvaU/Ow5xxhzlIIPlU7d/7WFzGI=,tag:78mW9RNomghRJPXT0A/3bA==,type:str]
+    lastmodified: "2025-12-21T20:03:13Z"
+    mac: ENC[AES256_GCM,data:ktLYZZxLs0vkfoBQr+7Sj3hs/O3cJxhkTTa+ggCIKxVgYWZHU7MYi/uwMGF92TERY10s/dSBl9EjA6q9cmYe2q2L75RTawS5qIDg7PixyYI2hhznoXauXd2AT3ZiGBlLWfbTTY57QiVSpiRuaj21LJFVFV8BV0umYDm5IF9nvSs=,iv:Ssk8M28mbDWDGZ4ppnnf16Ee+/c/4zuwubOVFdr2yGc=,tag:CukAm6vOuD7CftgZv/wisg==,type:str]
     encrypted_regex: ^(password)$
     version: 3.10.2
 ---
 apiVersion: awx.ansible.com/v1beta1
 kind: AWX
 metadata:
-    name: awx
-    namespace: awx
     annotations:
         argocd.argoproj.io/sync-wave: "1"
         kustomize.config.k8s.io/behavior: merge
+    name: awx
+    namespace: awx
 spec:
+    admin_password_secret: makeitwork-admin-password
     ingress_type: Route
     route_host: ansible.makeitwork.cloud
     route_tls_secret: makeitwork-tls
-    admin_password_secret: makeitwork-admin-password
 sops:
     age:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
@@ -48,7 +49,7 @@ sops:
             WENSaTE0ck5pSFpsd3BPdERreFpndUEKUarJvMHr6BwHcutwMxryHY+9diADtgqb
             OQieidE4PilPlG/mSQBL+Q4oTTEdFbRINjtOjAMs2+qt+XrrQADwIg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T19:54:28Z"
-    mac: ENC[AES256_GCM,data:COAJD3HJUno1NPBqj2m8KOVNFfL1KP1IIjbiZZTM8oY8PsCNIxzcSAKgMVTFLaR3jTSqpTQKvAdYWcE3bh8ywqz1vdBUf0vm+T1YmAFefEWUEVZNQ4NCXoaLMNiNmqCp7pQ5ipO6Gstp95aJLh+z0i1PHDm+mbF04CQQziPobg4=,iv:f0Rs2Eysnan/rSuPvvaU/Ow5xxhzlIIPlU7d/7WFzGI=,tag:78mW9RNomghRJPXT0A/3bA==,type:str]
+    lastmodified: "2025-12-21T20:03:13Z"
+    mac: ENC[AES256_GCM,data:ktLYZZxLs0vkfoBQr+7Sj3hs/O3cJxhkTTa+ggCIKxVgYWZHU7MYi/uwMGF92TERY10s/dSBl9EjA6q9cmYe2q2L75RTawS5qIDg7PixyYI2hhznoXauXd2AT3ZiGBlLWfbTTY57QiVSpiRuaj21LJFVFV8BV0umYDm5IF9nvSs=,iv:Ssk8M28mbDWDGZ4ppnnf16Ee+/c/4zuwubOVFdr2yGc=,tag:CukAm6vOuD7CftgZv/wisg==,type:str]
     encrypted_regex: ^(password)$
     version: 3.10.2

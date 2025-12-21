@@ -63,7 +63,7 @@ spec:
   sso:
     provider: dex
     dex:
-      openShiftOAuth: false
+      # openShiftOAuth defaults to false, using GitHub OAuth instead
       config: |
         connectors:
           - type: github
