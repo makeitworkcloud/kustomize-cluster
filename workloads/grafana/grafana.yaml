@@ -1,0 +1,46 @@
+---
+apiVersion: grafana.integreatly.org/v1beta1
+kind: Grafana
+metadata:
+  name: grafana
+  namespace: grafana
+  labels:
+    dashboards: "grafana"
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  config:
+    log:
+      mode: "console"
+    security:
+      admin_user: admin
+      admin_password: ${ADMIN_PASSWORD}
+  deployment:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: grafana
+              env:
+                - name: ADMIN_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-admin-password
+                      key: password
+  persistentVolumeClaim:
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+  route:
+    spec:
+      host: grafana.makeitwork.cloud
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+      to:
+        kind: Service
+        name: grafana-service
+        weight: 100
