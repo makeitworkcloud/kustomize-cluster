@@ -1,0 +1,8 @@
+---
+# Root kustomization for local testing only
+# ArgoCD uses bootstrap/ and workloads/ separately via two Applications
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - bootstrap
+  - workloads

@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+    name: arc-dind-systems
+    annotations:
+        kustomize.config.k8s.io/behavior: merge
+sops:
+    age:
+        - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOSkxiUjNPcVkvaVY4NEV4
+            Ulh4UmJJNnFlZ1kvZGtqVHhSWHdjSWJuVGxnClZzcWFTVEJGOFpsL1hVcnVyd1B2
+            NzVRUDZBU0tXeHBFdEFKZ25ic0k2RGsKLS0tIDJQZXphSC9KcitGK3MwSUJ1Ylds
+            T3dha3hXTEE3Q2xLRGxEZFFCdnREU2sK2gqg8WPDdCPEbFaxDwMjteIT51vRI9JJ
+            HxvKEEmNasazh+vSecF7W+lJfSeLEisdtqfchPT8XPy7avDlHp0MPw==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-07-09T16:20:49Z"
+    mac: ENC[AES256_GCM,data:pUy3czaieRl6zDxtklBxLfzeEcIn1yXR1OZpHUH1Q9FR23QVlvJBh7V5/3MFMovfBeOKN0l3xTusDyYKrv+hQYc/apd5q+eKJ/7Ops7D20O5WYLc6n1eye1WGYHTf7tyH6/fgSiZ5MJZBnMqk7PfuSJocVVRIomdcrFjjhCW96E=,iv:IxMccRo36SS53HyjZdZmTHQldGR0gp0cozv9uLqzfVE=,tag:cpFRBqt3FRFOh3QOKYjqeA==,type:str]
+    encrypted_regex: ^(github_token)$
+    version: 3.10.2
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+    name: arc-dind
+    namespace: openshift-gitops
+    annotations:
+        kustomize.config.k8s.io/behavior: merge
+spec:
+    syncPolicy:
+        automated:
+            prune: true
+            selfHeal: true
+        syncOptions:
+            - ServerSideApply=true
+    project: default
+    source:
+        chart: actions-runner-controller
+        repoURL: https://actions-runner-controller.github.io/actions-runner-controller
+        targetRevision: 0.23.7
+        helm:
+            releaseName: arc-dind
+            valuesObject:
+                authSecret:
+                    create: true
+                    github_token: ENC[AES256_GCM,data:CZRtCwqlNgpc27y2QtM2q5b1W969JIO9A0K5IQSIkC5szj14bC0Xng==,iv:NIFiz6AcXOo9itXAFP4DKzEU5WSTiUO1wRDXDjmTxGc=,tag:38EDTlOK8vIBx8E7Pg3mTg==,type:str]
+                scope:
+                    singleNamespace: true
+                    watchNamespace: arc-dind-runners
+    destination:
+        server: https://kubernetes.default.svc
+        namespace: arc-dind-systems
+sops:
+    age:
+        - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOSkxiUjNPcVkvaVY4NEV4
+            Ulh4UmJJNnFlZ1kvZGtqVHhSWHdjSWJuVGxnClZzcWFTVEJGOFpsL1hVcnVyd1B2
+            NzVRUDZBU0tXeHBFdEFKZ25ic0k2RGsKLS0tIDJQZXphSC9KcitGK3MwSUJ1Ylds
+            T3dha3hXTEE3Q2xLRGxEZFFCdnREU2sK2gqg8WPDdCPEbFaxDwMjteIT51vRI9JJ
+            HxvKEEmNasazh+vSecF7W+lJfSeLEisdtqfchPT8XPy7avDlHp0MPw==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-07-09T16:20:49Z"
+    mac: ENC[AES256_GCM,data:pUy3czaieRl6zDxtklBxLfzeEcIn1yXR1OZpHUH1Q9FR23QVlvJBh7V5/3MFMovfBeOKN0l3xTusDyYKrv+hQYc/apd5q+eKJ/7Ops7D20O5WYLc6n1eye1WGYHTf7tyH6/fgSiZ5MJZBnMqk7PfuSJocVVRIomdcrFjjhCW96E=,iv:IxMccRo36SS53HyjZdZmTHQldGR0gp0cozv9uLqzfVE=,tag:cpFRBqt3FRFOh3QOKYjqeA==,type:str]
+    encrypted_regex: ^(github_token)$
+    version: 3.10.2
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+    name: arc-dind-systems-privileged-scc-rb
+    namespace: arc-dind-runners
+    annotations:
+        kustomize.config.k8s.io/behavior: merge
+roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: system:openshift:scc:privileged
+subjects:
+    - kind: ServiceAccount
+      name: default
+      namespace: arc-dind-runners
+sops:
+    age:
+        - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOSkxiUjNPcVkvaVY4NEV4
+            Ulh4UmJJNnFlZ1kvZGtqVHhSWHdjSWJuVGxnClZzcWFTVEJGOFpsL1hVcnVyd1B2
+            NzVRUDZBU0tXeHBFdEFKZ25ic0k2RGsKLS0tIDJQZXphSC9KcitGK3MwSUJ1Ylds
+            T3dha3hXTEE3Q2xLRGxEZFFCdnREU2sK2gqg8WPDdCPEbFaxDwMjteIT51vRI9JJ
+            HxvKEEmNasazh+vSecF7W+lJfSeLEisdtqfchPT8XPy7avDlHp0MPw==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-07-09T16:20:49Z"
+    mac: ENC[AES256_GCM,data:pUy3czaieRl6zDxtklBxLfzeEcIn1yXR1OZpHUH1Q9FR23QVlvJBh7V5/3MFMovfBeOKN0l3xTusDyYKrv+hQYc/apd5q+eKJ/7Ops7D20O5WYLc6n1eye1WGYHTf7tyH6/fgSiZ5MJZBnMqk7PfuSJocVVRIomdcrFjjhCW96E=,iv:IxMccRo36SS53HyjZdZmTHQldGR0gp0cozv9uLqzfVE=,tag:cpFRBqt3FRFOh3QOKYjqeA==,type:str]
+    encrypted_regex: ^(github_token)$
+    version: 3.10.2
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+    name: arc-dind-systems-anyuid-scc-rb
+    namespace: arc-dind-runners
+    annotations:
+        kustomize.config.k8s.io/behavior: merge
+roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: system:openshift:scc:anyuid
+subjects:
+    - kind: ServiceAccount
+      name: default
+      namespace: arc-dind-runners
+sops:
+    age:
+        - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOSkxiUjNPcVkvaVY4NEV4
+            Ulh4UmJJNnFlZ1kvZGtqVHhSWHdjSWJuVGxnClZzcWFTVEJGOFpsL1hVcnVyd1B2
+            NzVRUDZBU0tXeHBFdEFKZ25ic0k2RGsKLS0tIDJQZXphSC9KcitGK3MwSUJ1Ylds
+            T3dha3hXTEE3Q2xLRGxEZFFCdnREU2sK2gqg8WPDdCPEbFaxDwMjteIT51vRI9JJ
+            HxvKEEmNasazh+vSecF7W+lJfSeLEisdtqfchPT8XPy7avDlHp0MPw==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-07-09T16:20:49Z"
+    mac: ENC[AES256_GCM,data:pUy3czaieRl6zDxtklBxLfzeEcIn1yXR1OZpHUH1Q9FR23QVlvJBh7V5/3MFMovfBeOKN0l3xTusDyYKrv+hQYc/apd5q+eKJ/7Ops7D20O5WYLc6n1eye1WGYHTf7tyH6/fgSiZ5MJZBnMqk7PfuSJocVVRIomdcrFjjhCW96E=,iv:IxMccRo36SS53HyjZdZmTHQldGR0gp0cozv9uLqzfVE=,tag:cpFRBqt3FRFOh3QOKYjqeA==,type:str]
+    encrypted_regex: ^(github_token)$
+    version: 3.10.2
