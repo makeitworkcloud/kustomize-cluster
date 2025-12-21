@@ -9,14 +9,14 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBQWFpBNnI2YU9HdGNFempJ
-            VkhmMTFxejVHTzNMd0NlWUZoUklKdTE1NFRrCm96MmZLQ2dDekViVHVGTDgrdXIy
-            VzRDRE1OZVhZbExWUFBPQ0JvSWFuWk0KLS0tIE1YdmJLM3FJVG1yeHpDdldoQWRi
-            bXVHWnRtRGFWa2I3V0ZFS1U0M1VGdHcKxz7owqYLTt8zVZq1fMPZoVHlBCcLTnmk
-            4klto7G9uz7KSP/1JBgD7eEAHoD4Sd58Y7WxVCwx+19N60+S+5FB9Q==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBR3I5TUJWQ3E1OHB0ZjZV
+            Y0hHa1JrdzI4KytoVWNhWjFBUERrd3dMNENRCmRwcENyZ0VHY3o2TGZKMzU0Vlpn
+            dkE3aDA5ZTFiNXRFL0RRQ3ZpbGwwSm8KLS0tIFBiU3BxSU1teGYvYXUzTkM3VHl6
+            ZHl0ZFdIbHYvcXBhUGJEczZwbzdyZ0UK4rYd0FzQpPCrLpNSIUOxsQ0gD1uzNN5x
+            C04JsCXR3CfW4MpIl1B31VaZBNCG9VxOz0vCqGf/6RAJxbvm3N4yEg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T21:41:08Z"
-    mac: ENC[AES256_GCM,data:dkL5RifXmV8Si9UrUvrp7OGfau/SM2aUQT/HolwI3s+MUCTWeMNjJPoDw09bJqwvvLAO3+qFJf0RXpUba5jwOw3u/xs8LslyxiN1Y4UejZAAxWa6q+s3wiIrImWezrVzqZOkFnJab5sLI9d6lNRxM/WT9MUMYsUpw6C3pXpzuhk=,iv:4AnY+2eV9T178+HiXD+CVfR3qrE6VpQj9vn1bg6GZBY=,tag:rYkpsoIhmmtDx2LP+F4Prg==,type:str]
+    lastmodified: "2025-12-21T22:12:06Z"
+    mac: ENC[AES256_GCM,data:xXzf9fQ0UtbVgB9/EDJaWqjNdQnYDxYCFGfWuEn2TC6LQJx36LBbtO/xvYbHaXDWuBHdd1CoXKmFJcKBqVymoUciQWSpmqbIl1YhwdwME+4Bo1jUfSger/ga9lB6uGOsM+7K9BgAZuKJmjofssv+QafRForQuX4tvupzK92Lcsk=,iv:RgOetv7E07akjYewGxI+2P7rnjrcQZ/Z1be4IT+w12U=,tag:NMb+7RsbiqUoFxbenfK7pw==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
 ---
@@ -31,6 +31,14 @@ spec:
     destination:
         namespace: arc-dind-systems
         server: https://kubernetes.default.svc
+    # Ignore fields on CRDs that Kubernetes mutates after creation
+    ignoreDifferences:
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          jsonPointers:
+            - /metadata/annotations
+            - /spec/conversion
+            - /status
     project: default
     source:
         chart: actions-runner-controller
@@ -39,7 +47,7 @@ spec:
             valuesObject:
                 authSecret:
                     create: true
-                    github_token: ENC[AES256_GCM,data:Sk/av/IAjUkAoXFezCjl3c9x9h3r6pyWH6lFQ3AKpgpB8nt4JhRsXQ==,iv:lQvOvxqXsYNjbTz9SOxrjtrPDuLUy1vChq4FGzAMYrA=,tag:LWTQ4z/ZnWAWhyqysooFRA==,type:str]
+                    github_token: ENC[AES256_GCM,data:B5MExoNqSlZfW4+0MQeSkwbp4XMLhjWneVZr/H1pfU/dm5lXOzyMXg==,iv:/I0X5gALzehtFEeoSm+YOpWAIrYWbHSd6jzWP57oyrg=,tag:He+64KNwKFMCBAZLgY4AIQ==,type:str]
                 scope:
                     singleNamespace: true
                     watchNamespace: arc-dind-runners
@@ -51,19 +59,20 @@ spec:
             selfHeal: true
         syncOptions:
             - ServerSideApply=true
+            - RespectIgnoreDifferences=true
 sops:
     age:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBQWFpBNnI2YU9HdGNFempJ
-            VkhmMTFxejVHTzNMd0NlWUZoUklKdTE1NFRrCm96MmZLQ2dDekViVHVGTDgrdXIy
-            VzRDRE1OZVhZbExWUFBPQ0JvSWFuWk0KLS0tIE1YdmJLM3FJVG1yeHpDdldoQWRi
-            bXVHWnRtRGFWa2I3V0ZFS1U0M1VGdHcKxz7owqYLTt8zVZq1fMPZoVHlBCcLTnmk
-            4klto7G9uz7KSP/1JBgD7eEAHoD4Sd58Y7WxVCwx+19N60+S+5FB9Q==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBR3I5TUJWQ3E1OHB0ZjZV
+            Y0hHa1JrdzI4KytoVWNhWjFBUERrd3dMNENRCmRwcENyZ0VHY3o2TGZKMzU0Vlpn
+            dkE3aDA5ZTFiNXRFL0RRQ3ZpbGwwSm8KLS0tIFBiU3BxSU1teGYvYXUzTkM3VHl6
+            ZHl0ZFdIbHYvcXBhUGJEczZwbzdyZ0UK4rYd0FzQpPCrLpNSIUOxsQ0gD1uzNN5x
+            C04JsCXR3CfW4MpIl1B31VaZBNCG9VxOz0vCqGf/6RAJxbvm3N4yEg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T21:41:08Z"
-    mac: ENC[AES256_GCM,data:dkL5RifXmV8Si9UrUvrp7OGfau/SM2aUQT/HolwI3s+MUCTWeMNjJPoDw09bJqwvvLAO3+qFJf0RXpUba5jwOw3u/xs8LslyxiN1Y4UejZAAxWa6q+s3wiIrImWezrVzqZOkFnJab5sLI9d6lNRxM/WT9MUMYsUpw6C3pXpzuhk=,iv:4AnY+2eV9T178+HiXD+CVfR3qrE6VpQj9vn1bg6GZBY=,tag:rYkpsoIhmmtDx2LP+F4Prg==,type:str]
+    lastmodified: "2025-12-21T22:12:06Z"
+    mac: ENC[AES256_GCM,data:xXzf9fQ0UtbVgB9/EDJaWqjNdQnYDxYCFGfWuEn2TC6LQJx36LBbtO/xvYbHaXDWuBHdd1CoXKmFJcKBqVymoUciQWSpmqbIl1YhwdwME+4Bo1jUfSger/ga9lB6uGOsM+7K9BgAZuKJmjofssv+QafRForQuX4tvupzK92Lcsk=,iv:RgOetv7E07akjYewGxI+2P7rnjrcQZ/Z1be4IT+w12U=,tag:NMb+7RsbiqUoFxbenfK7pw==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
 ---
@@ -87,14 +96,14 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBQWFpBNnI2YU9HdGNFempJ
-            VkhmMTFxejVHTzNMd0NlWUZoUklKdTE1NFRrCm96MmZLQ2dDekViVHVGTDgrdXIy
-            VzRDRE1OZVhZbExWUFBPQ0JvSWFuWk0KLS0tIE1YdmJLM3FJVG1yeHpDdldoQWRi
-            bXVHWnRtRGFWa2I3V0ZFS1U0M1VGdHcKxz7owqYLTt8zVZq1fMPZoVHlBCcLTnmk
-            4klto7G9uz7KSP/1JBgD7eEAHoD4Sd58Y7WxVCwx+19N60+S+5FB9Q==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBR3I5TUJWQ3E1OHB0ZjZV
+            Y0hHa1JrdzI4KytoVWNhWjFBUERrd3dMNENRCmRwcENyZ0VHY3o2TGZKMzU0Vlpn
+            dkE3aDA5ZTFiNXRFL0RRQ3ZpbGwwSm8KLS0tIFBiU3BxSU1teGYvYXUzTkM3VHl6
+            ZHl0ZFdIbHYvcXBhUGJEczZwbzdyZ0UK4rYd0FzQpPCrLpNSIUOxsQ0gD1uzNN5x
+            C04JsCXR3CfW4MpIl1B31VaZBNCG9VxOz0vCqGf/6RAJxbvm3N4yEg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T21:41:08Z"
-    mac: ENC[AES256_GCM,data:dkL5RifXmV8Si9UrUvrp7OGfau/SM2aUQT/HolwI3s+MUCTWeMNjJPoDw09bJqwvvLAO3+qFJf0RXpUba5jwOw3u/xs8LslyxiN1Y4UejZAAxWa6q+s3wiIrImWezrVzqZOkFnJab5sLI9d6lNRxM/WT9MUMYsUpw6C3pXpzuhk=,iv:4AnY+2eV9T178+HiXD+CVfR3qrE6VpQj9vn1bg6GZBY=,tag:rYkpsoIhmmtDx2LP+F4Prg==,type:str]
+    lastmodified: "2025-12-21T22:12:06Z"
+    mac: ENC[AES256_GCM,data:xXzf9fQ0UtbVgB9/EDJaWqjNdQnYDxYCFGfWuEn2TC6LQJx36LBbtO/xvYbHaXDWuBHdd1CoXKmFJcKBqVymoUciQWSpmqbIl1YhwdwME+4Bo1jUfSger/ga9lB6uGOsM+7K9BgAZuKJmjofssv+QafRForQuX4tvupzK92Lcsk=,iv:RgOetv7E07akjYewGxI+2P7rnjrcQZ/Z1be4IT+w12U=,tag:NMb+7RsbiqUoFxbenfK7pw==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
 ---
@@ -118,13 +127,13 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBQWFpBNnI2YU9HdGNFempJ
-            VkhmMTFxejVHTzNMd0NlWUZoUklKdTE1NFRrCm96MmZLQ2dDekViVHVGTDgrdXIy
-            VzRDRE1OZVhZbExWUFBPQ0JvSWFuWk0KLS0tIE1YdmJLM3FJVG1yeHpDdldoQWRi
-            bXVHWnRtRGFWa2I3V0ZFS1U0M1VGdHcKxz7owqYLTt8zVZq1fMPZoVHlBCcLTnmk
-            4klto7G9uz7KSP/1JBgD7eEAHoD4Sd58Y7WxVCwx+19N60+S+5FB9Q==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBR3I5TUJWQ3E1OHB0ZjZV
+            Y0hHa1JrdzI4KytoVWNhWjFBUERrd3dMNENRCmRwcENyZ0VHY3o2TGZKMzU0Vlpn
+            dkE3aDA5ZTFiNXRFL0RRQ3ZpbGwwSm8KLS0tIFBiU3BxSU1teGYvYXUzTkM3VHl6
+            ZHl0ZFdIbHYvcXBhUGJEczZwbzdyZ0UK4rYd0FzQpPCrLpNSIUOxsQ0gD1uzNN5x
+            C04JsCXR3CfW4MpIl1B31VaZBNCG9VxOz0vCqGf/6RAJxbvm3N4yEg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T21:41:08Z"
-    mac: ENC[AES256_GCM,data:dkL5RifXmV8Si9UrUvrp7OGfau/SM2aUQT/HolwI3s+MUCTWeMNjJPoDw09bJqwvvLAO3+qFJf0RXpUba5jwOw3u/xs8LslyxiN1Y4UejZAAxWa6q+s3wiIrImWezrVzqZOkFnJab5sLI9d6lNRxM/WT9MUMYsUpw6C3pXpzuhk=,iv:4AnY+2eV9T178+HiXD+CVfR3qrE6VpQj9vn1bg6GZBY=,tag:rYkpsoIhmmtDx2LP+F4Prg==,type:str]
+    lastmodified: "2025-12-21T22:12:06Z"
+    mac: ENC[AES256_GCM,data:xXzf9fQ0UtbVgB9/EDJaWqjNdQnYDxYCFGfWuEn2TC6LQJx36LBbtO/xvYbHaXDWuBHdd1CoXKmFJcKBqVymoUciQWSpmqbIl1YhwdwME+4Bo1jUfSger/ga9lB6uGOsM+7K9BgAZuKJmjofssv+QafRForQuX4tvupzK92Lcsk=,iv:RgOetv7E07akjYewGxI+2P7rnjrcQZ/Z1be4IT+w12U=,tag:NMb+7RsbiqUoFxbenfK7pw==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
