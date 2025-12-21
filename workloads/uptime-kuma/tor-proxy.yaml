@@ -36,6 +36,9 @@ kind: Deployment
 metadata:
   name: tor-proxy
   namespace: uptime-kuma
+  annotations:
+    ignore-check.kube-linter.io/no-read-only-root-fs: "tor requires write access to /etc/tor"
+    ignore-check.kube-linter.io/run-as-non-root: "tor hidden service requires root"
 spec:
   replicas: 1
   selector:
