@@ -3,21 +3,20 @@ kind: Namespace
 metadata:
     annotations:
         argocd.argoproj.io/sync-wave: "0"
-        kustomize.config.k8s.io/behavior: merge
     name: arc-dind-systems
 sops:
     age:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOSkxiUjNPcVkvaVY4NEV4
-            Ulh4UmJJNnFlZ1kvZGtqVHhSWHdjSWJuVGxnClZzcWFTVEJGOFpsL1hVcnVyd1B2
-            NzVRUDZBU0tXeHBFdEFKZ25ic0k2RGsKLS0tIDJQZXphSC9KcitGK3MwSUJ1Ylds
-            T3dha3hXTEE3Q2xLRGxEZFFCdnREU2sK2gqg8WPDdCPEbFaxDwMjteIT51vRI9JJ
-            HxvKEEmNasazh+vSecF7W+lJfSeLEisdtqfchPT8XPy7avDlHp0MPw==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBQWFpBNnI2YU9HdGNFempJ
+            VkhmMTFxejVHTzNMd0NlWUZoUklKdTE1NFRrCm96MmZLQ2dDekViVHVGTDgrdXIy
+            VzRDRE1OZVhZbExWUFBPQ0JvSWFuWk0KLS0tIE1YdmJLM3FJVG1yeHpDdldoQWRi
+            bXVHWnRtRGFWa2I3V0ZFS1U0M1VGdHcKxz7owqYLTt8zVZq1fMPZoVHlBCcLTnmk
+            4klto7G9uz7KSP/1JBgD7eEAHoD4Sd58Y7WxVCwx+19N60+S+5FB9Q==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T20:03:25Z"
-    mac: ENC[AES256_GCM,data:ZROH+/s1RdHTd21ZEvk/LvkQ4GYF+VHAOcqGoeQjdFFk6LedtyTi+wvmdeduVWuo0tzqq2mOR2RdOfK2Wx8+LFtlyzHPszORjEVlp9aYjQO2QT77Q8/2vpmHmnzL8srO+76zQEmvHMOkCCLIEPI/8dAcHaQHkFWb5gb44oeBo9Y=,iv:DXt5fggib7stJ7pDif66Tz0kquPxFtF6R+U+qUZ4KmI=,tag:a7jFwX+uF3T7KeAbRaiBmg==,type:str]
+    lastmodified: "2025-12-21T21:41:08Z"
+    mac: ENC[AES256_GCM,data:dkL5RifXmV8Si9UrUvrp7OGfau/SM2aUQT/HolwI3s+MUCTWeMNjJPoDw09bJqwvvLAO3+qFJf0RXpUba5jwOw3u/xs8LslyxiN1Y4UejZAAxWa6q+s3wiIrImWezrVzqZOkFnJab5sLI9d6lNRxM/WT9MUMYsUpw6C3pXpzuhk=,iv:4AnY+2eV9T178+HiXD+CVfR3qrE6VpQj9vn1bg6GZBY=,tag:rYkpsoIhmmtDx2LP+F4Prg==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
 ---
@@ -26,7 +25,6 @@ kind: Application
 metadata:
     annotations:
         argocd.argoproj.io/sync-wave: "0"
-        kustomize.config.k8s.io/behavior: merge
     name: arc-dind
     namespace: openshift-gitops
 spec:
@@ -41,7 +39,7 @@ spec:
             valuesObject:
                 authSecret:
                     create: true
-                    github_token: ENC[AES256_GCM,data:CZRtCwqlNgpc27y2QtM2q5b1W969JIO9A0K5IQSIkC5szj14bC0Xng==,iv:NIFiz6AcXOo9itXAFP4DKzEU5WSTiUO1wRDXDjmTxGc=,tag:38EDTlOK8vIBx8E7Pg3mTg==,type:str]
+                    github_token: ENC[AES256_GCM,data:Sk/av/IAjUkAoXFezCjl3c9x9h3r6pyWH6lFQ3AKpgpB8nt4JhRsXQ==,iv:lQvOvxqXsYNjbTz9SOxrjtrPDuLUy1vChq4FGzAMYrA=,tag:LWTQ4z/ZnWAWhyqysooFRA==,type:str]
                 scope:
                     singleNamespace: true
                     watchNamespace: arc-dind-runners
@@ -58,14 +56,14 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOSkxiUjNPcVkvaVY4NEV4
-            Ulh4UmJJNnFlZ1kvZGtqVHhSWHdjSWJuVGxnClZzcWFTVEJGOFpsL1hVcnVyd1B2
-            NzVRUDZBU0tXeHBFdEFKZ25ic0k2RGsKLS0tIDJQZXphSC9KcitGK3MwSUJ1Ylds
-            T3dha3hXTEE3Q2xLRGxEZFFCdnREU2sK2gqg8WPDdCPEbFaxDwMjteIT51vRI9JJ
-            HxvKEEmNasazh+vSecF7W+lJfSeLEisdtqfchPT8XPy7avDlHp0MPw==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBQWFpBNnI2YU9HdGNFempJ
+            VkhmMTFxejVHTzNMd0NlWUZoUklKdTE1NFRrCm96MmZLQ2dDekViVHVGTDgrdXIy
+            VzRDRE1OZVhZbExWUFBPQ0JvSWFuWk0KLS0tIE1YdmJLM3FJVG1yeHpDdldoQWRi
+            bXVHWnRtRGFWa2I3V0ZFS1U0M1VGdHcKxz7owqYLTt8zVZq1fMPZoVHlBCcLTnmk
+            4klto7G9uz7KSP/1JBgD7eEAHoD4Sd58Y7WxVCwx+19N60+S+5FB9Q==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T20:03:25Z"
-    mac: ENC[AES256_GCM,data:ZROH+/s1RdHTd21ZEvk/LvkQ4GYF+VHAOcqGoeQjdFFk6LedtyTi+wvmdeduVWuo0tzqq2mOR2RdOfK2Wx8+LFtlyzHPszORjEVlp9aYjQO2QT77Q8/2vpmHmnzL8srO+76zQEmvHMOkCCLIEPI/8dAcHaQHkFWb5gb44oeBo9Y=,iv:DXt5fggib7stJ7pDif66Tz0kquPxFtF6R+U+qUZ4KmI=,tag:a7jFwX+uF3T7KeAbRaiBmg==,type:str]
+    lastmodified: "2025-12-21T21:41:08Z"
+    mac: ENC[AES256_GCM,data:dkL5RifXmV8Si9UrUvrp7OGfau/SM2aUQT/HolwI3s+MUCTWeMNjJPoDw09bJqwvvLAO3+qFJf0RXpUba5jwOw3u/xs8LslyxiN1Y4UejZAAxWa6q+s3wiIrImWezrVzqZOkFnJab5sLI9d6lNRxM/WT9MUMYsUpw6C3pXpzuhk=,iv:4AnY+2eV9T178+HiXD+CVfR3qrE6VpQj9vn1bg6GZBY=,tag:rYkpsoIhmmtDx2LP+F4Prg==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
 ---
@@ -74,7 +72,6 @@ kind: RoleBinding
 metadata:
     annotations:
         argocd.argoproj.io/sync-wave: "0"
-        kustomize.config.k8s.io/behavior: merge
     name: arc-dind-systems-privileged-scc-rb
     namespace: arc-dind-runners
 roleRef:
@@ -90,14 +87,14 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOSkxiUjNPcVkvaVY4NEV4
-            Ulh4UmJJNnFlZ1kvZGtqVHhSWHdjSWJuVGxnClZzcWFTVEJGOFpsL1hVcnVyd1B2
-            NzVRUDZBU0tXeHBFdEFKZ25ic0k2RGsKLS0tIDJQZXphSC9KcitGK3MwSUJ1Ylds
-            T3dha3hXTEE3Q2xLRGxEZFFCdnREU2sK2gqg8WPDdCPEbFaxDwMjteIT51vRI9JJ
-            HxvKEEmNasazh+vSecF7W+lJfSeLEisdtqfchPT8XPy7avDlHp0MPw==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBQWFpBNnI2YU9HdGNFempJ
+            VkhmMTFxejVHTzNMd0NlWUZoUklKdTE1NFRrCm96MmZLQ2dDekViVHVGTDgrdXIy
+            VzRDRE1OZVhZbExWUFBPQ0JvSWFuWk0KLS0tIE1YdmJLM3FJVG1yeHpDdldoQWRi
+            bXVHWnRtRGFWa2I3V0ZFS1U0M1VGdHcKxz7owqYLTt8zVZq1fMPZoVHlBCcLTnmk
+            4klto7G9uz7KSP/1JBgD7eEAHoD4Sd58Y7WxVCwx+19N60+S+5FB9Q==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T20:03:25Z"
-    mac: ENC[AES256_GCM,data:ZROH+/s1RdHTd21ZEvk/LvkQ4GYF+VHAOcqGoeQjdFFk6LedtyTi+wvmdeduVWuo0tzqq2mOR2RdOfK2Wx8+LFtlyzHPszORjEVlp9aYjQO2QT77Q8/2vpmHmnzL8srO+76zQEmvHMOkCCLIEPI/8dAcHaQHkFWb5gb44oeBo9Y=,iv:DXt5fggib7stJ7pDif66Tz0kquPxFtF6R+U+qUZ4KmI=,tag:a7jFwX+uF3T7KeAbRaiBmg==,type:str]
+    lastmodified: "2025-12-21T21:41:08Z"
+    mac: ENC[AES256_GCM,data:dkL5RifXmV8Si9UrUvrp7OGfau/SM2aUQT/HolwI3s+MUCTWeMNjJPoDw09bJqwvvLAO3+qFJf0RXpUba5jwOw3u/xs8LslyxiN1Y4UejZAAxWa6q+s3wiIrImWezrVzqZOkFnJab5sLI9d6lNRxM/WT9MUMYsUpw6C3pXpzuhk=,iv:4AnY+2eV9T178+HiXD+CVfR3qrE6VpQj9vn1bg6GZBY=,tag:rYkpsoIhmmtDx2LP+F4Prg==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
 ---
@@ -106,7 +103,6 @@ kind: RoleBinding
 metadata:
     annotations:
         argocd.argoproj.io/sync-wave: "0"
-        kustomize.config.k8s.io/behavior: merge
     name: arc-dind-systems-anyuid-scc-rb
     namespace: arc-dind-runners
 roleRef:
@@ -122,13 +118,13 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOSkxiUjNPcVkvaVY4NEV4
-            Ulh4UmJJNnFlZ1kvZGtqVHhSWHdjSWJuVGxnClZzcWFTVEJGOFpsL1hVcnVyd1B2
-            NzVRUDZBU0tXeHBFdEFKZ25ic0k2RGsKLS0tIDJQZXphSC9KcitGK3MwSUJ1Ylds
-            T3dha3hXTEE3Q2xLRGxEZFFCdnREU2sK2gqg8WPDdCPEbFaxDwMjteIT51vRI9JJ
-            HxvKEEmNasazh+vSecF7W+lJfSeLEisdtqfchPT8XPy7avDlHp0MPw==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBQWFpBNnI2YU9HdGNFempJ
+            VkhmMTFxejVHTzNMd0NlWUZoUklKdTE1NFRrCm96MmZLQ2dDekViVHVGTDgrdXIy
+            VzRDRE1OZVhZbExWUFBPQ0JvSWFuWk0KLS0tIE1YdmJLM3FJVG1yeHpDdldoQWRi
+            bXVHWnRtRGFWa2I3V0ZFS1U0M1VGdHcKxz7owqYLTt8zVZq1fMPZoVHlBCcLTnmk
+            4klto7G9uz7KSP/1JBgD7eEAHoD4Sd58Y7WxVCwx+19N60+S+5FB9Q==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T20:03:25Z"
-    mac: ENC[AES256_GCM,data:ZROH+/s1RdHTd21ZEvk/LvkQ4GYF+VHAOcqGoeQjdFFk6LedtyTi+wvmdeduVWuo0tzqq2mOR2RdOfK2Wx8+LFtlyzHPszORjEVlp9aYjQO2QT77Q8/2vpmHmnzL8srO+76zQEmvHMOkCCLIEPI/8dAcHaQHkFWb5gb44oeBo9Y=,iv:DXt5fggib7stJ7pDif66Tz0kquPxFtF6R+U+qUZ4KmI=,tag:a7jFwX+uF3T7KeAbRaiBmg==,type:str]
+    lastmodified: "2025-12-21T21:41:08Z"
+    mac: ENC[AES256_GCM,data:dkL5RifXmV8Si9UrUvrp7OGfau/SM2aUQT/HolwI3s+MUCTWeMNjJPoDw09bJqwvvLAO3+qFJf0RXpUba5jwOw3u/xs8LslyxiN1Y4UejZAAxWa6q+s3wiIrImWezrVzqZOkFnJab5sLI9d6lNRxM/WT9MUMYsUpw6C3pXpzuhk=,iv:4AnY+2eV9T178+HiXD+CVfR3qrE6VpQj9vn1bg6GZBY=,tag:rYkpsoIhmmtDx2LP+F4Prg==,type:str]
     encrypted_regex: ^(github_token)$
     version: 3.10.2
