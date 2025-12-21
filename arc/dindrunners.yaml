@@ -20,7 +20,7 @@ metadata:
   name: arc-dind
   namespace: arc-dind-runners
   annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   replicas: 1
   template:

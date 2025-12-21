@@ -19,8 +19,8 @@ sops:
             WENSaTE0ck5pSFpsd3BPdERreFpndUEKUarJvMHr6BwHcutwMxryHY+9diADtgqb
             OQieidE4PilPlG/mSQBL+Q4oTTEdFbRINjtOjAMs2+qt+XrrQADwIg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T17:10:30Z"
-    mac: ENC[AES256_GCM,data:jFcWnUOymSvxkkL+31ugdC8RGiMtzA8XabnkT2cJUolltZJwtAZ2TH15qqGge7j44SjnqPRvMh8enqiDhYb+3IxO4anjYIheBOFrQ9qET4N2MNXeE9bPL7sYGgPkFhBeGbjATP6has5TRtDMNltxqprCsJr2XtIb6jWyFiAGKK0=,iv:EbhDwji/7NNoE0eyIbKwfO/wP42Cp+c4j3EP5WjS46g=,tag:7gWuRW9COgYLkbLtUkDRSg==,type:str]
+    lastmodified: "2025-12-21T19:54:28Z"
+    mac: ENC[AES256_GCM,data:COAJD3HJUno1NPBqj2m8KOVNFfL1KP1IIjbiZZTM8oY8PsCNIxzcSAKgMVTFLaR3jTSqpTQKvAdYWcE3bh8ywqz1vdBUf0vm+T1YmAFefEWUEVZNQ4NCXoaLMNiNmqCp7pQ5ipO6Gstp95aJLh+z0i1PHDm+mbF04CQQziPobg4=,iv:f0Rs2Eysnan/rSuPvvaU/Ow5xxhzlIIPlU7d/7WFzGI=,tag:78mW9RNomghRJPXT0A/3bA==,type:str]
     encrypted_regex: ^(password)$
     version: 3.10.2
 ---
@@ -30,7 +30,7 @@ metadata:
     name: awx
     namespace: awx
     annotations:
-        argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+        argocd.argoproj.io/sync-wave: "1"
         kustomize.config.k8s.io/behavior: merge
 spec:
     ingress_type: Route
@@ -48,7 +48,7 @@ sops:
             WENSaTE0ck5pSFpsd3BPdERreFpndUEKUarJvMHr6BwHcutwMxryHY+9diADtgqb
             OQieidE4PilPlG/mSQBL+Q4oTTEdFbRINjtOjAMs2+qt+XrrQADwIg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T17:10:30Z"
-    mac: ENC[AES256_GCM,data:jFcWnUOymSvxkkL+31ugdC8RGiMtzA8XabnkT2cJUolltZJwtAZ2TH15qqGge7j44SjnqPRvMh8enqiDhYb+3IxO4anjYIheBOFrQ9qET4N2MNXeE9bPL7sYGgPkFhBeGbjATP6has5TRtDMNltxqprCsJr2XtIb6jWyFiAGKK0=,iv:EbhDwji/7NNoE0eyIbKwfO/wP42Cp+c4j3EP5WjS46g=,tag:7gWuRW9COgYLkbLtUkDRSg==,type:str]
+    lastmodified: "2025-12-21T19:54:28Z"
+    mac: ENC[AES256_GCM,data:COAJD3HJUno1NPBqj2m8KOVNFfL1KP1IIjbiZZTM8oY8PsCNIxzcSAKgMVTFLaR3jTSqpTQKvAdYWcE3bh8ywqz1vdBUf0vm+T1YmAFefEWUEVZNQ4NCXoaLMNiNmqCp7pQ5ipO6Gstp95aJLh+z0i1PHDm+mbF04CQQziPobg4=,iv:f0Rs2Eysnan/rSuPvvaU/Ow5xxhzlIIPlU7d/7WFzGI=,tag:78mW9RNomghRJPXT0A/3bA==,type:str]
     encrypted_regex: ^(password)$
     version: 3.10.2
