@@ -6,6 +6,8 @@ kind: ArgoCD
 metadata:
   name: openshift-gitops
   namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   kustomizeBuildOptions: "--enable-alpha-plugins --enable-exec"
   repo:

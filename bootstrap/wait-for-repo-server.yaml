@@ -1,0 +1,32 @@
+---
+# PostSync hook to wait for ArgoCD repo-server to be ready after KSOPS patch
+# This ensures the repo-server has restarted with KSOPS before wave 1 proceeds
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wait-for-repo-server
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      serviceAccountName: openshift-gitops-argocd-application-controller
+      restartPolicy: Never
+      containers:
+        - name: wait
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Waiting for repo-server deployment rollout..."
+              oc rollout status deployment/openshift-gitops-repo-server \
+                -n openshift-gitops \
+                --timeout=300s
+              echo "Repo-server is ready"
