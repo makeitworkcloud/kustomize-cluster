@@ -6,6 +6,7 @@ resources:
   - ansible
   - arc
   - grafana
+  - makeitwork-proxy
   - uptime-kuma
 generators:
   - generator/ksops-generator.yaml
