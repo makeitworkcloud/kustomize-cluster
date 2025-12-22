@@ -31,6 +31,24 @@ spec:
     requests:
       storage: 10Mi
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: makeitwork-proxy
+data:
+  default.conf: |
+    server {
+        listen 8080;
+        location / {
+            proxy_pass https://makeitwork.cloud;
+            proxy_set_header Host makeitwork.cloud;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_ssl_server_name on;
+        }
+    }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -60,7 +78,7 @@ spec:
             runAsUser: 0
           env:
             - name: WWW_TOR_SERVICE_HOSTS
-              value: "80:makeitwork.cloud:443"
+              value: "80:localhost:8080"
           volumeMounts:
             - name: tor-keys
               mountPath: /var/lib/tor/hidden_service
@@ -71,7 +89,24 @@ spec:
             limits:
               memory: "128Mi"
               cpu: "100m"
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "25m"
+            limits:
+              memory: "64Mi"
+              cpu: "50m"
       volumes:
         - name: tor-keys
           persistentVolumeClaim:
             claimName: tor-hidden-service-keys
+        - name: nginx-config
+          configMap:
+            name: nginx-config
