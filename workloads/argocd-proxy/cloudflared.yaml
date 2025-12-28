@@ -6,7 +6,7 @@ metadata:
   namespace: argocd-proxy
 data:
   config.yml: |
-    tunnel: 205dc24c-7564-4ba1-a055-1b10adab13f0
+    tunnel: addd27e1-7cfc-4dc6-86d6-278b69cac5b5
     credentials-file: /etc/cloudflared/credentials.json
     ingress:
       - hostname: argocd.makeitwork.cloud

@@ -6,7 +6,7 @@ metadata:
   namespace: grafana
 data:
   config.yml: |
-    tunnel: 205dc24c-7564-4ba1-a055-1b10adab13f0
+    tunnel: 1c3c9e4c-c959-46a0-a622-803eb63920a6
     credentials-file: /etc/cloudflared/credentials.json
     ingress:
       - hostname: grafana.makeitwork.cloud

@@ -6,7 +6,7 @@ metadata:
   namespace: awx
 data:
   config.yml: |
-    tunnel: 205dc24c-7564-4ba1-a055-1b10adab13f0
+    tunnel: ed5958eb-ec0e-41d9-a4b2-054eae268aba
     credentials-file: /etc/cloudflared/credentials.json
     ingress:
       - hostname: ansible.makeitwork.cloud

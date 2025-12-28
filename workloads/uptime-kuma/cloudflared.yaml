@@ -6,7 +6,7 @@ metadata:
   namespace: uptime-kuma
 data:
   config.yml: |
-    tunnel: 205dc24c-7564-4ba1-a055-1b10adab13f0
+    tunnel: 9c55efbe-4014-4310-b0da-d67c527e1c57
     credentials-file: /etc/cloudflared/credentials.json
     ingress:
       - hostname: status.makeitwork.cloud
