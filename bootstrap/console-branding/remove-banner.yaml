@@ -1,0 +1,8 @@
+---
+# Remove default OpenShift security-notice banner
+apiVersion: console.openshift.io/v1
+kind: ConsoleNotification
+metadata:
+  name: security-notice
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=true

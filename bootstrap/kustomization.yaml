@@ -7,6 +7,8 @@ resources:
   #       (ArgoCD cannot grant itself permissions it doesn't have)
   - argocd-config.yaml
   - wait-for-repo-server.yaml
+  # Wave 0: Console branding and banner removal
+  - console-branding/
   # Wave 1: Deploy operators (install CRDs)
   - operators-app.yaml
   - wait-for-crds.yaml
