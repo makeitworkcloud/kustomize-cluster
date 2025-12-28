@@ -7,20 +7,22 @@ Kustomize configurations for OpenShift cluster workloads. Uses ArgoCD sync waves
 ```
 bootstrap/              # ArgoCD bootstrap and cluster configuration
 ├── console-branding/   # OpenShift console branding and banner removal
-└── openshift-oauth/    # GitHub OAuth identity provider for OpenShift
+├── openshift-oauth/    # GitHub OAuth identity provider for OpenShift
+├── ci-service-account  # CI/CD service account for GitHub Actions
+└── ci-token-sync-job   # PostSync job to sync SA token to GitHub secrets
 operators/              # OLM Subscriptions for operator CRDs
 ├── ansible/            # AWX Operator
 ├── arc/                # GitHub Actions Runner Controller
-├── cert-manager/       # Cert Manager Operator
 ├── generator/          # Shared KSOPS generator config
 └── grafana/            # Grafana Operator
 workloads/              # CRs and resources that depend on operator CRDs
+├── apps/               # App-of-Apps orchestrator (ArgoCD Applications)
 ├── ansible/            # AWX instance + GitHub SSO + Tor hidden service
 ├── arc/                # DinD runners + image registry + pull-through cache
 ├── argocd-proxy/       # Tor hidden service for ArgoCD
 ├── grafana/            # Grafana instance + GitHub SSO + Tor hidden service
 ├── makeitwork-proxy/   # Tor hidden service for makeitwork.cloud
-└── uptime-kuma/        # Uptime monitoring dashboard (Helm) + Tor hidden service
+└── uptime-kuma/        # Uptime monitoring dashboard + Tor hidden service
 ```
 
 ## Sync Wave Flow
@@ -28,14 +30,17 @@ workloads/              # CRs and resources that depend on operator CRDs
 ```
 Wave 0: ArgoCD config (KSOPS patch, wait for repo-server)
     │   ├── Console branding (custom logo, favicon, remove security banner)
-    │   └── OpenShift OAuth (GitHub identity provider, cluster-admin for org members)
+    │   ├── OpenShift OAuth (GitHub identity provider, cluster-admin for org members)
+    │   └── CI service account (ci-deployer with cluster-admin)
     ▼
 Wave 1: gitops-operators Application → operators/ (CRDs installed)
     │   └── wait-for-crds Job ensures CRDs are ready
     ▼
 Wave 2: gitops-workloads Application → workloads/apps/ (App-of-Apps)
-        ├── Wave 0: argocd-proxy, makeitwork-proxy, uptime-kuma (no CRD deps)
-        └── Wave 1: ansible, arc, grafana (depend on operator CRDs)
+    │   ├── Wave 0: argocd-proxy, makeitwork-proxy, uptime-kuma (no CRD deps)
+    │   └── Wave 1: ansible, arc, grafana (depend on operator CRDs)
+    ▼
+PostSync: ci-token-sync Job syncs ci-deployer token to GitHub Actions secrets
 ```
 
 Operators must be installed before workloads to ensure CRDs exist.
@@ -58,6 +63,8 @@ On push to `main`, GitHub Actions:
 1. Runs pre-commit tests (YAML lint, etc.)
 2. Connects to cluster via Cloudflare WARP
 3. Triggers ArgoCD sync via OpenShift API
+
+The `ci-deployer` service account provides cluster-admin access for CI/CD workflows. Its token is automatically synced to GitHub Actions secrets (`OPENSHIFT_TOKEN`) via a PostSync job after each ArgoCD sync.
 
 ## SOPS Encryption
 
