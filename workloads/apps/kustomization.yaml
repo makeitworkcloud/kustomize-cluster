@@ -6,6 +6,7 @@ resources:
   # Wave 0: No CRD dependencies
   - argocd-proxy-app.yaml
   - makeitwork-proxy-app.yaml
+  - warp-app.yaml
   - ../uptime-kuma  # Direct include - contains its own Helm Application
   # Wave 1: Depend on operator CRDs
   - ansible-app.yaml
