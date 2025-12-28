@@ -1,6 +1,6 @@
 apiVersion: v1
 data:
-    password: ENC[AES256_GCM,data:sZURxE2U/M1i3bB9z/xuswDZDjabd/zPuikhAWBgsL5JFyKliwR+M2KJhTc=,iv:E03DFTmBT3SEeXdboXCzGiyGB02PPWuRty7L0tTsxoQ=,tag:U/mTd9mRnB8VERjnTpD7dA==,type:str]
+    password: ENC[AES256_GCM,data:C9tuYEmozeZUUmaaM7giu8lLbuWRLJrjMVsUZTQS2p9DRLEH6WDMZAbwus8=,iv:no2xP1O7pxVRDk0UIKZkRugj5F43TmBoeR8vXWqdp+I=,tag:eWmONgGMiKF0eA5iKx1wHQ==,type:str]
 kind: Secret
 metadata:
     annotations:
@@ -14,14 +14,14 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBqQ0o0QkZLQkQ0MHo5dmxQ
-            Q0tSYTJCN2tyN21RWTFMRy9veFBCZjY0b3dFCkpOcGltQ0o3cE1hQTJHQTg1RTdG
-            bW9pbjFOMFpJTzB2TmNncXNjWHZ5WXMKLS0tIGU2OE55UnU5Q0syWXIvUDNMNUtD
-            cnRsTnBVaUR2OXBBUmUvOFlVWEx1U2cKJb77w1HqLyc3F205GV/D7DhXSFH50MX6
-            5aMVzWUMDoE6MwajlYkWCmw8qR4U0VKbhaVElZX5jSTcDt6VbwyiPw==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB5dHhqNlJLNkFoVjRmUTlB
+            T2VVdlVDQmZnUGhrQ1o2cER3ZGJlZm1meWlVCm5NSkZLR3BRd25tR3NOeTg1ekwr
+            bmhta3VJWnFrbXp1TWhIcFRENS9IRGMKLS0tIDIvVnZFSmR5eCttTHJsaDNWRWxw
+            Uk5LQU9OVVhMeUdOS2VLdUU4ZkE1WlEKpEbfD8POc3X9uPTn4K/vYosBY7ekuSzQ
+            c+vvmM+Fo6zQGGllUGfd5+ENVV45hUdTW4p8cauN1tAsqMtUMUg/7A==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-28T05:57:24Z"
-    mac: ENC[AES256_GCM,data:WqXiy+dvGukeO7HXIQHFsZkJmxGtV7Cg48D1RaJnCMrArZ25EhVOu+fBh+i55OCcnH7SXlkZPYnQFokWLvdqrpgCP3uZ7TzcrMKgyXhYqcUiaZkYGBEImRYYHZtyD/hMiFK/WXbHBSupV9rOEXmJTk7r2sys0r87M8/BQp2vMMc=,iv:a6sgLde9scrobrIxsaozb1Xu3JLIU6yzJMCqJfCynLA=,tag:rEUtT4PlGIIlq47y/4INEg==,type:str]
+    lastmodified: "2025-12-28T06:04:48Z"
+    mac: ENC[AES256_GCM,data:NArLSdcmhHStNNtGpbJc0+HSnWBQBAlXfrKRudxSIjstjQcmS0rZAJDbMH+phv5qt3nNxwos2xqGRH4qHYylDXhYkSQhxmjx/ytCkubZePKVRUnGAZmbDX402oXKsaf+iUQuJb6xb/40aTIikU0iBgNc30MJPLwNCKtGSnfd9OY=,iv:dY+tYGaPJ+k4HjExhZ1NVJblK6GpQ0Elu3bDXegn3Ws=,tag:cm1tJJRihc2AKL4Hkmum/Q==,type:str]
     encrypted_regex: ^(password)$
     version: 3.10.2
 ---
@@ -37,7 +37,6 @@ spec:
     admin_password_secret: makeitwork-admin-password
     ingress_type: Route
     route_host: ansible.makeitwork.cloud
-    route_tls_secret: makeitwork-tls
     extra_settings_files:
         secrets:
             - name: awx-github-oauth
@@ -67,13 +66,13 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBqQ0o0QkZLQkQ0MHo5dmxQ
-            Q0tSYTJCN2tyN21RWTFMRy9veFBCZjY0b3dFCkpOcGltQ0o3cE1hQTJHQTg1RTdG
-            bW9pbjFOMFpJTzB2TmNncXNjWHZ5WXMKLS0tIGU2OE55UnU5Q0syWXIvUDNMNUtD
-            cnRsTnBVaUR2OXBBUmUvOFlVWEx1U2cKJb77w1HqLyc3F205GV/D7DhXSFH50MX6
-            5aMVzWUMDoE6MwajlYkWCmw8qR4U0VKbhaVElZX5jSTcDt6VbwyiPw==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB5dHhqNlJLNkFoVjRmUTlB
+            T2VVdlVDQmZnUGhrQ1o2cER3ZGJlZm1meWlVCm5NSkZLR3BRd25tR3NOeTg1ekwr
+            bmhta3VJWnFrbXp1TWhIcFRENS9IRGMKLS0tIDIvVnZFSmR5eCttTHJsaDNWRWxw
+            Uk5LQU9OVVhMeUdOS2VLdUU4ZkE1WlEKpEbfD8POc3X9uPTn4K/vYosBY7ekuSzQ
+            c+vvmM+Fo6zQGGllUGfd5+ENVV45hUdTW4p8cauN1tAsqMtUMUg/7A==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-28T05:57:24Z"
-    mac: ENC[AES256_GCM,data:WqXiy+dvGukeO7HXIQHFsZkJmxGtV7Cg48D1RaJnCMrArZ25EhVOu+fBh+i55OCcnH7SXlkZPYnQFokWLvdqrpgCP3uZ7TzcrMKgyXhYqcUiaZkYGBEImRYYHZtyD/hMiFK/WXbHBSupV9rOEXmJTk7r2sys0r87M8/BQp2vMMc=,iv:a6sgLde9scrobrIxsaozb1Xu3JLIU6yzJMCqJfCynLA=,tag:rEUtT4PlGIIlq47y/4INEg==,type:str]
+    lastmodified: "2025-12-28T06:04:48Z"
+    mac: ENC[AES256_GCM,data:NArLSdcmhHStNNtGpbJc0+HSnWBQBAlXfrKRudxSIjstjQcmS0rZAJDbMH+phv5qt3nNxwos2xqGRH4qHYylDXhYkSQhxmjx/ytCkubZePKVRUnGAZmbDX402oXKsaf+iUQuJb6xb/40aTIikU0iBgNc30MJPLwNCKtGSnfd9OY=,iv:dY+tYGaPJ+k4HjExhZ1NVJblK6GpQ0Elu3bDXegn3Ws=,tag:cm1tJJRihc2AKL4Hkmum/Q==,type:str]
     encrypted_regex: ^(password)$
     version: 3.10.2
