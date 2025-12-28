@@ -14,8 +14,6 @@ spec:
         clientID: Ov23liF7cgXcPqnZf6dk
         clientSecret:
           name: github-oauth-secret
-        organizations:
-          - makeitworkcloud
         teams:
           - makeitworkcloud/admins
           - makeitworkcloud/developers
