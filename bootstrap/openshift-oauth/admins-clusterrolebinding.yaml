@@ -1,5 +1,6 @@
 ---
-# Grant cluster-admin to GitHub admins team members
+# Grant cluster-admin to all authenticated users
+# Login is restricted to makeitworkcloud/admins team via OAuth config
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -11,4 +12,4 @@ roleRef:
 subjects:
   - apiGroup: rbac.authorization.k8s.io
     kind: Group
-    name: makeitworkcloud:admins
+    name: system:authenticated

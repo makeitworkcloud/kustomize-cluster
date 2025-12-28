@@ -4,6 +4,5 @@ kind: Kustomization
 resources:
   - oauth-config.yaml
   - admins-clusterrolebinding.yaml
-  - developers-clusterrolebinding.yaml
 generators:
   - ksops-github-oauth.yaml

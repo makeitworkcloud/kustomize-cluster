@@ -18,6 +18,5 @@ spec:
           name: github-oauth-secret
         teams:
           - makeitworkcloud/admins
-          - makeitworkcloud/developers
   tokenConfig:
     accessTokenMaxAgeSeconds: 31536000
