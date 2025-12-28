@@ -3,13 +3,13 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: tor-proxy
-  namespace: openshift-gitops
+  namespace: argocd-proxy
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: tor-proxy-privileged
-  namespace: openshift-gitops
+  namespace: argocd-proxy
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -17,13 +17,13 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: tor-proxy
-    namespace: openshift-gitops
+    namespace: argocd-proxy
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: tor-hidden-service-keys
-  namespace: openshift-gitops
+  namespace: argocd-proxy
 spec:
   accessModes:
     - ReadWriteOnce
@@ -35,7 +35,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: tor-proxy
-  namespace: openshift-gitops
+  namespace: argocd-proxy
   annotations:
     ignore-check.kube-linter.io/no-read-only-root-fs: "tor requires write access to /etc/tor"
     ignore-check.kube-linter.io/run-as-non-root: "tor hidden service requires root"
@@ -60,7 +60,7 @@ spec:
             runAsUser: 0
           env:
             - name: ARGOCD_TOR_SERVICE_HOSTS
-              value: "80:openshift-gitops-server:443"
+              value: "80:openshift-gitops-server.openshift-gitops.svc:443"
             - name: ARGOCD_TOR_SERVICE_KEY
               valueFrom:
                 secretKeyRef:

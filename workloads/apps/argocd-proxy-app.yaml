@@ -2,7 +2,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: argocd-tor
+  name: argocd-proxy
   namespace: openshift-gitops
   annotations:
     argocd.argoproj.io/sync-wave: "0"
@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
-    path: workloads/argocd
+    path: workloads/argocd-proxy
     targetRevision: main
   destination:
     server: https://kubernetes.default.svc
