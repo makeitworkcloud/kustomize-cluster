@@ -11,6 +11,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
+  # Server configuration
+  server:
+    host: argocd.makeitwork.cloud
   # KSOPS configuration
   kustomizeBuildOptions: "--enable-alpha-plugins --enable-exec"
   repo:
