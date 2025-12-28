@@ -15,7 +15,7 @@ permissions:
 jobs:
   test:
     name: Pre-commit Tests
-    runs-on: ubuntu-latest
+    runs-on: arc
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -30,18 +30,11 @@ jobs:
 
   sync:
     name: Sync ArgoCD
-    runs-on: ubuntu-latest
+    runs-on: libvirt
     needs: [test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - name: Connect to Cloudflare WARP
-        uses: Boostport/setup-cloudflare-warp@v1
-        with:
-          organization: makeitworkcloud
-          auth_client_id: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_ID }}
-          auth_client_secret: ${{ secrets.CLOUDFLARE_AUTH_CLIENT_SECRET }}
-
       - name: Install OpenShift CLI
         uses: redhat-actions/oc-installer@v1
 
