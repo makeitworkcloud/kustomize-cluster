@@ -1,0 +1,12 @@
+---
+# Workload Applications - each workload is deployed as a separate ArgoCD Application
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # Wave 0: No CRD dependencies
+  - makeitwork-proxy-app.yaml
+  - uptime-kuma-app.yaml
+  # Wave 1: Depend on operator CRDs
+  - ansible-app.yaml
+  - arc-app.yaml
+  - grafana-app.yaml

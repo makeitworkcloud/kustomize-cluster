@@ -12,3 +12,6 @@ resources:
   - wait-for-crds.yaml
   # Wave 2: Deploy workloads (CRs that depend on CRDs)
   - workloads-app.yaml
+generators:
+  # ArgoCD Dex GitHub OAuth secret
+  - ksops-github-oauth.yaml

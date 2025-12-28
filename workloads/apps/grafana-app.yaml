@@ -1,18 +1,16 @@
 ---
-# Workloads Application - deploys individual workload Applications
-# Deployed in wave 2 after operators are installed
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: gitops-workloads
+  name: grafana
   namespace: openshift-gitops
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
   source:
     repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
-    path: workloads/apps
+    path: workloads/grafana
     targetRevision: main
   destination:
     server: https://kubernetes.default.svc
@@ -20,6 +18,9 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
     retry:
       limit: 5
       backoff:

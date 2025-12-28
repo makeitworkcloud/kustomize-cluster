@@ -7,3 +7,5 @@ resources:
   - arcrunners.yaml
   - dindrunners.yaml
   - registry.yaml
+generators:
+  - ksops-arc-secrets.yaml
