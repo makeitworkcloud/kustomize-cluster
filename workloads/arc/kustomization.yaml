@@ -4,7 +4,6 @@ kind: Kustomization
 resources:
   - imageregistry.yaml
   - imagestream.yaml
-  - arcrunners.yaml
   - dindrunners.yaml
   - registry.yaml
 generators:
