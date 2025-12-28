@@ -61,6 +61,11 @@ spec:
           env:
             - name: STATUS_TOR_SERVICE_HOSTS
               value: "80:uptime-kuma:3001"
+            - name: STATUS_TOR_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tor-proxy-key
+                  key: STATUS_TOR_SERVICE_KEY
           volumeMounts:
             - name: tor-keys
               mountPath: /var/lib/tor/hidden_service

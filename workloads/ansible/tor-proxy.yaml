@@ -61,6 +61,11 @@ spec:
           env:
             - name: AWX_TOR_SERVICE_HOSTS
               value: "80:awx-service:80"
+            - name: AWX_TOR_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tor-proxy-key
+                  key: AWX_TOR_SERVICE_KEY
           volumeMounts:
             - name: tor-keys
               mountPath: /var/lib/tor/hidden_service

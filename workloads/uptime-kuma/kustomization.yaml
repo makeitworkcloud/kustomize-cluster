@@ -4,3 +4,5 @@ kind: Kustomization
 resources:
   - uptime-kuma.yaml
   - tor-proxy.yaml
+generators:
+  - ksops-uptime-kuma-secrets.yaml

@@ -79,6 +79,11 @@ spec:
           env:
             - name: WWW_TOR_SERVICE_HOSTS
               value: "80:localhost:8080"
+            - name: WWW_TOR_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tor-proxy-key
+                  key: WWW_TOR_SERVICE_KEY
           volumeMounts:
             - name: tor-keys
               mountPath: /var/lib/tor/hidden_service

@@ -61,6 +61,11 @@ spec:
           env:
             - name: GRAFANA_TOR_SERVICE_HOSTS
               value: "80:grafana-service:3000"
+            - name: GRAFANA_TOR_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tor-proxy-key
+                  key: GRAFANA_TOR_SERVICE_KEY
           volumeMounts:
             - name: tor-keys
               mountPath: /var/lib/tor/hidden_service

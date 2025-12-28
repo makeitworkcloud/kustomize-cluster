@@ -4,3 +4,5 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - tor-proxy.yaml
+generators:
+  - ksops-makeitwork-proxy-secrets.yaml
