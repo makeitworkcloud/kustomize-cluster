@@ -13,6 +13,7 @@ metadata:
   namespace: uptime-kuma
   annotations:
     argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: Delete=false
 spec:
   accessModes:
     - ReadWriteOnce
