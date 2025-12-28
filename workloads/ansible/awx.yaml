@@ -1,6 +1,6 @@
 apiVersion: v1
 data:
-    password: ENC[AES256_GCM,data:1WL7iR70KAG2xnMTrt2D4QVN6RpgXIxB7fqccEW5y451Kp637zTEvrw1LjA=,iv:+fCAmWw6eFA8+yuw+1j1LG4JRB3f9ExrzvabM0OckYY=,tag:baF0zPWC8L1I4yuIPDoVhQ==,type:str]
+    password: ENC[AES256_GCM,data:sZURxE2U/M1i3bB9z/xuswDZDjabd/zPuikhAWBgsL5JFyKliwR+M2KJhTc=,iv:E03DFTmBT3SEeXdboXCzGiyGB02PPWuRty7L0tTsxoQ=,tag:U/mTd9mRnB8VERjnTpD7dA==,type:str]
 kind: Secret
 metadata:
     annotations:
@@ -14,14 +14,14 @@ sops:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBKZ2pEMUVQRWwvSXVLUXh6
-            MVNqVWsyQXFETUJaR29TbVVrZTRNUjNDZkFVCktRaUp4ME83a09Ia0JKTk92bW9K
-            L1Vydjd3WDlMcDgraVdNcDZrWGdqY1UKLS0tIEk1d2M2a2g5Q051aGZha2E5WEdq
-            d0RpQXllSlF2Yi9lWXQrWHFmemEzWWcKYLWzisbEsYDWe6C/oNNHB4nXgxU82Ibp
-            I6DD5z1UnnODxooeFPNrUl9aVwlwTNGngBD4s+Uu3UrGYdDK0nscNQ==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBqQ0o0QkZLQkQ0MHo5dmxQ
+            Q0tSYTJCN2tyN21RWTFMRy9veFBCZjY0b3dFCkpOcGltQ0o3cE1hQTJHQTg1RTdG
+            bW9pbjFOMFpJTzB2TmNncXNjWHZ5WXMKLS0tIGU2OE55UnU5Q0syWXIvUDNMNUtD
+            cnRsTnBVaUR2OXBBUmUvOFlVWEx1U2cKJb77w1HqLyc3F205GV/D7DhXSFH50MX6
+            5aMVzWUMDoE6MwajlYkWCmw8qR4U0VKbhaVElZX5jSTcDt6VbwyiPw==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-22T02:48:44Z"
-    mac: ENC[AES256_GCM,data:zA7ZkLV52w5ZAQEWvqeerw7sF/wmgwJ5FdePIcY3wEmu09rbNFgiYfOrNgVUymzPdyXegVVdJfnPBgmwHeobrULBO3PFf9vRrhHcotmLIlAvKtgj003+32sj8hyt8nYqNQ5mRO557Moww9zatEZAbx0XYWi/CMK3I0Q35IJ1z0k=,iv:3WgKWfgHO0Y7ELVEw80i4DTbYs5HQ/3w/ahrfO8QMQw=,tag:/ZgGpWBDSsJYVFqkbMxEPA==,type:str]
+    lastmodified: "2025-12-28T05:57:24Z"
+    mac: ENC[AES256_GCM,data:WqXiy+dvGukeO7HXIQHFsZkJmxGtV7Cg48D1RaJnCMrArZ25EhVOu+fBh+i55OCcnH7SXlkZPYnQFokWLvdqrpgCP3uZ7TzcrMKgyXhYqcUiaZkYGBEImRYYHZtyD/hMiFK/WXbHBSupV9rOEXmJTk7r2sys0r87M8/BQp2vMMc=,iv:a6sgLde9scrobrIxsaozb1Xu3JLIU6yzJMCqJfCynLA=,tag:rEUtT4PlGIIlq47y/4INEg==,type:str]
     encrypted_regex: ^(password)$
     version: 3.10.2
 ---
@@ -38,18 +38,42 @@ spec:
     ingress_type: Route
     route_host: ansible.makeitwork.cloud
     route_tls_secret: makeitwork-tls
+    extra_settings_files:
+        secrets:
+            - name: awx-github-oauth
+              key: github_settings.py
+    extra_volumes: |
+        - name: awx-logo-login
+          configMap:
+            name: awx-logo
+            items:
+              - key: logo-login.svg
+                path: logo-login.svg
+        - name: awx-logo-header
+          configMap:
+            name: awx-logo
+            items:
+              - key: logo-header.svg
+                path: logo-header.svg
+    web_extra_volume_mounts: |
+        - name: awx-logo-login
+          mountPath: /var/lib/awx/public/static/media/logo-login.svg
+          subPath: logo-login.svg
+        - name: awx-logo-header
+          mountPath: /var/lib/awx/public/static/media/logo-header.svg
+          subPath: logo-header.svg
 sops:
     age:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBKZ2pEMUVQRWwvSXVLUXh6
-            MVNqVWsyQXFETUJaR29TbVVrZTRNUjNDZkFVCktRaUp4ME83a09Ia0JKTk92bW9K
-            L1Vydjd3WDlMcDgraVdNcDZrWGdqY1UKLS0tIEk1d2M2a2g5Q051aGZha2E5WEdq
-            d0RpQXllSlF2Yi9lWXQrWHFmemEzWWcKYLWzisbEsYDWe6C/oNNHB4nXgxU82Ibp
-            I6DD5z1UnnODxooeFPNrUl9aVwlwTNGngBD4s+Uu3UrGYdDK0nscNQ==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBqQ0o0QkZLQkQ0MHo5dmxQ
+            Q0tSYTJCN2tyN21RWTFMRy9veFBCZjY0b3dFCkpOcGltQ0o3cE1hQTJHQTg1RTdG
+            bW9pbjFOMFpJTzB2TmNncXNjWHZ5WXMKLS0tIGU2OE55UnU5Q0syWXIvUDNMNUtD
+            cnRsTnBVaUR2OXBBUmUvOFlVWEx1U2cKJb77w1HqLyc3F205GV/D7DhXSFH50MX6
+            5aMVzWUMDoE6MwajlYkWCmw8qR4U0VKbhaVElZX5jSTcDt6VbwyiPw==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-22T02:48:44Z"
-    mac: ENC[AES256_GCM,data:zA7ZkLV52w5ZAQEWvqeerw7sF/wmgwJ5FdePIcY3wEmu09rbNFgiYfOrNgVUymzPdyXegVVdJfnPBgmwHeobrULBO3PFf9vRrhHcotmLIlAvKtgj003+32sj8hyt8nYqNQ5mRO557Moww9zatEZAbx0XYWi/CMK3I0Q35IJ1z0k=,iv:3WgKWfgHO0Y7ELVEw80i4DTbYs5HQ/3w/ahrfO8QMQw=,tag:/ZgGpWBDSsJYVFqkbMxEPA==,type:str]
+    lastmodified: "2025-12-28T05:57:24Z"
+    mac: ENC[AES256_GCM,data:WqXiy+dvGukeO7HXIQHFsZkJmxGtV7Cg48D1RaJnCMrArZ25EhVOu+fBh+i55OCcnH7SXlkZPYnQFokWLvdqrpgCP3uZ7TzcrMKgyXhYqcUiaZkYGBEImRYYHZtyD/hMiFK/WXbHBSupV9rOEXmJTk7r2sys0r87M8/BQp2vMMc=,iv:a6sgLde9scrobrIxsaozb1Xu3JLIU6yzJMCqJfCynLA=,tag:rEUtT4PlGIIlq47y/4INEg==,type:str]
     encrypted_regex: ^(password)$
     version: 3.10.2

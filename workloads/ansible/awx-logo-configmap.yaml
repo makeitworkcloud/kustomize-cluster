@@ -1,0 +1,45 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: awx-logo
+  namespace: awx
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  logo-login.svg: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+      <defs>
+        <linearGradient id="mGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#8b7355"/>
+          <stop offset="100%" style="stop-color:#5f5344"/>
+        </linearGradient>
+      </defs>
+      <g transform="translate(0,512) scale(0.1,-0.1)" fill="url(#mGradient)">
+        <path d="M380 2565 l0 -1905 120 0 120 0 0 -120 0 -120 545 0 545 0 0 815 0
+    815 150 0 150 0 0 -150 0 -150 120 0 120 0 0 -120 0 -120 275 0 275 0 0 270 0
+    270 150 0 150 0 0 -695 0 -695 120 0 120 0 0 -120 0 -120 545 0 545 0 -2 1903
+    -3 1902 -117 3 -117 3 -3 117 -3 117 -542 3 -543 2 0 -275 0 -275 -275 0 -275
+    0 0 -270 0 -270 -150 0 -150 0 0 150 0 150 -120 0 -120 0 0 120 0 120 -150 0
+    -149 0 -3 153 -3 152 -117 3 -117 3 -3 117 -3 117 -542 3 -543 2 0 -1905z"/>
+      </g>
+    </svg>
+  logo-header.svg: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+      <defs>
+        <linearGradient id="mGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#8b7355"/>
+          <stop offset="100%" style="stop-color:#5f5344"/>
+        </linearGradient>
+      </defs>
+      <g transform="translate(0,512) scale(0.1,-0.1)" fill="url(#mGradient)">
+        <path d="M380 2565 l0 -1905 120 0 120 0 0 -120 0 -120 545 0 545 0 0 815 0
+    815 150 0 150 0 0 -150 0 -150 120 0 120 0 0 -120 0 -120 275 0 275 0 0 270 0
+    270 150 0 150 0 0 -695 0 -695 120 0 120 0 0 -120 0 -120 545 0 545 0 -2 1903
+    -3 1902 -117 3 -117 3 -3 117 -3 117 -542 3 -543 2 0 -275 0 -275 -275 0 -275
+    0 0 -270 0 -270 -150 0 -150 0 0 150 0 150 -120 0 -120 0 0 120 0 120 -150 0
+    -149 0 -3 153 -3 152 -117 3 -117 3 -3 117 -3 117 -542 3 -543 2 0 -1905z"/>
+      </g>
+    </svg>
