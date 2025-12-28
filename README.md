@@ -6,6 +6,7 @@ Kustomize configurations for OpenShift cluster workloads. Uses ArgoCD sync waves
 
 ```
 bootstrap/            # ArgoCD bootstrap applications
+├── console-branding/ # OpenShift console branding and banner removal
 operators/            # OLM Subscriptions for operator CRDs
 ├── ansible/          # AWX Operator
 ├── arc/              # GitHub Actions Runner Controller
@@ -23,6 +24,7 @@ workloads/            # CRs and resources that depend on operator CRDs
 
 ```
 Wave 0: ArgoCD config (KSOPS patch, ClusterRoleBinding, wait for repo-server)
+    │   └── Console branding (custom logo, favicon, remove security banner)
     │
     ▼
 Wave 1: gitops-operators Application → operators/ (CRDs installed)
