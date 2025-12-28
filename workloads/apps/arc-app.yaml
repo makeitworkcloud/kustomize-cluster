@@ -2,7 +2,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: arc
+  name: arc-runners
   namespace: openshift-gitops
   annotations:
     argocd.argoproj.io/sync-wave: "1"
