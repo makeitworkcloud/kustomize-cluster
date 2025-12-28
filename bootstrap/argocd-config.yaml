@@ -11,6 +11,8 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
+  # Disable local admin account - use GitHub SSO instead
+  disableAdmin: true
   # Server configuration
   server:
     host: argocd.makeitwork.cloud
