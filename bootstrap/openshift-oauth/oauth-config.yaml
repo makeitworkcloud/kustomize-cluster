@@ -1,0 +1,23 @@
+---
+# OpenShift OAuth configuration with GitHub identity provider
+# Replaces HTPasswd with GitHub org-based authentication
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+spec:
+  identityProviders:
+    - name: github
+      type: GitHub
+      mappingMethod: claim
+      github:
+        clientID: Ov23liF7cgXcPqnZf6dk
+        clientSecret:
+          name: github-oauth-secret
+        organizations:
+          - makeitworkcloud
+        teams:
+          - makeitworkcloud/admins
+          - makeitworkcloud/developers
+  tokenConfig:
+    accessTokenMaxAgeSeconds: 31536000

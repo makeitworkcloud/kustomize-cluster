@@ -9,6 +9,8 @@ resources:
   - wait-for-repo-server.yaml
   # Wave 0: Console branding and banner removal
   - console-branding/
+  # Wave 0: OpenShift OAuth with GitHub identity provider
+  - openshift-oauth/
   # Wave 1: Deploy operators (install CRDs)
   - operators-app.yaml
   - wait-for-crds.yaml
