@@ -1,0 +1,78 @@
+---
+# PostSync Job: Syncs the ci-deployer token to GitHub Actions secrets
+# This runs after every ArgoCD sync to ensure GitHub has the current token
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ci-token-sync
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: ci-deployer
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sync
+          image: ghcr.io/makeitworkcloud/runner:9be0612
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          env:
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ci-token-sync-github-pat
+                  key: token
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              # Read the long-lived token from the ci-deployer-token Secret
+              # (NOT the auto-mounted bound token which expires in 1 hour)
+              SA_TOKEN=$(cat /var/run/secrets/ci-deployer/token)
+
+              # Repos that need the OpenShift token
+              REPOS=(
+                "makeitworkcloud/images"
+                "makeitworkcloud/kustomize-cluster"
+              )
+
+              echo "Syncing OpenShift token to GitHub repositories..."
+
+              for repo in "${REPOS[@]}"; do
+                echo "Updating OPENSHIFT_TOKEN in $repo"
+                gh secret set OPENSHIFT_TOKEN \
+                  --repo "$repo" \
+                  --body "$SA_TOKEN"
+              done
+
+              echo "Token sync complete"
+          volumeMounts:
+            - name: ci-deployer-token
+              mountPath: /var/run/secrets/ci-deployer
+              readOnly: true
+      volumes:
+        - name: ci-deployer-token
+          secret:
+            secretName: ci-deployer-token

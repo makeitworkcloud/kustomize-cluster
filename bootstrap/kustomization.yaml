@@ -8,6 +8,8 @@ resources:
   - argocd-config.yaml
   # Wave 0: CI/CD service account with cluster-admin for GitHub Actions
   - ci-service-account.yaml
+  # PostSync: Sync ci-deployer token to GitHub Actions secrets
+  - ci-token-sync-job.yaml
   - wait-for-repo-server.yaml
   # Wave 0: Console branding and banner removal
   - console-branding/
@@ -21,3 +23,5 @@ resources:
 generators:
   # ArgoCD Dex GitHub OAuth secret
   - ksops-github-oauth.yaml
+  # GitHub PAT for ci-token-sync job
+  - ksops-ci-token-sync.yaml
