@@ -17,6 +17,38 @@ metadata:
 data:
   daemon.json: '{"registry-mirrors": ["http://registry.docker-registry.svc:5000"], "insecure-registries": ["registry.docker-registry.svc:5000", "registry.docker-registry.svc.cluster.local:5000", "image-registry.openshift-image-registry.svc:5000", "image-registry.openshift-image-registry.svc.cluster.local:5000", "default-route-openshift-image-registry.apps.makeitwork.cloud"]}'
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: arc-dind-systems-privileged-scc-rb
+  namespace: arc-dind-runners
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:privileged
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: arc-dind-runners
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: arc-dind-systems-anyuid-scc-rb
+  namespace: arc-dind-runners
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: arc-dind-runners
+---
 apiVersion: actions.summerwind.dev/v1alpha1
 kind: RunnerDeployment
 metadata:
