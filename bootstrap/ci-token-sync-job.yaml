@@ -22,7 +22,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: sync
-          image: ghcr.io/makeitworkcloud/runner:9be0612
+          image: ghcr.io/makeitworkcloud/runner:latest
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
