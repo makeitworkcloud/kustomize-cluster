@@ -5,7 +5,7 @@ kind: Kustomization
 resources:
   # Wave 0: No CRD dependencies
   - makeitwork-proxy-app.yaml
-  - uptime-kuma-app.yaml
+  - ../uptime-kuma  # Direct include - contains its own Helm Application
   # Wave 1: Depend on operator CRDs
   - ansible-app.yaml
   - arc-app.yaml
