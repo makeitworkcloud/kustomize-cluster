@@ -1,198 +1,194 @@
-apiVersion: v1
-kind: Namespace
+apiVersion: ENC[AES256_GCM,data:g3A=,iv:OvbFCKP7y/Ri5+b3+81oZ2qzZP3tP3FZkeE8SCKw9/s=,tag:nVW08irnnE9HiK1lg/n9Gg==,type:str]
+kind: ENC[AES256_GCM,data:sDcrRvhfeuRR,iv:JIJu2MCJIizQZGNyRomptUi5PVjvyUInap0fLdkpFJA=,tag:fqZIbR1R6TC4+FsGCvlomA==,type:str]
 metadata:
     annotations:
-        argocd.argoproj.io/sync-wave: "0"
-        kustomize.config.k8s.io/behavior: merge
-    name: arc-runners
+        argocd.argoproj.io/sync-wave: ENC[AES256_GCM,data:JQ==,iv:4AWFu/3aFXgtQ/5owWE01M4E2JQRzS4LCTIQvIZKidQ=,tag:RCUPc04qZYN5IFsjWgxDaw==,type:str]
+    name: ENC[AES256_GCM,data:6U5kBjjnCKDIzjE=,iv:c394kth6qiV6UdLgRS19kmGC93RjjRaWftVT9ahU8qQ=,tag:IEcczoCYRu3qsZqjjaHblw==,type:str]
 sops:
     age:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAwbDBJM0F3em1tVCtKNTdy
-            MENEYk52K2dRQ0p6ZHFCYXNidktFOGdadzFjCmhUWG5BTE8wWFltYTdzT1hIZmY2
-            MHM1ejA0ckdFUVZjWWYxU0pXMzNVZVkKLS0tIHVqSEo4MStKL0tjSHdhTXFBcjFO
-            L1dVQW9WODBGWUpvL00xWE9hK1B1SFUKY7y80019V+3Hg3xi3nMHp32dwh32D28i
-            5ErMl32hZ9uYsyofHANDg+I9GAHleo9FoksMh4GHNX3IT4LepgQSMg==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBnRTlkMFhtLzB5MFAxOXp4
+            MmpUMDdkeWFqUDRsNHdnWDhnczVxYVp0dEZZCmcyclZkTGZRbU93OEtuQ2g1SVJr
+            d0g3ekhtUndEMWhiODJrbmhVVW4vTFEKLS0tIHg1bWRvblIrVzRRNjJNRGhqTFl1
+            VDJXRWxOTjQ1M0ZvcWFWTGtJdjhNQ2sK+M8j2FcypcGgtZVL6zArTsK5RzLoF6ND
+            mmORvIMoCX4g6lIGS+gFhMMT21mork7COkzYNlXoN05w/qPKUttjIA==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T20:04:49Z"
-    mac: ENC[AES256_GCM,data:bs8Nl/j47y1o4rJe7ZYKIFYENjRBY5+hjFBPbQQKBKEG7E6UUYNNwEgSOEwOGLNQyLypO0v5IYz9Vm+XOUrbSdjdiIqKbd5hdBPyod0h24K+qixZkUQDZuWuMrFjy6EBCdKSnr76ioGjsx104v2TtG729vpox+REq6Oh/9biyvA=,iv:ZwRRy1XmmUK5Z8D5Cc4aD6NDtXrgOzCi8rlZwvtfO9k=,tag:27GDxWAExEzlwTFqpqHszQ==,type:str]
-    encrypted_regex: ^(github_token)$
+    lastmodified: "2025-12-28T07:34:54Z"
+    mac: ENC[AES256_GCM,data:MrMFMdKF0dJTDyu0mDlrcswM6MhlRxerb5SsAag+LXSuYfKu0GCjbQLFA0+AhUaJYuFT5dL3Xmw5v4YffBmbjDN/+qqOWQmldiUZR+uUCODnkg4iRbBvxwqq21Uj0WVniIjd+Fexm2HnWGABVp57pe0ZaZWX2J9DsxV0c4ntTHM=,iv:RJ3rHiZH/bwW0nEpwQrUH1gFmVcTLPNh4hQLlj676mY=,tag:1LzWtjCkh8cM5Rdjisj1uQ==,type:str]
+    unencrypted_suffix: _unencrypted
     version: 3.10.2
 ---
-apiVersion: v1
+apiVersion: ENC[AES256_GCM,data:6z8=,iv:xhN72Qz8wO3OYzUKry/AC6OjbmgBeq5hY0anWi2/5ms=,tag:PlyZVE4DZnr7q6bK5k5HWQ==,type:str]
 data:
-    daemon.json: '{"registry-mirrors": ["http://registry.docker-registry.svc:5000"], "insecure-registries": ["registry.docker-registry.svc:5000", "registry.docker-registry.svc.cluster.local:5000", "image-registry.openshift-image-registry.svc:5000", "image-registry.openshift-image-registry.svc.cluster.local:5000", "10.217.5.181:5000", "default-route-openshift-image-registry.apps.makeitwork.cloud"]}'
-kind: ConfigMap
+    daemon.json: ENC[AES256_GCM,data:5pcfqt4i8xDvSQ+0iTXrDOBmn/ME3U6IvnnEeyeRDA/p6xGERn5Rz3eCiJD+ObtHxrKv5mYHtNQRUbwp4n/nY/KYGkY7tqwaqFiu1vHBQj9Txw8eGjh7g2mFbTzJgezMndV5WXnaLUjy8tynKzKXlD/x/m8XLlH30jp2xRIZCctkjOOff6l+ggp2GWQ1p9sw8XAwMI1rgoWpbvYy9L8eTRODxFYjkoVvRWDnQtTi1qkS7wXFIetboIYFLv+/k6gbMWP3tXT05ikkGuyyAFEX8y1OZC+GUoWg+mPCT8n0N/tuaq2ejiiDi+QfmSBh//DOMGNv9QmLwemGGJTuKxJ5n7LXIBJt2QgKqtkRg8wHEy4uIGxWtuSUjtBzDmmMOd1t7DRQyISIjBAl49w/lkRb7VepH9aScN5tTnwV0lRzHIwrBCMreSCoGn5pWu04iiAgVzPwvCJCSHIkReL9U9pZEMRfI0QgjuXl/mOs+Ziy5VZZgtgJ5OwnknzMclctBw==,iv:QK7kWxjoZ+eOTetFGylILPK96aMCXYXn6yvcYZjqY4Q=,tag:IuLbEiyZlyruEyUnZg5ZrA==,type:str]
+kind: ENC[AES256_GCM,data:xIQ1GqcaJMHh,iv:pHdzy/mMNZ5P4JjBBfMLpKES1prwk9y0ET15SbF81Oc=,tag:0nhlymB1fWVUL8PF+a14Hw==,type:str]
 metadata:
     annotations:
-        argocd.argoproj.io/sync-wave: "0"
-        kustomize.config.k8s.io/behavior: merge
-    name: docker-daemon-config
-    namespace: arc-runners
+        argocd.argoproj.io/sync-wave: ENC[AES256_GCM,data:ZA==,iv:T/+TobHyRN+NJ3JNCGj3JKdUpa5Zyi6yX5wXrkkKqSo=,tag:IEkgANC2F98Yf7gOJNQPJg==,type:str]
+    name: ENC[AES256_GCM,data:FF2PQGmZy+zzK7JRVdIYbrsHTgc=,iv:WNmuCDCyN4ErodybF1zvE5/oQowqAjs5PNzEA7fFz94=,tag:obWacalJSNYrkgRSS7E2dg==,type:str]
+    namespace: ENC[AES256_GCM,data:yinF4NbrLP8Iybw=,iv:cvyqB/DbszS+UMkMn9uEJaKpTiglhu2Ipg0zkP3cHqA=,tag:4qVIrkR/FW3LDEyN/lp/QA==,type:str]
 sops:
     age:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAwbDBJM0F3em1tVCtKNTdy
-            MENEYk52K2dRQ0p6ZHFCYXNidktFOGdadzFjCmhUWG5BTE8wWFltYTdzT1hIZmY2
-            MHM1ejA0ckdFUVZjWWYxU0pXMzNVZVkKLS0tIHVqSEo4MStKL0tjSHdhTXFBcjFO
-            L1dVQW9WODBGWUpvL00xWE9hK1B1SFUKY7y80019V+3Hg3xi3nMHp32dwh32D28i
-            5ErMl32hZ9uYsyofHANDg+I9GAHleo9FoksMh4GHNX3IT4LepgQSMg==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBnRTlkMFhtLzB5MFAxOXp4
+            MmpUMDdkeWFqUDRsNHdnWDhnczVxYVp0dEZZCmcyclZkTGZRbU93OEtuQ2g1SVJr
+            d0g3ekhtUndEMWhiODJrbmhVVW4vTFEKLS0tIHg1bWRvblIrVzRRNjJNRGhqTFl1
+            VDJXRWxOTjQ1M0ZvcWFWTGtJdjhNQ2sK+M8j2FcypcGgtZVL6zArTsK5RzLoF6ND
+            mmORvIMoCX4g6lIGS+gFhMMT21mork7COkzYNlXoN05w/qPKUttjIA==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T20:04:49Z"
-    mac: ENC[AES256_GCM,data:bs8Nl/j47y1o4rJe7ZYKIFYENjRBY5+hjFBPbQQKBKEG7E6UUYNNwEgSOEwOGLNQyLypO0v5IYz9Vm+XOUrbSdjdiIqKbd5hdBPyod0h24K+qixZkUQDZuWuMrFjy6EBCdKSnr76ioGjsx104v2TtG729vpox+REq6Oh/9biyvA=,iv:ZwRRy1XmmUK5Z8D5Cc4aD6NDtXrgOzCi8rlZwvtfO9k=,tag:27GDxWAExEzlwTFqpqHszQ==,type:str]
-    encrypted_regex: ^(github_token)$
+    lastmodified: "2025-12-28T07:34:54Z"
+    mac: ENC[AES256_GCM,data:MrMFMdKF0dJTDyu0mDlrcswM6MhlRxerb5SsAag+LXSuYfKu0GCjbQLFA0+AhUaJYuFT5dL3Xmw5v4YffBmbjDN/+qqOWQmldiUZR+uUCODnkg4iRbBvxwqq21Uj0WVniIjd+Fexm2HnWGABVp57pe0ZaZWX2J9DsxV0c4ntTHM=,iv:RJ3rHiZH/bwW0nEpwQrUH1gFmVcTLPNh4hQLlj676mY=,tag:1LzWtjCkh8cM5Rdjisj1uQ==,type:str]
+    unencrypted_suffix: _unencrypted
     version: 3.10.2
 ---
-apiVersion: argoproj.io/v1alpha1
-kind: Application
+apiVersion: ENC[AES256_GCM,data:cBI+dqcdye+7HcCAXTZBs+lj+kE=,iv:+uCirRYFRLQThrxCjKvmY5t9mfXTIVURZBQ+RKslTwA=,tag:JvCHjiMYfgBoSKUuB45+2g==,type:str]
+kind: ENC[AES256_GCM,data:T2Ign02WM5rSlIc=,iv:q5qivTfSOS3fOKc+XZijiXOJ2Ih8zmw+YbAsntG6ryQ=,tag:4o8e76MUUUYEWR1MaD7Pfw==,type:str]
 metadata:
     annotations:
-        argocd.argoproj.io/sync-wave: "1"
-        kustomize.config.k8s.io/behavior: replace
-    name: arc-runner-set
-    namespace: openshift-gitops
+        argocd.argoproj.io/sync-wave: ENC[AES256_GCM,data:Mw==,iv:qikhgOHum7FIAjtfL1WPKPesRCsdyS093kvnL+f8iQk=,tag:vmBWGBJETv6bppYk8Pjxiw==,type:str]
+    name: ENC[AES256_GCM,data:DfpDwwKeaDpibHAP8sg=,iv:gCNAL7aWB2o02zyWFv9JA6NXKM0sT8edl6py4TvqSZ0=,tag:SFly1Ad1T8ZdgUV5nlDd0Q==,type:str]
+    namespace: ENC[AES256_GCM,data:1rfFxcrcf3HQAQHEOsduvA==,iv:2RShrV38Zba1aAy//AeE6bWrW87mkdA1joeXh9n1+4E=,tag:Q+YCrg6Tjqv0WC04Kvcuww==,type:str]
 spec:
     destination:
-        namespace: arc-runners
-        server: https://kubernetes.default.svc
-    project: default
+        namespace: ENC[AES256_GCM,data:V5sh1jGZgqewuw4=,iv:6ml4n/qxgpRJwFGx0eZy1V564sI77KotcIuFmYFONmw=,tag:OaIr4TOfm+RKbnYqqFTCjg==,type:str]
+        server: ENC[AES256_GCM,data:h8bCSu+B5ChkLaV3vi5r1R6ZzeSGSU2DPzYSxMvR,iv:eX5PIzljgUkQaDy4ZYHwGIOsJV6mqsh6fLKbilCAR28=,tag:XFX8DWmDcOt7I4RTENEPUw==,type:str]
+    project: ENC[AES256_GCM,data:BAgaOt+vkw==,iv:WAFu9twdNzq6NorYVENU5gsTajqvHvknCAN0JiTD1Kk=,tag:x1c9RrsfFhfkzssa9BIaKw==,type:str]
     source:
-        chart: gha-runner-scale-set
+        chart: ENC[AES256_GCM,data:M7B58XRwYLbFRoLAaSuYzZh8FA4=,iv:aUTpvqCFzOqBfOrwZalf72CXQpFatgBRX4/DF5IkzB8=,tag:mUA8AK/p/8QS5N1AwxOkOQ==,type:str]
         helm:
-            releaseName: arc
+            releaseName: ENC[AES256_GCM,data:cEkP,iv:5mMYbIWAuohbWggjrWgYa7tXSbaNRBTW1DYNyotq+c8=,tag:LlHj08dQlZyUODhW1YvO5w==,type:str]
             valuesObject:
                 controllerServiceAccount:
-                    name: arc-gha-rs-controller
-                    namespace: arc-systems
+                    name: ENC[AES256_GCM,data:jUuYmw7wtk+9AAyHdP+fzvoAnj/Y,iv:IEnwm7IPT4ff0/wsSJGW0IlS8n/7K47QnaYp05CT418=,tag:/d4wU02H8lq8gHW9Wjdfwg==,type:str]
+                    namespace: ENC[AES256_GCM,data:rkEEVgGWGXWed0Q=,iv:NYcisDoSzlcydwGyvUuuKEo/TW847w4gv/lk5CfTq5k=,tag:1ZUIjk5SkCujc4F27QHUAg==,type:str]
                 githubConfigSecret:
-                    github_token: ENC[AES256_GCM,data:ExR35kIiAPcYd4JNoDx+Kimcos4m88ZAKw37irEtXgkvc3jjjsttEw==,iv:KW7aY84oJAEsLJVpXLIDDR9tR5LPxHSWyPIVcYYFvh0=,tag:kbfc7awq/e+xpCv1tktZQg==,type:str]
-                githubConfigUrl: https://github.com/makeitworkcloud
-                maxRunners: 1
-                minRunners: 1
+                    github_token: ENC[AES256_GCM,data:SoxDEkIsgCXwvLMYsKg1KgoqSUpBRwgxl6UzL16iizur1rx1js6lCA==,iv:yrqyokNAJA9TlWjmeprOqDwIMHUHnLxX70iK5RVvQI8=,tag:JnP2lpOw94ciSTYr8Z3l6Q==,type:str]
+                githubConfigUrl: ENC[AES256_GCM,data:5PKav7vQ/X3vluQACUlyYZfoVsO+WAqhUkyezdyR+JnlYA==,iv:cevRCuKzmeFYv5YIVv3vofNcnF9uJFV628HPmVY+vss=,tag:Jj/E5Y53LIBDXdBBdsIxxg==,type:str]
+                maxRunners: ENC[AES256_GCM,data:Mw==,iv:B483sJt3kCgxQhwE2dzNWGG3XAozixTDZ8a83q+P3jA=,tag:jiA5qdTpUb9KZd+Dv3atpA==,type:int]
+                minRunners: ENC[AES256_GCM,data:UA==,iv:xv7J7WzERT535nszrrHTIpb30fuLVRUttDrt2hhHJH4=,tag:Kv+Kv446rIGznxq+yGv3zg==,type:int]
                 template:
                     spec:
                         containers:
                             - command:
-                                - /home/runner/run.sh
+                                - ENC[AES256_GCM,data:HSjB1j6IFkmf6RDm7/3omgYyJg==,iv:NJSRyRufaNxh74To4La/+w6lz3XZeIhxRNtJjEXpKBA=,tag:uQjoz4aSjNZvEOeuyEvx4g==,type:str]
                               env:
-                                - name: DOCKER_HOST
-                                  value: unix:///var/run/docker.sock
-                              image: ghcr.io/actions/actions-runner:latest
-                              name: runner
+                                - name: ENC[AES256_GCM,data:rp85ugbFGaS318U=,iv:2XAdTRaVV8z8z1QLanlOptCvp4dYchLVyz52Ejjj1N8=,tag:RXVXpfG7jQ9oTrLxq5ZuAg==,type:str]
+                                  value: ENC[AES256_GCM,data:rMBtlFX97w301Ni6ptZANsA6+FP7pGKwXkKW,iv:u79OtDCxQG4Xoh3oP0ZJxY5jYdC03NafO6R5sPTpBkM=,tag:bf1BHhW4yijXHSo0g81cxg==,type:str]
+                              image: ENC[AES256_GCM,data:fLWO7QlASylZ210/ZaSGwvHSeOYtnj8HqqLvhvXKU2XPI7LHMw==,iv:eLp99MBeIIT56+pyF7PbUx5owczYrAfJLMTpkvLnNSY=,tag:D6x2hAw/0zcRnaeUfkY8MQ==,type:str]
+                              name: ENC[AES256_GCM,data:qKGsL2zD,iv:rDMqa6ggnOfTuV3jN9dwjnCXpjAmSGHx9V21VrmXXto=,tag:T1tZuhumJBUNNKTg+0GRZw==,type:str]
                               volumeMounts:
-                                - mountPath: /home/runner/_work
-                                  name: work
-                                - mountPath: /var/run
-                                  name: dind-sock
+                                - mountPath: ENC[AES256_GCM,data:LUYI5LN11xDa0LzYEpvQnmjJ,iv:tp0fTenincBZc9LGzcFWuxUI6ZhyP41yaYmczPCvmJg=,tag:d20joC4Ml3CwFem4r266uQ==,type:str]
+                                  name: ENC[AES256_GCM,data:7ljjTQ==,iv:Qp6Wjb05I9ft2b/dUhEUCTFOSes8YkyCdfWcTjCv4RI=,tag:emB2bsXDizMzX8BoaLifjQ==,type:str]
+                                - mountPath: ENC[AES256_GCM,data:RMC8WREWMC8=,iv:oNRgaav84oeIEg43LFmLh19xCvGy0Afh8lNOLFdH/Ho=,tag:6HdSSyE5x7WS4JsQ/gPAWw==,type:str]
+                                  name: ENC[AES256_GCM,data:LxzsKsVNT14X,iv:QWZ56Ku956OKBflgoYXICPlLWpzsrEkh/QIEZ9avekM=,tag:5tR0wVDXTZhXVDQltk9rgQ==,type:str]
                             - args:
-                                - dockerd
-                                - --host=unix:///var/run/docker.sock
-                                - --group=$(DOCKER_GROUP_GID)
+                                - ENC[AES256_GCM,data:CzNTSs+HKQ==,iv:X0FzEs6qXbKDwjvVR5sW/OVWEeG9gRXOjzEKunrfCzE=,tag:tbxdz1yUaLQ+shDjgLAKVA==,type:str]
+                                - ENC[AES256_GCM,data:p9YwwgD1WWDQYp+Nm2+vpl8vUrhLdFr7xRlMWa85oiQL1g==,iv:3OgSOMI7AQh+AufnD1uIrnVMGzd3LyfkwNwWpLufOUw=,tag:uiFZBK+vCoe1jtdbBuuc8Q==,type:str]
+                                - ENC[AES256_GCM,data:D7nXGLjSxYk1IdgtAbcYRCHX/v0mEkoCtGEv,iv:sJUyh2O21SqYQZRlPeUGE466Xee5KnTI4AT4uowrAn8=,tag:dvYkBRZQ77vLXkOeqUUd5w==,type:str]
                               env:
-                                - name: DOCKER_GROUP_GID
-                                  value: "123"
-                              image: docker:dind
-                              name: dind
+                                - name: ENC[AES256_GCM,data:IDa1GNweFNreand3/2//xg==,iv:BP5QYyFBaVTYXx4Tr0X+0/EegbB8JIL372jvFNbODLw=,tag:VaV6wga69/AZn7ibzhhGyg==,type:str]
+                                  value: ENC[AES256_GCM,data:0MBw,iv:VXL8okXlj/c3HEyKS6NzdbpMKuEK9s8PWEWVbXSBgM0=,tag:tj54HP9TR4Q9fZJ2zB9L4A==,type:str]
+                              image: ENC[AES256_GCM,data:YplU3RcU/YIRyz0=,iv:m8gvRw+rcXrHxMStR12D28/Q0XKr1S9CBmFGG2RIbL0=,tag:cUs3/6Z4BQe+5g6lKpGw+A==,type:str]
+                              name: ENC[AES256_GCM,data:tJjjYA==,iv:x4aL2iywAZfRI3RJuJHZWvAWP5GMpH1EZoLmWKfmwck=,tag:+x+wmIYgVHpZRQudfjmm6Q==,type:str]
                               securityContext:
-                                privileged: true
+                                privileged: ENC[AES256_GCM,data:c2hCgw==,iv:m4BzivTgEq1KKECvJHTtAHbzaEoqCxma6TPoZycN3BM=,tag:1B+tXLdtyyOusAWZ90LaIQ==,type:bool]
                               volumeMounts:
-                                - mountPath: /home/runner/_work
-                                  name: work
-                                - mountPath: /var/lib/docker
-                                  name: var-lib-docker
-                                - mountPath: /var/run
-                                  name: dind-sock
-                                - mountPath: /home/runner/externals
-                                  name: dind-externals
-                                - mountPath: /etc/docker/daemon.json
-                                  name: daemon-json
-                                  readOnly: true
-                                  subPath: daemon.json
+                                - mountPath: ENC[AES256_GCM,data:fxe7W6J76eq0h/g14rPmyUTp,iv:ES4QXBSC5mas/N+B8uOlMlt6V6AYCGsAVF/YdC5MP04=,tag:+0o5xSLbHjh2ugAfiTW2ug==,type:str]
+                                  name: ENC[AES256_GCM,data:1j47TQ==,iv:38q+r+lRHcU+TJIe7uiq+2Lx/QPhglvu+ZPGnFmEmRE=,tag:kPGMwWQm1F/pWbVIH+kbDQ==,type:str]
+                                - mountPath: ENC[AES256_GCM,data:JT3KFb9T4//GmJEtpMce,iv:Y6MvqSS27IWx2/Dr7YeH90eSMr6c7tLO6ookp9piUvw=,tag:HCNbgifDJnrX5fIoTRC/fQ==,type:str]
+                                  name: ENC[AES256_GCM,data:yB4pZgQDxKzHoFcA++s=,iv:uYSxJ7FlUWJBo+CoE1R9OueLuC5utqk3mY1PsadMpXc=,tag:eEKmcXn4QgxLZb79RXbLiQ==,type:str]
+                                - mountPath: ENC[AES256_GCM,data:iMJeReDc0lg=,iv:Y/4Rc1J/AZrF3O2aJuXOvD5WOp53HHie53HcziaUTTw=,tag:8Tb0DIHdwwPeO58gFNI3fg==,type:str]
+                                  name: ENC[AES256_GCM,data:zJG4iA9DNlGd,iv:AUXXH8VSzjKMcd1B19Zz07IvvwfW/imX0zCnN4NV9xo=,tag:bZu+v0Wt22cZFaYd5Aj9bg==,type:str]
+                                - mountPath: ENC[AES256_GCM,data:l9jprhCNp7VHGxD8EWCyCOKjiM2oQw==,iv:HfuehwYsAbjh26H95c4i/I9ddJ27LV//pZ0k6ZjuYTo=,tag:ITiIuUw3KM9E26MbTomEzg==,type:str]
+                                  name: ENC[AES256_GCM,data:kAD/EkjDUha/eiI/PUU=,iv:p31fZd6Tg9SQw1Q6s7ZE4lvB+0LOWcL2RWVPbgCjty4=,tag:phjW5884C/cdsZ4lwWRngg==,type:str]
+                                - mountPath: ENC[AES256_GCM,data:KIwMpybW9giwGSP0NAuVgZSWS5ql3OI=,iv:2k245YB94ZR9SR5aIbrHHQRg3kLlf+mVtfX6AATeyPY=,tag:28xTjHMZaWA/95yt4NvQoA==,type:str]
+                                  name: ENC[AES256_GCM,data:gmjVynEn/quuz5E=,iv:MuC5egL6uugXDUv9zdomkh3ZERfsi02iEWduZUFo+Dw=,tag:G3bZBml9GlIJLDZ31zV8TQ==,type:str]
+                                  readOnly: ENC[AES256_GCM,data:YqqFkQ==,iv:gVVBDVIleighqz9g5RJT0V3Yl3QMX2Hds7+POmaTB6Q=,tag:T5IAKlpqTnDNAayxNcoH8A==,type:bool]
+                                  subPath: ENC[AES256_GCM,data:Glr4XWPgeg1B+aE=,iv:0WWbmZ0CD1+IdveZQBE99MaUdRvq0k/qABH8idg7ihQ=,tag:iQEcrdW2Jtbwa+x0ZGVqcg==,type:str]
                         initContainers:
                             - command:
-                                - cp
-                                - -r
-                                - -v
-                                - /home/runner/externals/.
-                                - /home/runner/tmpDir/
-                              image: ghcr.io/actions/actions-runner:latest
-                              name: init-dind-externals
+                                - ENC[AES256_GCM,data:fXI=,iv:Q51rgIv1tgigna4nucPSbMhu77Q4qyKeD3y34EXnVYs=,tag:/RogZmXzxK6OfpkwnwcD4w==,type:str]
+                                - ENC[AES256_GCM,data:8hU=,iv:9khda/dCU46KSzMa1nXqO3GRGILv82JCDbbViT+mgks=,tag:T0pRTVAtywTiKRmrp4+yAw==,type:str]
+                                - ENC[AES256_GCM,data:TTw=,iv:Qj8fgrLH7yVsgn638WTaueiHI+NCR8OuUwPibbm+9rk=,tag:fkmxGqX9hIikZYSVxnHYyg==,type:str]
+                                - ENC[AES256_GCM,data:jGjGot47MDi0SYfxd4+Rslq5xgcX0yBv,iv:vBcu5eTkbCQNlXefw34SWRRDN0jtv8h8cNCHW0PDgXU=,tag:Zd8UrOqeWjMwG0BpJpzkNw==,type:str]
+                                - ENC[AES256_GCM,data:kfjy6pC7e/VUt21ssNRkAm3QKOM=,iv:rn9O/QJuQYW3wvUXuJARUOYll9pE+YFNtjT/BeGrvaM=,tag:qd1F68epWqzvTEP+NdFc9w==,type:str]
+                              image: ENC[AES256_GCM,data:LjybSOo9GN3OCeVh1c7aG0wE2W1S1TrXA6RvReTrNk4B9uuOjg==,iv:o9yJ7k+7DwLsw9C5K7JkVlc5wcTab4IJy/og56TAzmA=,tag:WGgjc3KxPx652fdnsqEC8Q==,type:str]
+                              name: ENC[AES256_GCM,data:Eg7JsBy0KsgN/GDZUoMbS0bflg==,iv:6JfgNNEUvAWVu3vs2Z7FcarRisT04HTmvwut9oRSfI8=,tag:lkF35FPPHLDCTish91bkeg==,type:str]
                               volumeMounts:
-                                - mountPath: /home/runner/tmpDir
-                                  name: dind-externals
+                                - mountPath: ENC[AES256_GCM,data:6zEy8IZS7Zdl5twJ5grEOSr8XA==,iv:THwR7YemRVh+zVxzYL6yCnGHArYSXDaFjC9Wrc3FBrA=,tag:edBtaN2qf1l5+uzMzJpb8Q==,type:str]
+                                  name: ENC[AES256_GCM,data:KICW9F9z7rOIDC37IlE=,iv:JdSS/9j8rd4gzlh0hJ0GnIw7utlTBxmaTFmxeu7qKkE=,tag:mxuEld+wzo7IjLgBkcfi2g==,type:str]
                         volumes:
                             - emptyDir: {}
-                              name: work
+                              name: ENC[AES256_GCM,data:RCunZA==,iv:K1rjHrBaUGh9SnFKk6VhxoTlKOkwZRrbKh2kwFyPMuk=,tag:+ezECAlJoCj1L4HSF38vWg==,type:str]
                             - ephemeral:
                                 volumeClaimTemplate:
                                     spec:
                                         accessModes:
-                                            - ReadWriteOnce
+                                            - ENC[AES256_GCM,data:UN7LmzDYHWHwuXiXsw==,iv:HxXdw0/lfQGMqBJBVQQpszw+C2YaUmaN4wr6jE6ysTw=,tag:8k1mn5J5MFbwNLbsBtaH0g==,type:str]
                                         resources:
                                             requests:
-                                                storage: 50Gi
-                              name: var-lib-docker
+                                                storage: ENC[AES256_GCM,data:O+Cmug==,iv:o/eWenX0FSvIbYW2PyAXAv8wKe+XbyuHf+tYQ7zPnWg=,tag:VaW60vQhHkBwqkodYFv6qw==,type:str]
+                              name: ENC[AES256_GCM,data:FbUDSZpXpa8Aww1g/xY=,iv:zvtkeChtkvCfmOmE0JaH9STyWzD19t8Ke2A8QjNlEgI=,tag:znv6pW6SHDRc9jn68LhgRw==,type:str]
                             - emptyDir: {}
-                              name: dind-sock
+                              name: ENC[AES256_GCM,data:38rFbymrN/U6,iv:V6dl0piDAp0wMwtv5xU6nlL/DL949qUeH2Jlw+Cljos=,tag:lEQ+Jnq7MViGDVpxi0ZIOg==,type:str]
                             - emptyDir: {}
-                              name: dind-externals
+                              name: ENC[AES256_GCM,data:vuvryTuHSMx+msp6Sjg=,iv:f35z8dKPk4l9JPUwlBow6xBVFavQaH7vCounYRd1GTM=,tag:skxmsrqunUmkm+awyPesYw==,type:str]
                             - configMap:
-                                name: docker-daemon-config
-                              name: daemon-json
-        repoURL: ghcr.io/actions/actions-runner-controller-charts
-        targetRevision: 0.11.0
+                                name: ENC[AES256_GCM,data:/ybPeyHINsX4cFcnoe6QT5nMbs8=,iv:ONmRbRugiNwLvtlsIS1exTQonV9pIvi864QigO6VquI=,tag:P5/BRTpp1/xnLZm+8Z3Otw==,type:str]
+                              name: ENC[AES256_GCM,data:62m+1xYJonm3hLI=,iv:5+GXaJVf5SiJBnOuAu7Jkw04zjQKhUDsjIBVBSSA1fI=,tag:9E5bc3kkzjDqkVB2IBm/fw==,type:str]
+        repoURL: ENC[AES256_GCM,data:Hn3/HdcT3ewsATAtobADuB25cQavmM5BKPdvIcPe/OgF/nCOq/MK24vHB7F5N6yS,iv:mej9ds4oeRsFsi5setzQLJycCVSEdPEm88U+wxO+dCU=,tag:Vro2RZJjelTAYorgOqdAHg==,type:str]
+        targetRevision: ENC[AES256_GCM,data:PVruug9i,iv:irOgwDGVl0SOnxnQCkmofP3uPuXgm3omaSDX5N2V4VU=,tag:Sdbn1n+ra5ga5h2dC4C3Bg==,type:str]
     syncPolicy:
         automated:
-            prune: false
-            selfHeal: true
+            prune: ENC[AES256_GCM,data:lzYVPFc=,iv:2JV5BmZqKt4JtYnToSC1ON2kLaO7nUJPTju8Q3zfdVo=,tag:vP1sAjGAWldsNgNn569Hiw==,type:bool]
+            selfHeal: ENC[AES256_GCM,data:raJADQ==,iv:iHnAZQuRbHwzFSujUC9b57mi+ZgC6j8+yd/6YEOIPLk=,tag:vJUceAKd9XO9Qw+DbR9OyA==,type:bool]
 sops:
     age:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAwbDBJM0F3em1tVCtKNTdy
-            MENEYk52K2dRQ0p6ZHFCYXNidktFOGdadzFjCmhUWG5BTE8wWFltYTdzT1hIZmY2
-            MHM1ejA0ckdFUVZjWWYxU0pXMzNVZVkKLS0tIHVqSEo4MStKL0tjSHdhTXFBcjFO
-            L1dVQW9WODBGWUpvL00xWE9hK1B1SFUKY7y80019V+3Hg3xi3nMHp32dwh32D28i
-            5ErMl32hZ9uYsyofHANDg+I9GAHleo9FoksMh4GHNX3IT4LepgQSMg==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBnRTlkMFhtLzB5MFAxOXp4
+            MmpUMDdkeWFqUDRsNHdnWDhnczVxYVp0dEZZCmcyclZkTGZRbU93OEtuQ2g1SVJr
+            d0g3ekhtUndEMWhiODJrbmhVVW4vTFEKLS0tIHg1bWRvblIrVzRRNjJNRGhqTFl1
+            VDJXRWxOTjQ1M0ZvcWFWTGtJdjhNQ2sK+M8j2FcypcGgtZVL6zArTsK5RzLoF6ND
+            mmORvIMoCX4g6lIGS+gFhMMT21mork7COkzYNlXoN05w/qPKUttjIA==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T20:04:49Z"
-    mac: ENC[AES256_GCM,data:bs8Nl/j47y1o4rJe7ZYKIFYENjRBY5+hjFBPbQQKBKEG7E6UUYNNwEgSOEwOGLNQyLypO0v5IYz9Vm+XOUrbSdjdiIqKbd5hdBPyod0h24K+qixZkUQDZuWuMrFjy6EBCdKSnr76ioGjsx104v2TtG729vpox+REq6Oh/9biyvA=,iv:ZwRRy1XmmUK5Z8D5Cc4aD6NDtXrgOzCi8rlZwvtfO9k=,tag:27GDxWAExEzlwTFqpqHszQ==,type:str]
-    encrypted_regex: ^(github_token)$
+    lastmodified: "2025-12-28T07:34:54Z"
+    mac: ENC[AES256_GCM,data:MrMFMdKF0dJTDyu0mDlrcswM6MhlRxerb5SsAag+LXSuYfKu0GCjbQLFA0+AhUaJYuFT5dL3Xmw5v4YffBmbjDN/+qqOWQmldiUZR+uUCODnkg4iRbBvxwqq21Uj0WVniIjd+Fexm2HnWGABVp57pe0ZaZWX2J9DsxV0c4ntTHM=,iv:RJ3rHiZH/bwW0nEpwQrUH1gFmVcTLPNh4hQLlj676mY=,tag:1LzWtjCkh8cM5Rdjisj1uQ==,type:str]
+    unencrypted_suffix: _unencrypted
     version: 3.10.2
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+apiVersion: ENC[AES256_GCM,data:4ll+MUDg7BVcGWwf7ALeJ3eksMNxOL0rVbBNpQ==,iv:1D52UMlu09iVSypCPjSf/STbOQNluFYR4btCmoNUzKc=,tag:f3znQtmGEkTrfwAznX4Bzw==,type:str]
+kind: ENC[AES256_GCM,data:Futtqn2qIt7E3mI=,iv:/4dtJEZd7qhSldCOcqHwd/WpeIR82zqTKPcN/DjCgDk=,tag:pdy63lQlhvmOQzeqzx0Sig==,type:str]
 metadata:
     annotations:
-        argocd.argoproj.io/sync-wave: "0"
-        kustomize.config.k8s.io/behavior: merge
-    name: arc-runners-scc-rb
-    namespace: arc-runners
+        argocd.argoproj.io/sync-wave: ENC[AES256_GCM,data:Sg==,iv:rQsr65BL1F0YnbKT+QdCBj3yaUyLADV72o+cOFquBsM=,tag:iYDfciL3PH7yBrrOVDbQvw==,type:str]
+    name: ENC[AES256_GCM,data:up1Tv7U2/Riiq83eD6KdWS1d,iv:H4bkFVMppRlaZtAJjvTm4yJVii9W84SWazCBB23S2vk=,tag:zwlRRvmdCB8Jh53r9adB5A==,type:str]
+    namespace: ENC[AES256_GCM,data:ePgjm4CmiWvH1o8=,iv:Zpjsxcpy0ZoaWCOMtHCdgBhvSDe2zrnc11Hcpea4FKU=,tag:vIHXlJDMjEPzQnBI2/y/Vw==,type:str]
 roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: ClusterRole
-    name: system:openshift:scc:privileged
+    apiGroup: ENC[AES256_GCM,data:Tq9jJvsAUyoDLZC7VfgI3og2X4SXvP5EaA==,iv:4Eu5mOfje20KhCHj5ZgWB2jiiIGu/my7pGZFAtsJLhY=,tag:Ss8d9GXS7OOdxhl3c38E8A==,type:str]
+    kind: ENC[AES256_GCM,data:yEpnOVHhupiEI44=,iv:GKEpor4gkTt95jU5wNKt3r4bkTeKtyMCJYdCYV9aqEE=,tag:8rSNQ/G8roX39BxKO7VXKw==,type:str]
+    name: ENC[AES256_GCM,data:vfiiTW/E0NkVM5+BNgOasj3JjlbCW/+cfn//aNrGFg==,iv:mNQd3Zz1vLuqwsOWUiOujC1QAE6HYaWYsPbKapsoYJg=,tag:xwCmjFRU1h6sU5tpU7YCVQ==,type:str]
 subjects:
-    - kind: ServiceAccount
-      name: arc-gha-rs-no-permission
-      namespace: arc-runners
+    - kind: ENC[AES256_GCM,data:o4wy0I7aLs2U62Yhbo8=,iv:BOyxXfmD/56JgyvgBvgYUxMs5RZgFQCaVi3phs3+6Us=,tag:yvWw5sywHDLoxjSDTnwcgw==,type:str]
+      name: ENC[AES256_GCM,data:IOqr90CqOWa4tMcmPV5Ak5ZsELd43T2K,iv:6BnjRhB6rPLDiaOOxpyRwzcCkKjWKLNbe+aqDOTIa4I=,tag:+tYbY99lbhKHa+80obUQSQ==,type:str]
+      namespace: ENC[AES256_GCM,data:sosgFiNOvkw1bOA=,iv:ZrjxdYGLsRrx4dBBZ6Mj4BuW66fNHkBwfJQKmlBN5gs=,tag:wOvBe6VIieO567ocSQRxGw==,type:str]
 sops:
     age:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAwbDBJM0F3em1tVCtKNTdy
-            MENEYk52K2dRQ0p6ZHFCYXNidktFOGdadzFjCmhUWG5BTE8wWFltYTdzT1hIZmY2
-            MHM1ejA0ckdFUVZjWWYxU0pXMzNVZVkKLS0tIHVqSEo4MStKL0tjSHdhTXFBcjFO
-            L1dVQW9WODBGWUpvL00xWE9hK1B1SFUKY7y80019V+3Hg3xi3nMHp32dwh32D28i
-            5ErMl32hZ9uYsyofHANDg+I9GAHleo9FoksMh4GHNX3IT4LepgQSMg==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBnRTlkMFhtLzB5MFAxOXp4
+            MmpUMDdkeWFqUDRsNHdnWDhnczVxYVp0dEZZCmcyclZkTGZRbU93OEtuQ2g1SVJr
+            d0g3ekhtUndEMWhiODJrbmhVVW4vTFEKLS0tIHg1bWRvblIrVzRRNjJNRGhqTFl1
+            VDJXRWxOTjQ1M0ZvcWFWTGtJdjhNQ2sK+M8j2FcypcGgtZVL6zArTsK5RzLoF6ND
+            mmORvIMoCX4g6lIGS+gFhMMT21mork7COkzYNlXoN05w/qPKUttjIA==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-21T20:04:49Z"
-    mac: ENC[AES256_GCM,data:bs8Nl/j47y1o4rJe7ZYKIFYENjRBY5+hjFBPbQQKBKEG7E6UUYNNwEgSOEwOGLNQyLypO0v5IYz9Vm+XOUrbSdjdiIqKbd5hdBPyod0h24K+qixZkUQDZuWuMrFjy6EBCdKSnr76ioGjsx104v2TtG729vpox+REq6Oh/9biyvA=,iv:ZwRRy1XmmUK5Z8D5Cc4aD6NDtXrgOzCi8rlZwvtfO9k=,tag:27GDxWAExEzlwTFqpqHszQ==,type:str]
-    encrypted_regex: ^(github_token)$
+    lastmodified: "2025-12-28T07:34:54Z"
+    mac: ENC[AES256_GCM,data:MrMFMdKF0dJTDyu0mDlrcswM6MhlRxerb5SsAag+LXSuYfKu0GCjbQLFA0+AhUaJYuFT5dL3Xmw5v4YffBmbjDN/+qqOWQmldiUZR+uUCODnkg4iRbBvxwqq21Uj0WVniIjd+Fexm2HnWGABVp57pe0ZaZWX2J9DsxV0c4ntTHM=,iv:RJ3rHiZH/bwW0nEpwQrUH1gFmVcTLPNh4hQLlj676mY=,tag:1LzWtjCkh8cM5Rdjisj1uQ==,type:str]
+    unencrypted_suffix: _unencrypted
     version: 3.10.2
