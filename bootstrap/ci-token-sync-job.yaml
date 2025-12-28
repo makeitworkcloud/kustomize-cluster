@@ -9,6 +9,8 @@ metadata:
   annotations:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    ignore-check.kube-linter.io/non-existent-service-account: "SA created by GitOps operator"
+    ignore-check.kube-linter.io/latest-tag: "Using OpenShift internal registry ImageStream"
 spec:
   ttlSecondsAfterFinished: 3600
   backoffLimit: 3
@@ -22,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: sync
-          image: ghcr.io/makeitworkcloud/runner:latest
+          image: image-registry.openshift-image-registry.svc:5000/public-registry/gh-cli:latest
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
