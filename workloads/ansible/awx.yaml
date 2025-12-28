@@ -1,87 +1,58 @@
-apiVersion: v1
+apiVersion: ENC[AES256_GCM,data:hw0=,iv:+r72QFpovm9hE+U9+GyiKm08gQx4yuI1AC9F72RsYnk=,tag:HCXkYQolfLeP8NGLRNmfkg==,type:str]
 data:
-    password: ENC[AES256_GCM,data:ntM62FoykbcoEGcOwTksLvRFZSZwInDXOYZwGn/ktcEk6ui7gARsPU9Z0Xg=,iv:JkLkOKWiYy+3lFrvqHKTodYS4XvfXu6dRiRwS/MyJeg=,tag:gO6jYNf4BRBzpdsvHghruQ==,type:str]
-kind: Secret
+    password: ENC[AES256_GCM,data:at/mVHGxlIuzzeX1IFGaW0lF0YeNCMG1jt+XfkFlfkQ0ARj4kotZm565T3k=,iv:nVHAlK34n0SR+D7ilCSVkZFGFmEpNLoE0YEOK6QVNiI=,tag:oEyKXpE3AL8Iqh7JJq/oOA==,type:str]
+kind: ENC[AES256_GCM,data:RfmroCU2,iv:aMqhNwiL1iJfrvGfg45+8M/b4Pu4JkKbcSA8mwVd98s=,tag:Rnhq8lrverbymGSc8zieUg==,type:str]
 metadata:
     annotations:
-        argocd.argoproj.io/sync-wave: "0"
-        kustomize.config.k8s.io/behavior: replace
-    name: makeitwork-admin-password
-    namespace: awx
-type: Opaque
+        argocd.argoproj.io/sync-wave: ENC[AES256_GCM,data:QA==,iv:/ny85Ca5vN/8Fpj/D/y7qB24fM/69NRL91D6NuQd+Hg=,tag:F0eDvx6Qo8Su+tEqGTsplA==,type:str]
+    name: ENC[AES256_GCM,data:WIUJbssGA/6MW79dgq62D2eONVnNpz9iWA==,iv:e51rrUP/nT6iWhRMB17kMFWDcJMIB9gS4mpwqhgEbLM=,tag:y7gPHJrR3mkWWSF9aj6AxQ==,type:str]
+    namespace: ENC[AES256_GCM,data:fPcT,iv:2YZ+lv8Wk7jro8o/YYpRlV1PsCALNU7gCcv+HM9GHQs=,tag:pUTtfrIX1gK6rOxqEzYLvw==,type:str]
+type: ENC[AES256_GCM,data:2mGiGkXr,iv:FvcUwwa0tMHXncFCecnhr0e4TqhIJxyS+v5qJyKUuS0=,tag:90u8jQqAN1iN4vHT94JlUg==,type:str]
 sops:
     age:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBubGFvSldzTllPeEZaaUpQ
-            ck16aVlHVlljaFErdE1iZjhDVjdUNWdkUldjClljbU10WGFUS0EwUzdiVmdNVVN6
-            VE9oMVR6TUk3NWlXOHJwQ3J5UGg4aDQKLS0tIERNc0V4YkdtVHB3YUlnQ2ZvSGR3
-            T0FkeUtJaVRFbFptR25jcVZXaVVvL0kKaNXv4AOQX5+lFXABiCzPg37RwTZte2F4
-            qA8aSeJovKwUffX7l9mLGBgwO80lKfFSEwzHAv4dvP18OatvE584aA==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBRdWxLdzkzVzNERDJ4Q1Q3
+            a3IxUFExampISFFueVo4SHNocVd3YWtZalgwCjRjQTdTSkxOQ0xybVFjWjBUQ1h6
+            V0t6V3p3WWNYeWNFUWl3NVI2S3JXdkEKLS0tIDJaM0tpZlk4OUxnTGNHSU5oT09z
+            UnNOWS9oZFR4Rk1VMVNVWVF6SjdBbFUKS1/VNgdPSmaiD3Mfxq/tgVoPhTZmNux8
+            B9M8AfV9/aIQ5fJcMytUtc2iHCR5XBus8q2KOruclju5F5r2+s9zng==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-28T06:15:04Z"
-    mac: ENC[AES256_GCM,data:vaVbok7BIpMhKZDPIpOv6k28/WNGzKeh5Y7FACQ9y10aCVvCmMmwb39XW9Kj2dIwmK3P1We88yr5S6dGJ5WAtO9WxXM1+jyoXrDeTliz+n5GgADBY/9nvB2GphfcJmI/flK8i3kiURlLyqQk+o//yDBNhQv8gTwfXwYCT840/UA=,iv:YxpsaHpPKwIOE07OIrSmIRzEw4LZLxisJUcMtG5r8XI=,tag:act12uxQbl6bVNUnkxLD+Q==,type:str]
-    encrypted_regex: ^(password)$
+    lastmodified: "2025-12-28T07:34:08Z"
+    mac: ENC[AES256_GCM,data:7D4ptWrX6YAJh3A1BD1qwb6/gxtXBO9aTzzEUOaY80Ppm9HsAq/LNyX+80VNaJ/kN2cUbHyeFajgTH/lhoRy5o1wWiBLTXx/DMe2QaPINEh6OtG+R9YV5cUHIhCc+zqZAJSEi4qfs5F2b5KQ1j8kJ6l88/+w8VBouXFw2UV+A1k=,iv:XOax89IdYrOm009FPVVbYtxW9sF2JsALidED87Ai+Zs=,tag:yhkvz+2bNQanQy57HcGpxQ==,type:str]
+    unencrypted_suffix: _unencrypted
     version: 3.10.2
 ---
-apiVersion: awx.ansible.com/v1beta1
-kind: AWX
+apiVersion: ENC[AES256_GCM,data:jaO2spZhU85V86JkJDGC/yGP4mawK0Y=,iv:Qg2VO6kn3pi5Ym6pm2bqNBBKtaVzvXwk5RDZUxvgiD4=,tag:6yCqV4O0GSAqcCiTiDHbUw==,type:str]
+kind: ENC[AES256_GCM,data:qkvd,iv:cLkbU3n8Xen85EbtW4Wgf4YnawjhBHFx6DtgxyaA4WA=,tag:N+W2p5sbKotle3QKK7DwGg==,type:str]
 metadata:
     annotations:
-        argocd.argoproj.io/sync-wave: "1"
-        kustomize.config.k8s.io/behavior: merge
-    name: awx
-    namespace: awx
+        argocd.argoproj.io/sync-wave: ENC[AES256_GCM,data:TQ==,iv:xLPFiIYVP+bcfikIFRJBcyVobh0YZKsUtA7SJ5bSwj8=,tag:LrRHT16lVBFWweUW7oiyFA==,type:str]
+    name: ENC[AES256_GCM,data:Xzbk,iv:rtVvVGxeC9KYUkmgXFKl1y1r/UxvIfElzWyYOEIl1Vk=,tag:j/+lcYdnd4SpDWpXZa0+Uw==,type:str]
+    namespace: ENC[AES256_GCM,data:sn/H,iv:HWSKmWG9aP7G/FadI4TtVHRvXxB8qwml1Fsam9VXlaQ=,tag:++GApKPcich7KMXiEbWqEw==,type:str]
 spec:
-    admin_password_secret: makeitwork-admin-password
-    ingress_type: Route
-    route_host: ansible.makeitwork.cloud
+    admin_password_secret: ENC[AES256_GCM,data:676Ojj7Ly9GcsvI5efXTGqH4CeLIo68bdg==,iv:24OJN/JHctmNStrfK+07KE6ClkoBb4KsYqZHULbQUxk=,tag:ZZBm3eWg2ih0Ts+F0BXxbg==,type:str]
+    ingress_type: ENC[AES256_GCM,data:Ep3L51M=,iv:tiEZ9Md+2QiF+CJFHS75aiPItV/ygCgHOUuNg8VXqE8=,tag:KBMEWHCBSTLA4L3qH4xeHQ==,type:str]
+    route_host: ENC[AES256_GCM,data:1JyBWz5IIA2Q2FzHmaE8VKX946zCyPTe,iv:WoJPZV6p5sHExPQX5vXIyIB+zUAlcL8vAlY7dG77zm4=,tag:USy4y/ylPELwN9+q2l62sA==,type:str]
     extra_settings_files:
         secrets:
-            - name: awx-github-oauth
-              key: github_settings.py
-    extra_volumes: |
-        - name: awx-logo-login
-          configMap:
-            name: awx-logo
-            items:
-              - key: logo-login.svg
-                path: logo-login.svg
-        - name: awx-logo-header
-          configMap:
-            name: awx-logo
-            items:
-              - key: logo-header.svg
-                path: logo-header.svg
-        - name: awx-brand-logo
-          configMap:
-            name: awx-logo
-            items:
-              - key: brand-logo.svg
-                path: brand-logo.svg
-    web_extra_volume_mounts: |
-        - name: awx-logo-login
-          mountPath: /var/lib/awx/public/static/media/logo-login.svg
-          subPath: logo-login.svg
-        - name: awx-logo-header
-          mountPath: /var/lib/awx/public/static/media/logo-header.svg
-          subPath: logo-header.svg
-        - name: awx-brand-logo
-          mountPath: /var/lib/awx/public/static/media/brand-logo.svg
-          subPath: brand-logo.svg
+            - name: ENC[AES256_GCM,data:cXbYR2OeIHRiZsZ6hMI/KA==,iv:mLgF38d1X6oMJ+/pM9nSf++o2+P8qBXqkmDM7Vm1b10=,tag:Xyf4rh0AOWisK1E+UKGolQ==,type:str]
+              key: ENC[AES256_GCM,data:V/gyEmXgsMs/FKOmuxjIByQG,iv:xnoHVYJ5TQ54y31pebN74VPoD8aoIZwyv99md5yRMFs=,tag:N7BHJEfglaosIXq9guKwoQ==,type:str]
+    extra_volumes: ENC[AES256_GCM,data:cpRxwNEyleCyPj06cxVKbVqdS798dozSXd26WzvT7a/XH+uCvTLlbhNgV8ePQXp6gCjuPRDYpFY05JBA7baIfBsXVNj7ufhoffL26VQTee/cU1nqW5WF8GfdhuP+slVlFqmLgoi5XWmh9ojJ2nzN3aWGEjRO0dI8bK+9FpYozS2AU2ygf2mrw7vT8IdJWywyQLS5DYZmbAPoC1cYvbgRJNOwF+ii7Mf22s0Vnnv3OyAwnnEN3pCFm063/lbXp7xzlhjGCbJkdkfJptCmmc0s9b+cYj2HaE7BkNCxFcnEeovnW6C8uJwl+/XX1hOKYQ19h/BBrzV/P071rR3leVS1/v4nufSsdicSnc81f3VWKph7hMyVaaqXIOcOgryG4cReIfMWKs7FzQSJVynZtjvZMpT+Y/oiVB2qLT8clDvpuG1Clx9WNwZXaoJJo7pvNsf0ckK2X33VLnZV2GplyjHGy7b2r8fDcz5nWs1iAhACHrfFAdVP,iv:o/otlWAc9RH4FcKp21KY11k0Khsm384356XiffmcByM=,tag:9dO/Yf/eCqtaWhYsH8BJ5A==,type:str]
+    web_extra_volume_mounts: ENC[AES256_GCM,data:SlyXTC4ZON10/66Od7JnKYXhDm+8If8aA9gbkhWP6ceV5+M3QEEmX8cSMhYvsHEcpbaIj3HiaB4Gwk2xHx71lr9phEmR5WWetiq4qnsaP+MDyLQhk7jlhgIh6JguREzueU22HFVmaVH1uMdNFGmMg7lNULXF8/Rw4ldQc7lVyOLCzexz9nDf0RQVH7e+ue8AQEDKiAlZzFOr4gK6AAD9bpZ5GGD09ECgnDT4MhcyfvLXpytgNWFFgAHcvnfXndZrchjmQmELal64uiTu7wnEVJx1p0OH+qvUw0qgvMByR2j1IW6Rpky+KTFo9wLNbDQEY+n3QNziydwmj/cn4AZpJC1Crir83NQ0HtdFsxtuat/L4aV+rSfaQqZA8yrmx0mlLrBgtVW8DqBK8OwXCouaen3qU77SIF1/oPBt8ECTbput97+74jfrvFE0cXdd,iv:nXDXEqRoSrKI2DiAsTdvhSlubTUUsoa7rBuklvYsmCY=,tag:Dk+IntsrmpvfJW6NCdspqA==,type:str]
 sops:
     age:
         - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBubGFvSldzTllPeEZaaUpQ
-            ck16aVlHVlljaFErdE1iZjhDVjdUNWdkUldjClljbU10WGFUS0EwUzdiVmdNVVN6
-            VE9oMVR6TUk3NWlXOHJwQ3J5UGg4aDQKLS0tIERNc0V4YkdtVHB3YUlnQ2ZvSGR3
-            T0FkeUtJaVRFbFptR25jcVZXaVVvL0kKaNXv4AOQX5+lFXABiCzPg37RwTZte2F4
-            qA8aSeJovKwUffX7l9mLGBgwO80lKfFSEwzHAv4dvP18OatvE584aA==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBRdWxLdzkzVzNERDJ4Q1Q3
+            a3IxUFExampISFFueVo4SHNocVd3YWtZalgwCjRjQTdTSkxOQ0xybVFjWjBUQ1h6
+            V0t6V3p3WWNYeWNFUWl3NVI2S3JXdkEKLS0tIDJaM0tpZlk4OUxnTGNHSU5oT09z
+            UnNOWS9oZFR4Rk1VMVNVWVF6SjdBbFUKS1/VNgdPSmaiD3Mfxq/tgVoPhTZmNux8
+            B9M8AfV9/aIQ5fJcMytUtc2iHCR5XBus8q2KOruclju5F5r2+s9zng==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-12-28T06:15:04Z"
-    mac: ENC[AES256_GCM,data:vaVbok7BIpMhKZDPIpOv6k28/WNGzKeh5Y7FACQ9y10aCVvCmMmwb39XW9Kj2dIwmK3P1We88yr5S6dGJ5WAtO9WxXM1+jyoXrDeTliz+n5GgADBY/9nvB2GphfcJmI/flK8i3kiURlLyqQk+o//yDBNhQv8gTwfXwYCT840/UA=,iv:YxpsaHpPKwIOE07OIrSmIRzEw4LZLxisJUcMtG5r8XI=,tag:act12uxQbl6bVNUnkxLD+Q==,type:str]
-    encrypted_regex: ^(password)$
+    lastmodified: "2025-12-28T07:34:08Z"
+    mac: ENC[AES256_GCM,data:7D4ptWrX6YAJh3A1BD1qwb6/gxtXBO9aTzzEUOaY80Ppm9HsAq/LNyX+80VNaJ/kN2cUbHyeFajgTH/lhoRy5o1wWiBLTXx/DMe2QaPINEh6OtG+R9YV5cUHIhCc+zqZAJSEi4qfs5F2b5KQ1j8kJ6l88/+w8VBouXFw2UV+A1k=,iv:XOax89IdYrOm009FPVVbYtxW9sF2JsALidED87Ai+Zs=,tag:yhkvz+2bNQanQy57HcGpxQ==,type:str]
+    unencrypted_suffix: _unencrypted
     version: 3.10.2
