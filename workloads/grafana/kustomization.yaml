@@ -4,5 +4,6 @@ kind: Kustomization
 resources:
   - grafana.yaml
   - tor-proxy.yaml
+  - cloudflared.yaml
 generators:
   - ksops-grafana-secrets.yaml
