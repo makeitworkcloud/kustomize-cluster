@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - ansible
   - arc
+  - cloudflare
   - grafana
 generators:
   - generator/ksops-generator.yaml

@@ -10,19 +10,21 @@ bootstrap/              # ArgoCD bootstrap and cluster configuration
 ├── openshift-oauth/    # GitHub OAuth identity provider for OpenShift
 ├── ci-service-account  # CI/CD service account for GitHub Actions
 └── ci-token-sync-job   # PostSync job to sync SA token to GitHub secrets
-operators/              # OLM Subscriptions for operator CRDs
-├── ansible/            # AWX Operator
-├── arc/                # GitHub Actions Runner Controller
+operators/              # Operator installations and CRDs
+├── ansible/            # AWX Operator (OLM Subscription)
+├── arc/                # GitHub Actions Runner Controller (Helm)
+├── cloudflare/         # Cloudflare Tunnel Operator + ClusterTunnel
 ├── generator/          # Shared KSOPS generator config
-└── grafana/            # Grafana Operator
+└── grafana/            # Grafana Operator (OLM Subscription)
 workloads/              # CRs and resources that depend on operator CRDs
 ├── apps/               # App-of-Apps orchestrator (ArgoCD Applications)
-├── ansible/            # AWX instance + GitHub SSO + Tor hidden service
+├── ansible/            # AWX instance + GitHub SSO + Tor + TunnelBinding
 ├── arc/                # DinD runners + image registry + pull-through cache
-├── argocd-proxy/       # Tor hidden service for ArgoCD
-├── grafana/            # Grafana instance + GitHub SSO + Tor hidden service
+├── argocd-proxy/       # Tor hidden service + TunnelBinding for ArgoCD
+├── grafana/            # Grafana instance + GitHub SSO + Tor + TunnelBinding
 ├── makeitwork-proxy/   # Tor hidden service for makeitwork.cloud
-└── uptime-kuma/        # Uptime monitoring dashboard + Tor hidden service
+├── uptime-kuma/        # Uptime monitoring + Tor + TunnelBinding
+└── warp/               # Cloudflare WARP connector for private network access
 ```
 
 ## Sync Wave Flow
@@ -48,6 +50,7 @@ Operators must be installed before workloads to ensure CRDs exist.
 ## Features
 
 - **GitHub SSO**: OpenShift, ArgoCD, AWX, and Grafana all authenticate via GitHub OAuth
+- **Cloudflare Tunnels**: Automated tunnel management via cloudflare-operator with TunnelBindings per app
 - **Tor Hidden Services**: Each workload has an optional Tor v3 hidden service with persistent keys
 - **Pull-Through Cache**: Docker registry mirror for ARC runners to reduce rate limits
 - **App-of-Apps**: Each workload is a separate ArgoCD Application for independent sync

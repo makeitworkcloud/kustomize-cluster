@@ -4,6 +4,6 @@ kind: Kustomization
 resources:
   - awx-logo-configmap.yaml
   - tor-proxy.yaml
-  - cloudflared.yaml
+  - tunnel-binding.yaml
 generators:
   - ksops-ansible-secrets.yaml

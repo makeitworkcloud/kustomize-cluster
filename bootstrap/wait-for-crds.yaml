@@ -50,6 +50,14 @@ spec:
               done
               echo "ARC CRDs ready"
 
+              # Wait for Cloudflare Operator CRDs
+              echo "Checking for Cloudflare Operator CRDs..."
+              until oc get crd clustertunnels.networking.cfargotunnel.com 2>/dev/null; do
+                echo "Waiting for clustertunnels.networking.cfargotunnel.com CRD..."
+                sleep 10
+              done
+              echo "Cloudflare Operator CRDs ready"
+
               echo "All operator CRDs are available"
           securityContext:
             allowPrivilegeEscalation: false

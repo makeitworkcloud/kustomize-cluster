@@ -1,0 +1,28 @@
+---
+apiVersion: networking.cfargotunnel.com/v1alpha2
+kind: ClusterTunnel
+metadata:
+  name: cluster-apps
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  newTunnel:
+    name: cluster-apps
+  cloudflare:
+    accountId: "03f750691b4ad4d59aa4b7205adaa108"
+    domain: makeitwork.cloud
+    secret: cloudflare-api-credentials
+    CLOUDFLARE_API_TOKEN: CLOUDFLARE_API_TOKEN
+  # Default fallback for unmatched requests
+  fallbackTarget: http_status:404
+  # Patch the cloudflared deployment to remove limits
+  deployPatch: |
+    spec:
+      template:
+        spec:
+          containers:
+            - name: cloudflared
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "10m"

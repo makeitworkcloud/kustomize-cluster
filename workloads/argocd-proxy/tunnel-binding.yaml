@@ -1,0 +1,17 @@
+---
+apiVersion: networking.cfargotunnel.com/v1alpha1
+kind: TunnelBinding
+metadata:
+  name: argocd
+  namespace: argocd-proxy
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+subjects:
+  - name: argocd
+    spec:
+      fqdn: argocd.makeitwork.cloud
+      target: https://openshift-gitops-server.openshift-gitops.svc:443
+      noTlsVerify: true
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps
