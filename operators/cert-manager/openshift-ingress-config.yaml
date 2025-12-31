@@ -1,0 +1,23 @@
+---
+# Configure OpenShift component routes to use Let's Encrypt wildcard cert
+# This replaces the default CRC self-signed cert for console and OAuth routes
+# Sync wave 2: after certificates are issued (wave 1)
+apiVersion: config.openshift.io/v1
+kind: Ingress
+metadata:
+  name: cluster
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-options: ServerSideApply=true
+spec:
+  componentRoutes:
+    - name: console
+      namespace: openshift-console
+      hostname: console-openshift-console.apps.makeitwork.cloud
+      servingCertKeyPairSecret:
+        name: wildcard-apps-makeitwork-cloud-tls
+    - name: oauth-openshift
+      namespace: openshift-authentication
+      hostname: oauth-openshift.apps.makeitwork.cloud
+      servingCertKeyPairSecret:
+        name: wildcard-apps-makeitwork-cloud-tls

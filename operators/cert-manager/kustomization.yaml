@@ -5,6 +5,6 @@ resources:
   - certmanager-config.yaml
   - cluster-issuer.yaml
   - wildcard-certificate.yaml
-  - ingress-controller-patch.yaml
+  - openshift-ingress-config.yaml
 generators:
   - ksops-cert-manager-secrets.yaml

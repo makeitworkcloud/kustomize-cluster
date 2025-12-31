@@ -1,12 +1,12 @@
 ---
 # Wildcard certificate for *.apps.makeitwork.cloud
-# Used by internal OpenShift routes (WARP access only): console, oauth, image-registry
+# Created in openshift-config for use by componentRoutes (console, oauth)
 # External apps (*.makeitwork.cloud) use Cloudflare Tunnel which handles TLS at the edge
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: wildcard-apps-makeitwork-cloud
-  namespace: openshift-ingress
+  namespace: openshift-config
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
