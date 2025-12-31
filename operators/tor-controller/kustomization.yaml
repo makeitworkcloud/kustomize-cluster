@@ -1,0 +1,19 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Operator from upstream GitHub
+  - https://github.com/bugfest/tor-controller.git/config/default?ref=tor-controller-0.1.17
+
+# Override namespace from tor-controller-system to tor-controller
+namespace: tor-controller
+
+patches:
+  # Fix namespace references in ClusterRoleBinding
+  - patch: |
+      - op: replace
+        path: /subjects/0/namespace
+        value: tor-controller
+    target:
+      kind: ClusterRoleBinding

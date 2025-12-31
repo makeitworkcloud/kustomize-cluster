@@ -58,6 +58,14 @@ spec:
               done
               echo "Cloudflare Operator CRDs ready"
 
+              # Wait for Tor Controller CRDs
+              echo "Checking for Tor Controller CRDs..."
+              until oc get crd onionservices.tor.k8s.torproject.org 2>/dev/null; do
+                echo "Waiting for onionservices.tor.k8s.torproject.org CRD..."
+                sleep 10
+              done
+              echo "Tor Controller CRDs ready"
+
               echo "All operator CRDs are available"
           securityContext:
             allowPrivilegeEscalation: false

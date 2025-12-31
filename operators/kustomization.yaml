@@ -7,5 +7,6 @@ resources:
   - arc
   - cloudflare
   - grafana
+  - tor-controller
 generators:
   - generator/ksops-generator.yaml

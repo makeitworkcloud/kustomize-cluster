@@ -1,0 +1,19 @@
+---
+apiVersion: tor.k8s.torproject.org/v1alpha2
+kind: OnionService
+metadata:
+  name: uptime-kuma
+  namespace: uptime-kuma
+spec:
+  version: 3
+  privateKeySecret:
+    name: tor-proxy-key
+    key: STATUS_TOR_SERVICE_KEY
+  rules:
+    - port:
+        number: 80
+      backend:
+        service:
+          name: uptime-kuma
+          port:
+            number: 3001
