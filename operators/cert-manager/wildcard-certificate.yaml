@@ -1,0 +1,41 @@
+---
+# Wildcard certificate for *.makeitwork.cloud
+# Used by routes: grafana, ansible, status, argocd
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-makeitwork-cloud
+  namespace: openshift-ingress
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  secretName: wildcard-makeitwork-cloud-tls
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  commonName: "*.makeitwork.cloud"
+  dnsNames:
+    - "*.makeitwork.cloud"
+    - "makeitwork.cloud"
+  # Renew 30 days before expiry
+  renewBefore: 720h
+---
+# Wildcard certificate for *.apps.makeitwork.cloud
+# Used by OpenShift routes: console, oauth, image-registry
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-apps-makeitwork-cloud
+  namespace: openshift-ingress
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  secretName: wildcard-apps-makeitwork-cloud-tls
+  issuerRef:
+    name: letsencrypt-cloudflare
+    kind: ClusterIssuer
+  commonName: "*.apps.makeitwork.cloud"
+  dnsNames:
+    - "*.apps.makeitwork.cloud"
+  # Renew 30 days before expiry
+  renewBefore: 720h

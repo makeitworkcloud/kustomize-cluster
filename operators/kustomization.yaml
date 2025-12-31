@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - ansible
   - arc
+  - cert-manager
   - cloudflare
   - grafana
   - tor-controller
