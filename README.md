@@ -13,9 +13,11 @@ bootstrap/              # ArgoCD bootstrap and cluster configuration
 operators/              # Operator installations and CRDs
 ├── ansible/            # AWX Operator (OLM Subscription)
 ├── arc/                # GitHub Actions Runner Controller (Helm)
+├── cert-manager/       # Let's Encrypt certs via DNS-01 (Cloudflare)
 ├── cloudflare/         # Cloudflare Tunnel Operator + ClusterTunnel
 ├── generator/          # Shared KSOPS generator config
-└── grafana/            # Grafana Operator (OLM Subscription)
+├── grafana/            # Grafana Operator (OLM Subscription)
+└── tor-controller/     # Tor hidden service operator
 workloads/              # CRs and resources that depend on operator CRDs
 ├── apps/               # App-of-Apps orchestrator (ArgoCD Applications)
 ├── ansible/            # AWX instance + GitHub SSO + Tor + TunnelBinding
@@ -50,14 +52,16 @@ Operators must be installed before workloads to ensure CRDs exist.
 ## Features
 
 - **GitHub SSO**: OpenShift, ArgoCD, AWX, and Grafana all authenticate via GitHub OAuth
-- **Cloudflare Tunnels**: Automated tunnel management via cloudflare-operator with TunnelBindings per app
-- **Tor Hidden Services**: Each workload has an optional Tor v3 hidden service with persistent keys
+- **Cloudflare Tunnels**: External apps via cloudflare-operator with TunnelBindings per app
+- **Tor Hidden Services**: Centralized tor-controller with OnionService CRDs per workload
+- **Let's Encrypt Certs**: Wildcard `*.apps.makeitwork.cloud` via cert-manager DNS-01 (Cloudflare)
 - **Pull-Through Cache**: Docker registry mirror for ARC runners to reduce rate limits
 - **App-of-Apps**: Each workload is a separate ArgoCD Application for independent sync
 
 ## Requirements
 
 - OpenShift GitOps operator
+- OpenShift cert-manager operator
 - `sops-age-keys` secret in `openshift-gitops` namespace (for SOPS decryption)
 
 ## CI/CD
