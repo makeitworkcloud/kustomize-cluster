@@ -15,7 +15,7 @@ spec:
     CLOUDFLARE_API_TOKEN: CLOUDFLARE_API_TOKEN
   # Default fallback for unmatched requests
   fallbackTarget: http_status:404
-  # Patch the cloudflared deployment to remove limits
+  # Patch the cloudflared deployment
   deployPatch: |
     spec:
       template:
@@ -26,3 +26,8 @@ spec:
                 requests:
                   memory: "64Mi"
                   cpu: "10m"
+              # Increase probe delays to allow tunnel connection time
+              livenessProbe:
+                initialDelaySeconds: 30
+                periodSeconds: 30
+                failureThreshold: 3
