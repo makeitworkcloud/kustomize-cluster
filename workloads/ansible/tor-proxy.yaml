@@ -75,7 +75,6 @@ spec:
               cpu: "50m"
             limits:
               memory: "128Mi"
-              cpu: "100m"
       volumes:
         - name: tor-keys
           persistentVolumeClaim:

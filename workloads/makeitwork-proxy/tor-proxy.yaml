@@ -93,7 +93,6 @@ spec:
               cpu: "50m"
             limits:
               memory: "128Mi"
-              cpu: "100m"
         - name: nginx
           image: nginx:alpine
           ports:
@@ -107,7 +106,6 @@ spec:
               cpu: "25m"
             limits:
               memory: "64Mi"
-              cpu: "50m"
       volumes:
         - name: tor-keys
           persistentVolumeClaim:
