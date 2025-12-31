@@ -17,3 +17,10 @@ patches:
         value: tor-controller
     target:
       kind: ClusterRoleBinding
+  # Remove CPU limit to prevent throttling
+  - patch: |
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+    target:
+      kind: Deployment
+      name: tor-controller-controller-manager

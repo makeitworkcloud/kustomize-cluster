@@ -11,6 +11,7 @@ metadata:
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
     ignore-check.kube-linter.io/non-existent-service-account: "SA created by GitOps operator"
     ignore-check.kube-linter.io/latest-tag: "Using OpenShift internal registry ImageStream"
+    ignore-check.kube-linter.io/unset-memory-requirements: "No limits on single-node cluster"
 spec:
   ttlSecondsAfterFinished: 3600
   backoffLimit: 3
@@ -35,9 +36,6 @@ spec:
             requests:
               cpu: 100m
               memory: 128Mi
-            limits:
-              cpu: 200m
-              memory: 256Mi
           env:
             - name: GITHUB_TOKEN
               valueFrom:
