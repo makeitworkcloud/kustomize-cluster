@@ -5,6 +5,26 @@ metadata:
   name: docker-registry
 ---
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: registry
+  namespace: docker-registry
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: registry-anyuid
+  namespace: docker-registry
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: registry
+    namespace: docker-registry
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: docker-registry-config
@@ -53,6 +73,8 @@ metadata:
     app.kubernetes.io/instance: registry
   name: registry
   namespace: docker-registry
+  annotations:
+    ignore-check.kube-linter.io/run-as-non-root: "registry:3 image requires root"
 spec:
   replicas: 1
   selector:
@@ -63,6 +85,7 @@ spec:
       labels:
         deployment: registry
     spec:
+      serviceAccountName: registry
       containers:
         - image: registry:3
           imagePullPolicy: IfNotPresent
@@ -81,7 +104,6 @@ spec:
               memory: 100Mi
           securityContext:
             readOnlyRootFilesystem: true
-            runAsNonRoot: true
           terminationMessagePath: /dev/termination-log
           terminationMessagePolicy: File
           volumeMounts:
