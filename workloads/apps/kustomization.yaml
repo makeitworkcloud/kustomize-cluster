@@ -8,7 +8,8 @@ resources:
   - makeitwork-proxy-app.yaml
   - warp-app.yaml
   - ../uptime-kuma  # Direct include - contains its own Helm Application
-  # Wave 1: Depend on operator CRDs
+  # Wave 1: Depend on operator CRDs (TunnelBinding requires cloudflare-operator)
   - ansible-app.yaml
   - arc-app.yaml
   - grafana-app.yaml
+  - ../openshift-gitops  # Direct include - TunnelBinding for ArgoCD
