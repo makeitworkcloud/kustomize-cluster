@@ -16,16 +16,45 @@ spec:
   # Server configuration
   server:
     host: argocd.makeitwork.cloud
+    resources:
+      requests:
+        cpu: 125m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+  # Controller resources (no CPU limits to prevent throttling)
+  controller:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+  # ApplicationSet controller resources
+  applicationSet:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+  # Redis resources
+  redis:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
   # KSOPS configuration
   kustomizeBuildOptions: "--enable-alpha-plugins --enable-exec"
   repo:
     resources:
-      limits:
-        cpu: "1"
-        memory: 1Gi
       requests:
         cpu: 250m
         memory: 256Mi
+      limits:
+        memory: 1Gi
     env:
       - name: XDG_CONFIG_HOME
         value: /.config
