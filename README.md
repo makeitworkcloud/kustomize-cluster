@@ -73,6 +73,16 @@ On push to `main`, GitHub Actions:
 
 The `ci-deployer` service account provides cluster-admin access for CI/CD workflows. Its token is automatically synced to GitHub Actions secrets (`OPENSHIFT_TOKEN`) via a PostSync job after each ArgoCD sync.
 
+## Resource Management
+
+This is a single-node CRC cluster. **Do not set resource limits** - only requests:
+
+- CPU limits cause throttling even with spare capacity
+- Memory limits cause unnecessary OOMs
+- Requests are sufficient for scheduling
+
+See `AGENTS.md` for detailed guidance on resource configuration.
+
 ## SOPS Encryption
 
 Secrets are encrypted with age. Each directory with secrets has a KSOPS generator:

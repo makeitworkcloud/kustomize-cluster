@@ -76,6 +76,41 @@ Managed by tor-controller operator with OnionService CRDs per workload.
 
 Expected .onion addresses are documented in `../www/onion.makeitwork.cloud/index.html`.
 
+## Resource Management
+
+**Do NOT set resource limits** - only set requests. This is a single-node CRC cluster where limits cause problems:
+
+- **CPU limits** cause throttling even when the node has spare capacity
+- **Memory limits** prevent pods from using available memory and cause unnecessary OOMs
+- **Requests** are sufficient for scheduling and QoS classification
+
+When adding new workloads:
+```yaml
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  # NO limits section
+```
+
+For operators installed via OLM (Subscription), limits are baked into the CSV and cannot be easily changed. For operators installed via kustomize remote refs, use JSON patches to remove limits:
+
+```yaml
+patches:
+  - patch: |
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+    target:
+      kind: Deployment
+      name: controller-manager
+```
+
+Add KubeLinter ignore annotation when removing limits:
+```yaml
+annotations:
+  ignore-check.kube-linter.io/unset-memory-requirements: "No limits on single-node cluster"
+```
+
 ## Common Gotchas
 
 1. **OpenShift operators reconcile routes** - Manual patches to routes get reverted. Use proper config resources (`ingress.config.openshift.io`, etc.)
@@ -92,6 +127,8 @@ Expected .onion addresses are documented in `../www/onion.makeitwork.cloud/index
 4. **Tor secret format** - Using `stringData` with base64 content causes double-encoding. Use `data` field directly.
 
 5. **ArgoCD sync waves** - Waves only order resources within a single Application. Cross-Application ordering requires hooks or separate sync operations.
+
+6. **OAuth Replace=true causes sync failures** - The `argocd.argoproj.io/sync-options: Replace=true` annotation causes ArgoCD to delete+create resources. OpenShift protects singleton resources like `oauths.config.openshift.io/cluster` from deletion. Use `ServerSideApply=true` instead for these resources.
 
 ## Useful Commands
 
