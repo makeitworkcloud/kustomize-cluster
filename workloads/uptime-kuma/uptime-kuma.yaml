@@ -12,7 +12,7 @@ metadata:
   name: uptime-kuma-data
   namespace: uptime-kuma
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "0"
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
     argocd.argoproj.io/ignore-healthcheck: "true"
 spec:
