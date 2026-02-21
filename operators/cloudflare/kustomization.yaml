@@ -8,6 +8,9 @@ resources:
   - cluster-tunnel.yaml
 generators:
   - ksops-cloudflare-secrets.yaml
+images:
+  - name: adyanth/cloudflare-operator
+    newName: docker.io/adyanth/cloudflare-operator
 patches:
   # Remove resource limits from operator deployment (keep requests only)
   - patch: |

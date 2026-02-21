@@ -49,6 +49,10 @@ spec:
                 authSecret:
                     create: true
                     github_token: ENC[AES256_GCM,data:HR7FhhdmbnUzqnFbvK+hNT8/bTorA4x4O70LbJKAtRaGF/sfxZN02w==,iv:VcO+DSZ6JUDTwuLz45OWa5qrjuO6YKQgJ1jtFsOx6/I=,tag:cetxoyfPBtRNcE0l5mMskA==,type:str]
+                image:
+                    repository: docker.io/summerwind/actions-runner-controller
+                    actionsRunnerRepositoryAndTag: docker.io/summerwind/actions-runner:latest
+                    dindSidecarRepositoryAndTag: docker.io/library/docker:dind
                 scope:
                     singleNamespace: true
                     watchNamespace: arc-dind-runners

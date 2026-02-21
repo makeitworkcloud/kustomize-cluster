@@ -87,7 +87,7 @@ spec:
     spec:
       serviceAccountName: registry
       containers:
-        - image: registry:3
+        - image: docker.io/library/registry:3
           imagePullPolicy: IfNotPresent
           env:
             - name: OTEL_TRACES_EXPORTER

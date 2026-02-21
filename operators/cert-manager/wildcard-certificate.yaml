@@ -8,7 +8,7 @@ metadata:
   name: wildcard-apps-makeitwork-cloud
   namespace: openshift-config
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   secretName: wildcard-apps-makeitwork-cloud-tls
   issuerRef:
@@ -28,7 +28,7 @@ metadata:
   name: api-makeitwork-cloud
   namespace: openshift-config
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   secretName: api-makeitwork-cloud-tls
   issuerRef:

@@ -65,7 +65,7 @@ spec:
           memory: 8Gi
         requests:
           memory: 100Mi
-      image: summerwind/actions-runner-dind
+      image: docker.io/summerwind/actions-runner-dind
       ephemeral: false
       dockerdWithinRunnerContainer: true
       organization: makeitworkcloud
