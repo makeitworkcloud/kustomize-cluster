@@ -1,0 +1,72 @@
+---
+apiVersion: grafana.integreatly.org/v1beta1
+kind: Grafana
+metadata:
+  name: grafana-status
+  namespace: grafana
+  labels:
+    dashboards: "grafana-status"
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  config:
+    log:
+      mode: "console"
+  deployment:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: grafana
+              env:
+                - name: GF_SERVER_ROOT_URL
+                  value: "https://status.makeitwork.cloud"
+                - name: GF_AUTH_ANONYMOUS_ENABLED
+                  value: "true"
+                - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+                  value: "Viewer"
+                - name: GF_AUTH_DISABLE_LOGIN_FORM
+                  value: "true"
+                - name: GF_USERS_ALLOW_SIGN_UP
+                  value: "false"
+                - name: GF_USERS_HOME_PAGE
+                  value: "/d/status-overview/status-overview"
+                - name: GF_EXPLORE_ENABLED
+                  value: "false"
+                - name: GF_ALERTING_ENABLED
+                  value: "false"
+                - name: GF_UNIFIED_ALERTING_ENABLED
+                  value: "false"
+  persistentVolumeClaim:
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 2Gi
+  route:
+    spec:
+      host: status.makeitwork.cloud
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
+      to:
+        kind: Service
+        name: grafana-status-service
+        weight: 100
+---
+apiVersion: networking.cfargotunnel.com/v1alpha1
+kind: TunnelBinding
+metadata:
+  name: grafana-status
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - name: grafana-status
+    spec:
+      fqdn: status.makeitwork.cloud
+      target: http://grafana-status-service.grafana.svc:3000
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps

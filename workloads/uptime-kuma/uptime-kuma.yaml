@@ -77,22 +77,3 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=false
----
-apiVersion: route.openshift.io/v1
-kind: Route
-metadata:
-  name: uptime-kuma
-  namespace: uptime-kuma
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
-spec:
-  host: status.makeitwork.cloud
-  tls:
-    termination: edge
-    insecureEdgeTerminationPolicy: Redirect
-  to:
-    kind: Service
-    name: uptime-kuma
-    weight: 100
-  port:
-    targetPort: 3001
