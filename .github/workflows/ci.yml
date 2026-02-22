@@ -15,7 +15,7 @@ permissions:
 jobs:
   test:
     name: Pre-commit Tests
-    runs-on: arc-dind
+    runs-on: arc
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
