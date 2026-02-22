@@ -66,6 +66,16 @@ Operators must be installed before workloads to ensure CRDs exist.
 - CRC with monitoring enabled (`crc config set enable-cluster-monitoring true`)
 - `sops-age-keys` secret in `openshift-gitops` namespace (for SOPS decryption)
 
+## Cloudflare DNS Ownership
+
+Public app DNS under `*.makeitwork.cloud` is managed by cloudflare-operator from `TunnelBinding` resources in this repo.
+
+- Keep `TunnelBinding.tunnelRef.disableDNSUpdates: false` for operator-managed DNS
+- Set `subjects[].name` to the real Service name in the same namespace
+- The operator writes `_managed.<fqdn>` TXT records alongside CNAMEs for ownership tracking
+- Do not delete CNAME records without deleting matching `_managed.<fqdn>` TXT records (stale TXT `DnsId` values cause reconcile error `81044`)
+- `operators/cloudflare/dns-adoption-job.yaml` is legacy and is intentionally not referenced from `operators/cloudflare/kustomization.yaml`
+
 ## CI/CD
 
 On push to `main`, GitHub Actions:

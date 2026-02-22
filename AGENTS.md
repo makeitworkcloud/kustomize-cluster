@@ -30,6 +30,7 @@ Wave 2: Workloads (CRs that depend on CRDs)
 - `openshift-ingress-operator` - IngressController CR
 - `cert-manager` - cert-manager controller pods
 - `openshift-gitops` - ArgoCD and KSOPS
+- `cloudflare-operator-system` - Cloudflare operator, tunnel deployment, DNS API secret
 
 ## Certificate Management
 
@@ -53,6 +54,16 @@ spec:
 **OpenShift config resources:**
 - `ingress.config.openshift.io/cluster` - componentRoutes for console/oauth certs
 - `apiserver.config.openshift.io/cluster` - API server cert
+
+## Cloudflare Tunnel DNS Management
+
+Public `*.makeitwork.cloud` app DNS records are operator-managed from `TunnelBinding` resources.
+
+- Keep `TunnelBinding.tunnelRef.disableDNSUpdates: false` for operator-managed DNS
+- `subjects[].name` must match the real Kubernetes `Service` name in the same namespace
+- cloudflare-operator stores ownership metadata in `_managed.<fqdn>` TXT records
+- Do not delete CNAME records without deleting matching `_managed.<fqdn>` TXT records; stale TXT `DnsId` values cause reconcile failures (`81044`)
+- The old `dns-adoption-job` hook is intentionally not used
 
 ## SOPS/KSOPS Encryption
 
@@ -132,6 +143,10 @@ annotations:
 5. **ArgoCD sync waves** - Waves only order resources within a single Application. Cross-Application ordering requires hooks or separate sync operations.
 
 6. **OAuth Replace=true causes sync failures** - The `argocd.argoproj.io/sync-options: Replace=true` annotation causes ArgoCD to delete+create resources. OpenShift protects singleton resources like `oauths.config.openshift.io/cluster` from deletion. Use `ServerSideApply=true` instead for these resources.
+
+7. **Cloudflare stale TXT records break DNS reconciliation** - If `_managed.<fqdn>` TXT records point to deleted CNAME IDs, cloudflare-operator attempts update-by-stale-ID and fails with `Record does not exist. (81044)`. Remove stale `_managed.*` TXT records, then reconcile TunnelBindings.
+
+8. **TunnelBinding subject name is service lookup key** - `subjects[].name` is used to read the Kubernetes Service object. If this name does not exist, operator status falls back to `http_status:404`.
 
 ## Useful Commands
 
