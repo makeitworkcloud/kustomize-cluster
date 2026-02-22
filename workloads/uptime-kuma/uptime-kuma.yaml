@@ -63,6 +63,8 @@ spec:
         securityContext:
           runAsUser: 0
           runAsNonRoot: false
+        image:
+          repository: docker.io/louislam/uptime-kuma
         volume:
           enabled: true
           existingClaim: uptime-kuma-data
