@@ -22,11 +22,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install git
-        run: |
-          apt-get update
-          apt-get install -y git
-
       - name: pre-commit tests
         uses: pre-commit/action@v3.0.1
 
