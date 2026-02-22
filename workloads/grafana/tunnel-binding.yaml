@@ -7,7 +7,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 subjects:
-  - name: grafana
+  - name: grafana-service
     spec:
       fqdn: grafana.makeitwork.cloud
       target: http://grafana-service.grafana.svc:3000
