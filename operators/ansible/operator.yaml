@@ -45,6 +45,8 @@ metadata:
 spec:
   channel: alpha
   installPlanApproval: Automatic
+  config:
+    resources: {}
   name: awx-operator
   source: awx-operator-catalog
   sourceNamespace: openshift-marketplace

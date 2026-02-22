@@ -28,6 +28,8 @@ metadata:
 spec:
   channel: v5
   installPlanApproval: Automatic
+  config:
+    resources: {}
   name: grafana-operator
   source: community-operators
   sourceNamespace: openshift-marketplace

@@ -13,10 +13,10 @@ images:
   - name: adyanth/cloudflare-operator
     newName: docker.io/adyanth/cloudflare-operator
 patches:
-  # Remove resource limits from operator deployment (keep requests only)
+  # Remove container resource requests/limits from operator deployment
   - patch: |
       - op: remove
-        path: /spec/template/spec/containers/0/resources/limits
+        path: /spec/template/spec/containers/0/resources
     target:
       kind: Deployment
       name: cloudflare-operator-controller-manager

@@ -60,11 +60,6 @@ spec:
   replicas: 1
   template:
     spec:
-      resources:
-        limits:
-          memory: 8Gi
-        requests:
-          memory: 100Mi
       image: docker.io/summerwind/actions-runner-dind
       ephemeral: false
       dockerdWithinRunnerContainer: true

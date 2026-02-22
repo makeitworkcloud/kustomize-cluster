@@ -23,10 +23,6 @@ spec:
           containers:
             - name: cloudflared
               image: docker.io/cloudflare/cloudflared:latest
-              resources:
-                requests:
-                  memory: "64Mi"
-                  cpu: "10m"
               # Increase probe delays to allow tunnel connection time
               livenessProbe:
                 initialDelaySeconds: 30

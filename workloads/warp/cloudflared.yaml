@@ -25,6 +25,7 @@ metadata:
   namespace: warp
   annotations:
     ignore-check.kube-linter.io/unset-memory-requirements: "No limits on single-node cluster"
+    ignore-check.kube-linter.io/unset-cpu-requirements: "No requests on single-node cluster"
 spec:
   replicas: 1
   selector:
@@ -59,10 +60,6 @@ spec:
               mountPath: /etc/cloudflared/credentials.json
               subPath: credentials.json
               readOnly: true
-          resources:
-            requests:
-              memory: "64Mi"
-              cpu: "10m"
       volumes:
         - name: config
           configMap:

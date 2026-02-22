@@ -17,10 +17,10 @@ patches:
         value: tor-controller
     target:
       kind: ClusterRoleBinding
-  # Remove CPU limit to prevent throttling
+  # Remove container resource requests/limits on single-node cluster
   - patch: |
       - op: remove
-        path: /spec/template/spec/containers/0/resources/limits/cpu
+        path: /spec/template/spec/containers/0/resources
     target:
       kind: Deployment
       name: tor-controller-controller-manager

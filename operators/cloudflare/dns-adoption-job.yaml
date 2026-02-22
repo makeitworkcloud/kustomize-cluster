@@ -9,6 +9,7 @@ metadata:
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
     argocd.argoproj.io/sync-wave: "1"
     ignore-check.kube-linter.io/unset-memory-requirements: "No limits on single-node cluster"
+    ignore-check.kube-linter.io/unset-cpu-requirements: "No requests on single-node cluster"
 spec:
   ttlSecondsAfterFinished: 300
   backoffLimit: 2
@@ -29,10 +30,6 @@ spec:
             capabilities:
               drop:
                 - ALL
-          resources:
-            requests:
-              cpu: 50m
-              memory: 64Mi
           volumeMounts:
             - name: tmp
               mountPath: /tmp
