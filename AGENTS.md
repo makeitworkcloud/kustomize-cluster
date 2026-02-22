@@ -7,12 +7,12 @@ GitOps repository for OpenShift CRC cluster. Uses ArgoCD with KSOPS for secret d
 ## Sync Wave Architecture
 
 ```
-Wave 0: Bootstrap (ArgoCD config, console branding, OAuth)
-Wave 1: Operators (CRDs installed, certs issued)
-Wave 2: Workloads (CRs that depend on CRDs)
+Wave 0: Bootstrap and cluster baseline configuration
+Wave 1: Operator and CRD provider layer
+Wave 2: Workload layer depending on installed operators
+PostSync: Follow-up operational automation
 ```
 
-- `wait-for-crds.yaml` Job blocks wave 2 until operator CRDs are ready
 - Sync waves are per-Application, not global across all Applications
 
 ## Domain Architecture

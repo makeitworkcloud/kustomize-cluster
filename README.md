@@ -2,52 +2,16 @@
 
 Kustomize configurations for OpenShift cluster workloads. Uses ArgoCD sync waves and KSOPS for secret decryption.
 
-## Structure
-
-```
-bootstrap/              # ArgoCD bootstrap and cluster configuration
-├── console-branding/   # OpenShift console branding and banner removal
-├── openshift-oauth/    # GitHub OAuth identity provider for OpenShift
-├── ci-service-account  # CI/CD service account for GitHub Actions
-└── ci-token-sync-job   # PostSync job to sync SA token to GitHub secrets
-operators/              # Operator installations and CRDs
-├── ansible/            # AWX Operator (OLM Subscription)
-├── arc/                # GitHub Actions Runner Controller (Helm)
-├── cert-manager/       # Let's Encrypt certs via DNS-01 (Cloudflare)
-├── cloudflare/         # Cloudflare Tunnel Operator + ClusterTunnel
-├── generator/          # Shared KSOPS generator config
-├── grafana/            # Grafana Operator (OLM Subscription)
-└── tor-controller/     # Tor hidden service operator
-workloads/              # CRs and resources that depend on operator CRDs
-├── apps/               # App-of-Apps orchestrator (ArgoCD Applications)
-├── ansible/            # AWX instance + GitHub SSO + Tor + TunnelBinding
-├── arc/                # DinD runners + image registry + pull-through cache
-├── argocd-proxy/       # Tor hidden service + TunnelBinding for ArgoCD
-├── grafana/            # Internal Grafana + public status Grafana + probes + TunnelBindings
-├── makeitwork-proxy/   # Tor hidden service for makeitwork.cloud
-├── uptime-kuma/        # Legacy uptime stack (status host migrated to Grafana)
-└── warp/               # Cloudflare WARP connector for private network access
-```
-
 ## Sync Wave Flow
 
 ```
-Wave 0: ArgoCD config (KSOPS patch, wait for repo-server)
-    │   ├── Console branding (custom logo, favicon, remove security banner)
-    │   ├── OpenShift OAuth (GitHub identity provider, cluster-admin for org members)
-    │   └── CI service account (ci-deployer with cluster-admin)
-    ▼
-Wave 1: gitops-operators Application → operators/ (CRDs installed)
-    │   └── wait-for-crds Job ensures CRDs are ready
-    ▼
-Wave 2: gitops-workloads Application → workloads/apps/ (App-of-Apps)
-    │   ├── Wave 0: argocd-proxy, makeitwork-proxy, uptime-kuma (no CRD deps)
-    │   └── Wave 1: ansible, arc, grafana (depend on operator CRDs)
-    ▼
-PostSync: ci-token-sync Job syncs ci-deployer token to GitHub Actions secrets
+Wave 0: Bootstrap and cluster baseline configuration
+Wave 1: Operator layer and CRD providers
+Wave 2: Workload layer that depends on installed operators
+PostSync: Operational follow-up automation
 ```
 
-Operators must be installed before workloads to ensure CRDs exist.
+Waves are evaluated per ArgoCD Application. They provide ordering intent but do not create global ordering across all Applications.
 
 ## Features
 
