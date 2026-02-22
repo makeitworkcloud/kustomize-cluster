@@ -16,8 +16,6 @@ jobs:
   test:
     name: Pre-commit Tests
     runs-on: arc-dind
-    container:
-      image: python:3.12
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
