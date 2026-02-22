@@ -23,9 +23,9 @@ workloads/              # CRs and resources that depend on operator CRDs
 ├── ansible/            # AWX instance + GitHub SSO + Tor + TunnelBinding
 ├── arc/                # DinD runners + image registry + pull-through cache
 ├── argocd-proxy/       # Tor hidden service + TunnelBinding for ArgoCD
-├── grafana/            # Grafana instance + GitHub SSO + Tor + TunnelBinding
+├── grafana/            # Internal Grafana + public status Grafana + probes + TunnelBindings
 ├── makeitwork-proxy/   # Tor hidden service for makeitwork.cloud
-├── uptime-kuma/        # Uptime monitoring + Tor + TunnelBinding
+├── uptime-kuma/        # Legacy uptime stack (status host migrated to Grafana)
 └── warp/               # Cloudflare WARP connector for private network access
 ```
 
@@ -55,6 +55,7 @@ Operators must be installed before workloads to ensure CRDs exist.
 - **Cloudflare Tunnels**: External apps via cloudflare-operator with TunnelBindings per app
 - **Tor Hidden Services**: Centralized tor-controller with OnionService CRDs per workload
 - **Let's Encrypt Certs**: Wildcard `*.apps.makeitwork.cloud` via cert-manager DNS-01 (Cloudflare)
+- **Public Status Page**: `status.makeitwork.cloud` served by dedicated anonymous Grafana instance with blackbox probe metrics
 - **Pull-Through Cache**: Docker registry mirror for ARC runners to reduce rate limits
 - **App-of-Apps**: Each workload is a separate ArgoCD Application for independent sync
 
@@ -62,6 +63,7 @@ Operators must be installed before workloads to ensure CRDs exist.
 
 - OpenShift GitOps operator
 - OpenShift cert-manager operator
+- CRC with monitoring enabled (`crc config set enable-cluster-monitoring true`)
 - `sops-age-keys` secret in `openshift-gitops` namespace (for SOPS decryption)
 
 ## CI/CD
@@ -75,11 +77,11 @@ The `ci-deployer` service account provides cluster-admin access for CI/CD workfl
 
 ## Resource Management
 
-This is a single-node CRC cluster. **Do not set resource limits** - only requests:
+This is a single-node CRC cluster. Prefer **no container requests/limits** unless there is a proven stability need:
 
+- High requests commonly trigger `Insufficient cpu/memory` and block scheduling
 - CPU limits cause throttling even with spare capacity
-- Memory limits cause unnecessary OOMs
-- Requests are sufficient for scheduling
+- Memory limits can cause avoidable OOM kills
 
 See `AGENTS.md` for detailed guidance on resource configuration.
 

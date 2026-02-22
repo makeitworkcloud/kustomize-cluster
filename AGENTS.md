@@ -78,36 +78,39 @@ Expected .onion addresses are documented in `../www/onion.makeitwork.cloud/index
 
 ## Resource Management
 
-**Do NOT set resource limits** - only set requests. This is a single-node CRC cluster where limits cause problems:
+**Single-node CRC policy:** avoid container CPU/memory reservations by default.
 
-- **CPU limits** cause throttling even when the node has spare capacity
-- **Memory limits** prevent pods from using available memory and cause unnecessary OOMs
-- **Requests** are sufficient for scheduling and QoS classification
+- Prefer `resources: {}` or no `resources` block on app containers
+- Avoid both `requests` and `limits` unless a workload has a proven stability need
+- High requests on single-node CRC commonly trigger `Insufficient cpu/memory` scheduling failures
+- CPU limits cause throttling; memory limits can cause avoidable OOM kills
 
-When adding new workloads:
+When adding new workloads, default to no container requests/limits:
 ```yaml
-resources:
-  requests:
-    cpu: "100m"
-    memory: "128Mi"
-  # NO limits section
+containers:
+  - name: app
+    image: example/image:tag
+    resources: {}
 ```
 
-For operators installed via OLM (Subscription), limits are baked into the CSV and cannot be easily changed. For operators installed via kustomize remote refs, use JSON patches to remove limits:
+For operators installed via OLM (Subscription), tune through supported CR/Subscription fields where available (for example `spec.config.resources: {}` or operator-specific `*_resource_requirements: {}`). If the operator ignores these fields, accept operator defaults.
+
+For operators installed via kustomize remote refs, use JSON patches to remove the entire `resources` block:
 
 ```yaml
 patches:
   - patch: |
       - op: remove
-        path: /spec/template/spec/containers/0/resources/limits/cpu
+        path: /spec/template/spec/containers/0/resources
     target:
       kind: Deployment
       name: controller-manager
 ```
 
-Add KubeLinter ignore annotation when removing limits:
+If KubeLinter checks require explicit ignores for this cluster policy:
 ```yaml
 annotations:
+  ignore-check.kube-linter.io/unset-cpu-requirements: "No requests on single-node cluster"
   ignore-check.kube-linter.io/unset-memory-requirements: "No limits on single-node cluster"
 ```
 
