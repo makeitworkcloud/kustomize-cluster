@@ -1,0 +1,106 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cloudflare-dns-adoption
+  namespace: cloudflare-operator-system
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/sync-wave: "1"
+    ignore-check.kube-linter.io/unset-memory-requirements: "No limits on single-node cluster"
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: adopt-dns
+          image: docker.io/library/python:3.12-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          env:
+            - name: CF_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflare-api-credentials
+                  key: CLOUDFLARE_API_TOKEN
+            - name: CF_DOMAIN
+              value: makeitwork.cloud
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              python - <<'PY'
+              import json
+              import os
+              import urllib.parse
+              import urllib.request
+
+              token = os.environ["CF_API_TOKEN"]
+              domain = os.environ["CF_DOMAIN"]
+              hosts = ["argocd", "grafana", "status", "ansible"]
+
+              def cf_request(method, path, params=None):
+                  url = "https://api.cloudflare.com/client/v4" + path
+                  if params:
+                      url += "?" + urllib.parse.urlencode(params)
+                  req = urllib.request.Request(
+                      url,
+                      method=method,
+                      headers={
+                          "Authorization": f"Bearer {token}",
+                          "Content-Type": "application/json",
+                      },
+                  )
+                  with urllib.request.urlopen(req, timeout=30) as resp:
+                      return json.loads(resp.read().decode("utf-8"))
+
+              zone_resp = cf_request("GET", "/zones", {"name": domain, "per_page": 1})
+              zone = zone_resp.get("result", [])
+              if not zone:
+                  raise SystemExit(f"zone not found: {domain}")
+              zone_id = zone[0]["id"]
+
+              for host in hosts:
+                  fqdn = f"{host}.{domain}"
+                  recs = cf_request(
+                      "GET",
+                      f"/zones/{zone_id}/dns_records",
+                      {"name": fqdn, "per_page": 100},
+                  ).get("result", [])
+
+                  if not recs:
+                      print(f"no records to adopt for {fqdn}")
+                      continue
+
+                  for rec in recs:
+                      rec_id = rec["id"]
+                      rec_type = rec.get("type", "")
+                      rec_content = rec.get("content", "")
+                      print(f"deleting {rec_type} {fqdn} -> {rec_content}")
+                      cf_request("DELETE", f"/zones/{zone_id}/dns_records/{rec_id}")
+
+              print("cloudflare dns adoption complete")
+              PY
+      volumes:
+        - name: tmp
+          emptyDir: {}
