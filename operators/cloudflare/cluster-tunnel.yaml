@@ -7,7 +7,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "0"
 spec:
   newTunnel:
-    name: cluster-apps
+    name: cluster-apps-crc
   cloudflare:
     accountId: "03f750691b4ad4d59aa4b7205adaa108"
     domain: makeitwork.cloud
