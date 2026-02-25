@@ -94,18 +94,20 @@ spec:
     port: 11434
     targetPort: api
 ---
-apiVersion: networking.cfargotunnel.com/v1alpha1
-kind: TunnelBinding
+apiVersion: route.openshift.io/v1
+kind: Route
 metadata:
-  name: ollama
+  name: ollama-private
   namespace: ollama
   annotations:
     argocd.argoproj.io/sync-wave: "2"
-tunnelRef:
-  kind: ClusterTunnel
-  name: cluster-apps
-subjects:
-- name: ollama
-  spec:
-    fqdn: ollama.makeitwork.cloud
-    target: http://ollama.ollama.svc:11434
+spec:
+  host: ollama.apps.makeitwork.cloud
+  to:
+    kind: Service
+    name: ollama
+  port:
+    targetPort: api
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
