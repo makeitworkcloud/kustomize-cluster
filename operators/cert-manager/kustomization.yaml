@@ -8,5 +8,6 @@ resources:
   - wildcard-certificate.yaml
   - openshift-ingress-config.yaml
   - apiserver-config.yaml
+  - ingress-patch.yaml
 generators:
   - ksops-cert-manager-secrets.yaml
