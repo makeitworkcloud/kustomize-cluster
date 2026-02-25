@@ -101,12 +101,11 @@ metadata:
   namespace: ollama
   annotations:
     argocd.argoproj.io/sync-wave: "2"
-spec:
-  tunnelRef:
-    kind: ClusterTunnel
-    name: cluster-apps
-  subjects:
-  - name: ollama
-    spec:
-      fqdn: ollama.makeitwork.cloud
-      target: http://ollama.ollama.svc:11434
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps
+subjects:
+- name: ollama
+  spec:
+    fqdn: ollama.makeitwork.cloud
+    target: http://ollama.ollama.svc:11434
