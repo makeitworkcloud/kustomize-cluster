@@ -11,5 +11,4 @@ resources:
   - ansible-app.yaml
   - arc-app.yaml
   - grafana-app.yaml
-  - ollama-app.yaml
   - ../openshift-gitops  # Direct include - TunnelBinding for ArgoCD
