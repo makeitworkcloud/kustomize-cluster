@@ -19,12 +19,12 @@ spec:
   # Renew 30 days before expiry
   renewBefore: 720h
 ---
-# Wildcard certificate for *.apps.makeitwork.cloud (Copy for openshift-config)
-# Required because OpenShift config resources cannot reference secrets in other namespaces
+# Wildcard certificate for *.apps.makeitwork.cloud
+# Created in openshift-config for use by componentRoutes (console, oauth)
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: wildcard-apps-makeitwork-cloud-config
+  name: wildcard-apps-makeitwork-cloud
   namespace: openshift-config
   annotations:
     argocd.argoproj.io/sync-wave: "3"
