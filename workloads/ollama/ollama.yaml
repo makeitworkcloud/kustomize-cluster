@@ -90,7 +90,8 @@ spec:
   selector:
     app: ollama
   ports:
-  - protocol: TCP
+  - name: api
+    protocol: TCP
     port: 11434
     targetPort: api
 ---
