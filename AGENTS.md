@@ -222,6 +222,57 @@ annotations:
   ignore-check.kube-linter.io/unset-memory-requirements: "No limits on single-node cluster"
 ```
 
+## Pre-commit Hooks
+
+This repository uses [pre-commit](https://pre-commit.com/) to enforce code quality and catch issues before they reach the repository.
+
+### Setup
+
+```bash
+# Install pre-commit hooks (run once after cloning)
+pre-commit install --hook-type commit-msg --hook-type pre-push
+
+# Verify hooks are installed
+ls -la .git/hooks/pre-commit .git/hooks/pre-push
+```
+
+### Pre-commit Checks
+
+| Hook | Purpose |
+|------|---------|
+| `conventional-pre-commit` | Validates conventional commit message format |
+| `check-yaml` | Validates YAML syntax |
+| `detect-private-key` | Prevents accidental commit of private keys |
+| `kube-linter` | Validates Kubernetes manifests |
+| `trailing-whitespace` | Removes trailing whitespace |
+| `end-of-file-fixer` | Ensures files end with newline |
+
+### Usage
+
+**Before committing:**
+```bash
+# Run all checks on changed files
+pre-commit run
+
+# Run all checks on all files
+pre-commit run --all-files
+```
+
+**If pre-commit fails:**
+1. Fix the reported issues
+2. Stage your changes (`git add`)
+3. Run `pre-commit run` again to verify
+4. Then commit
+
+**Bypass (emergencies only):**
+```bash
+git commit --no-verify  # Skips pre-commit hooks
+```
+
+### Pre-push Protection
+
+The pre-push hook runs all checks before allowing `git push`. This prevents broken code from reaching the remote repository.
+
 ## Common Gotchas
 
 1. **OpenShift operators reconcile routes** - Manual patches to routes get reverted. Use proper config resources (`ingress.config.openshift.io`, etc.)
