@@ -1,74 +1,64 @@
-apiVersion: ENC[AES256_GCM,data:yKs=,iv:nknVw9U//JOxRX8/WO4MKftQ8MDdRvYsCRn+HpoB6WU=,tag:6ww7guPbqvut3tlMnRZ+cA==,type:str]
-data:
-    password: ENC[AES256_GCM,data:3AuCfyvcVC5/P97viWPfzeo4ROQSVCixI/XH795Qf/So32zD26mt9Iafhkw=,iv:FiCVQH56NLStTAUjvmheWRkfnOtgPr4nGpxNdxD74HA=,tag:oiuZKQibEcVzAQy9MbflXA==,type:str]
-kind: ENC[AES256_GCM,data:bd7ZUOay,iv:h/mzYX5Kswyzy8SW8OVknXfL++bYsUaju7dlQfSNVMc=,tag:4ACzInMsf/LXIQ+/5Nj+Zg==,type:str]
+apiVersion: awx.ansible.com/v1beta1
+kind: AWX
 metadata:
-    annotations:
-        argocd.argoproj.io/sync-wave: ENC[AES256_GCM,data:aw==,iv:fAvoFjrqxjoahtNqb5m7jmLlUbEIdaUw0dPn2v0JVYs=,tag:Hi9RHS+lsauaRNMn18y8Og==,type:str]
-    name: ENC[AES256_GCM,data:4Mf19NS/y8+/MUNkVzWf6vDmBzBiIgqHHg==,iv:3+Ylrra36rzwMRu7RxywRa19PrDtVeWS7Nst0Q0HBmw=,tag:h52IG40YERnKMBMmhJZtAw==,type:str]
-    namespace: ENC[AES256_GCM,data:Q+zy,iv:phFVkfWxSmE1HWhRsXPlJuIRjaQlRftHPNxPfqNjkbg=,tag:nyDA/fCbsj7Dxyeaq6pnww==,type:str]
-type: ENC[AES256_GCM,data:+c1LCVBt,iv:UZdj/3Rn+Rs/ALTq940NmkS+Txt+lNMaQA/YTBLTYGM=,tag:KNfDa7ixGXUjdeysuJFw0Q==,type:str]
-sops:
-    age:
-        - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
-          enc: |
-            -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOQ3NKeWNSUVIxd2NLUGRa
-            NmlIR2lEYmhxY1FKVExWb3lDd2JoQWFISXhZCnJHZHduMU9yZFdpMVhkZDdieThI
-            WTI4YkhXKzhzTjRRNktYaldwelhxZTQKLS0tIEplYkFrVnBxbVkvY3JrNEVoOU5j
-            SWhVbjRkbS9IaFJGV2N1Y0krdjhmNlEKXtdnESPMhKx5HTwvpA1kCmfjcW1mlT4I
-            e4EpqefvryjB2IflBu+H1iIGLu8x933C/tT9+HnOpQnE2XSHB8ealA==
-            -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-02-22T06:00:56Z"
-    mac: ENC[AES256_GCM,data:jc7dfRJU/9Xef1lCZrBDegqAc0Cl8gJLg6DSgtC9WNNGBniMQa78G0LyMikAk7UxYfR3m4jM75+a+n4vyRUMSGlp/cop/1srsSMlTRMKvcIz6/EfRbY3BNdebj7irG8/X1Ay1a1vpa3Y5EFylTJBrBaio3gRS/6ahee4IeTPa5w=,iv:RNqmyMyIM1H+EHlJ0ZwtH+Masy9uOAe2U58Gs9QUv1M=,tag:1VyyzTxot5M3Ug0R7xU6vw==,type:str]
-    unencrypted_suffix: _unencrypted
-    version: 3.10.2
----
-apiVersion: ENC[AES256_GCM,data:9NpyA/RdKbo6gBHkY1I8gVaFLn9kUHE=,iv:ct5dbMUNIaJYuOdPDzuQsiFcWdXi1TO3VmKiTWFVLXM=,tag:fC8dh+XD9GexPOAolTUxUw==,type:str]
-kind: ENC[AES256_GCM,data:mUZF,iv:u9RI2j0rGGZfyfK6dsHxdLc1u2C6e+ojtPtftQrYKe0=,tag:ngXSoxwfTe1VRHTxC02FSQ==,type:str]
-metadata:
-    annotations:
-        argocd.argoproj.io/sync-wave: ENC[AES256_GCM,data:ug==,iv:kCRnNw6SIZL7SyZqqeJuhr60+MBO1h/i2CavIXMKXM8=,tag:ElO+r0WdLvr7MLknMA4T5Q==,type:str]
-    name: ENC[AES256_GCM,data:9iJ8,iv:sWVKFZQ/Y/f+RuebEH8xjvpUZfjnKLmE2Lg31PYdwis=,tag:a3ICG7lHqhKCsgU65PJ54g==,type:str]
-    namespace: ENC[AES256_GCM,data:qBtt,iv:bcemwxZRvT1E6jC+bayBa2iRDfskhutS9gUb0O/tAGk=,tag:XzpBOmSni15TkWT/v2m1Pw==,type:str]
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  name: awx
+  namespace: awx
 spec:
-    admin_password_secret: ENC[AES256_GCM,data:Guss9tH2R5eKfvpXjbruEqFHjBYx/ZRyTw==,iv:BIDFu3fpGBq5udozLMk5dojD5EoWzmut4eJUCfbFh4s=,tag:0PetaZn2yuVHr4/2QtBRYg==,type:str]
-    ingress_type: ENC[AES256_GCM,data:d6MJIPQ=,iv:Ge8WaNCT6Xy71l+o5t54KQG80ACcUScIajV04Bo9QZ4=,tag:RVchFxDKoPCt3lPT26oloA==,type:str]
-    route_host: ENC[AES256_GCM,data:v35OvJZSsLFG7tMKnH98Acc58jvANYCt,iv:mV6lYKDE3bX0nlgpp7JvDcYSzDwKAcgOYcKVjvOW46M=,tag:lNsDgfi5xu4d6d9+hKYy1w==,type:str]
-    extra_settings_files:
-        secrets:
-            - name: ENC[AES256_GCM,data:cR3MlCZVZIMA87p+cfTntA==,iv:7YmRxfPpWNhiL8gXxejVc29W8q4QBruFpO8E4bhaBTA=,tag:2UByQx0/rYW3NUGU1ig/Kg==,type:str]
-              key: ENC[AES256_GCM,data:pbvx7q9Bu3fMZ0RHqLsqHrpu,iv:HZDiYxXI23aYFmEJIp8DqXHZ0o4alBOXnRZGkl4W3nE=,tag:OD0DTez3j9OmSptoSpiKeA==,type:str]
-    extra_volumes: ENC[AES256_GCM,data:P4IcLgqxp36m+mOJ2ReBVrJm8rVs/tIv7KWOBcuVjYjp+5UJGBBCnKVkaV5z2NekZ32GZ06TyHsBqej+ASStkWEiECiodPj09xeVyYZYoL9j0kz3A8p6FDQzjq6xcIST28T+0kwoQBrRJbkSkKXI9RHR5SQ47K6Bnrk2MQBGUaL08M4pTqwveAdUTunRYX6S0ptTODj9kLxejj576iak1a6igQ8as7ziDMJkJbWIVZbRdxSK8LVKfTwcYYN1yPG8WaF3EL8PhLjB29VMY3fmzxzRWbm7tW/rkGYfM/SIQpRrJUYCjTynmSV1p+sToEwJZUr8D3nzfZv2qAqprKeHxbHYJXenrBXn8pqo++GthWp9rE3lEX6BqGqc5q9djAGJE2HW+rCdLMAJ4Tq7QjCbF/45EgZ61yaN49S8mSZPcluh81xPA+i6aMGoWtSWG2LppBGgB/wm7/GrJvHK4ng3LYHigbL25kvvhwZ4gFM8860tLUWC,iv:dcKJrMHRNFhnH0Y2g+rBVewgYKUXu1GyhSf/OlQwtBI=,tag:yfqna1cHzW7/SZyn6Te7bQ==,type:str]
-    web_extra_volume_mounts: ENC[AES256_GCM,data:6wJNxhelGF+M/JdjAFmzz2OJ+IHA5nT1/vgFeA6MEWZgHobXUbh0IpubD/I+VHcB4r03MJaOrN6Jp44pqHflVVUGMoQ5kE3zj6wxhK2QZ1QGObLnPSNZwQ3qePxuHp2CR8AoQDwOFUmGFybogHG7a8A86L7e2cyLOECDSA59gzo3256S1ev0v/TIUy6mbZGCg4Rt8tooYd9rhWFBUAlB1pnr1xvCMBOBuSP62/SFVcNoPlsJl8ItAutRHsyyM0+lrBiOOVnlLQXHLl2Tm0I0Scc1K/JW0icaHzIuNscNzxtZTqOS6xIdkRu5FZ7Pk5uqGWmqJE3euOPzaNgkkN3PT20VvZ+WdJoCI+uUqNnMAxJem+6VVhA1wfCcZJOKFZ6A2XxmNuSopuN539aNIjpuK/ASv+N6JwGXZ2OMJkzmgNdhf/OlD2xOCBY6BNBw,iv:ySpIA8hzn5aoluxMQyh/FJ13GluCIiY8daGbsQUxYOI=,tag:p9/+s3vLjjcQ12nfbn0OdQ==,type:str]
-    postgres_data_volume_init: ENC[AES256_GCM,data:YpKY8A==,iv:sr5b8x1VgMIVQ6qgKEZs0+/lUfysYPRRXGXWm+rRZC4=,tag:bO8nSp/eqgoRvJOo//Inxw==,type:bool]
-    postgres_security_context_settings:
-        runAsUser: ENC[AES256_GCM,data:g7k=,iv:Zs/thztTin1Kheb4S/wM0Vhr/wCmlbIFllJqJn2hs0U=,tag:6B5Qz+FqIejH6tzyMjoaGw==,type:int]
-        fsGroup: ENC[AES256_GCM,data:kcs=,iv:r4qN3vN4pM+nTuP4uoIKbXqRaEgUqcW2AkUpwfv3RHI=,tag:HkdYqoF9joIwI8dYPz0YUg==,type:int]
-    security_context_settings:
-        runAsUser: ENC[AES256_GCM,data:NZA=,iv:cQOHD/89+hR6yNcqg4Njbckb8k0hJ63TZaIuQvaIkM4=,tag:oNnpu5agVqxW2cyvzKutPA==,type:int]
-        fsGroup: ENC[AES256_GCM,data:aBk=,iv:Fg7Lioq1gvT2UAGtmL27mqQ3hg6DrMy7bm2+ORqNMy8=,tag:nDpbgKFVN3nl1WLtvRrnXw==,type:int]
-    postgres_init_container_commands: ENC[AES256_GCM,data:uYKZOsnyBOZx4BFwV7aMojPwHiLUDoB5Roiq+9djImaS8STfcq7qz0ZajKunC2CwVbA43kpBkIb+6BFAvC1YxXiu08K4Ma/JyhDg/kwXTbzvO5Xr1d/+oEkr6qc8yPTyxxtmYhcUapaz3P+WJ95mq2bZq2KMWtoLLIcAPJWLbKqC+3H7Rd7EUbi1ewHco3NKqQN3qQIi/7rO+5tTj3AAtkxveA==,iv:rdWVIgbkMwq4TqAiwUygziownu/ZyHNQjTpTOauM/v8=,tag:r2yxu46d4ElNEitkzJJEmA==,type:str]
-    web_resource_requirements: {}
-    task_resource_requirements: {}
-    ee_resource_requirements: {}
-    redis_resource_requirements: {}
-    rsyslog_resource_requirements: {}
-    postgres_resource_requirements: {}
-    init_container_resource_requirements: {}
-    postgres_init_container_resource_requirements: {}
-sops:
-    age:
-        - recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
-          enc: |
-            -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOQ3NKeWNSUVIxd2NLUGRa
-            NmlIR2lEYmhxY1FKVExWb3lDd2JoQWFISXhZCnJHZHduMU9yZFdpMVhkZDdieThI
-            WTI4YkhXKzhzTjRRNktYaldwelhxZTQKLS0tIEplYkFrVnBxbVkvY3JrNEVoOU5j
-            SWhVbjRkbS9IaFJGV2N1Y0krdjhmNlEKXtdnESPMhKx5HTwvpA1kCmfjcW1mlT4I
-            e4EpqefvryjB2IflBu+H1iIGLu8x933C/tT9+HnOpQnE2XSHB8ealA==
-            -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-02-22T06:00:56Z"
-    mac: ENC[AES256_GCM,data:jc7dfRJU/9Xef1lCZrBDegqAc0Cl8gJLg6DSgtC9WNNGBniMQa78G0LyMikAk7UxYfR3m4jM75+a+n4vyRUMSGlp/cop/1srsSMlTRMKvcIz6/EfRbY3BNdebj7irG8/X1Ay1a1vpa3Y5EFylTJBrBaio3gRS/6ahee4IeTPa5w=,iv:RNqmyMyIM1H+EHlJ0ZwtH+Masy9uOAe2U58Gs9QUv1M=,tag:1VyyzTxot5M3Ug0R7xU6vw==,type:str]
-    unencrypted_suffix: _unencrypted
-    version: 3.10.2
+  admin_password_secret: makeitwork-admin-password
+  ingress_type: Route
+  route_host: ansible.makeitwork.cloud
+  extra_settings_files:
+    secrets:
+      - name: awx-github-oauth
+        key: github_settings.py
+  extra_volumes: |
+    - name: awx-logo-login
+      configMap:
+        name: awx-logo
+        items:
+          - key: logo-login.svg
+            path: logo-login.svg
+    - name: awx-logo-header
+      configMap:
+        name: awx-logo
+        items:
+          - key: logo-header.svg
+            path: logo-header.svg
+    - name: awx-brand-logo
+      configMap:
+        name: awx-logo
+        items:
+          - key: brand-logo.svg
+            path: brand-logo.svg
+  web_extra_volume_mounts: |
+    - name: awx-logo-login
+      mountPath: /var/lib/awx/public/static/media/logo-login.svg
+      subPath: logo-login.svg
+    - name: awx-logo-header
+      mountPath: /var/lib/awx/public/static/media/logo-header.svg
+      subPath: logo-header.svg
+    - name: awx-brand-logo
+      mountPath: /var/lib/awx/public/static/media/brand-logo.svg
+      subPath: brand-logo.svg
+  postgres_data_volume_init: true
+  postgres_security_context_settings:
+    runAsUser: 26
+    fsGroup: 26
+  security_context_settings:
+    runAsUser: 26
+    fsGroup: 26
+  postgres_init_container_commands: |-
+    mkdir -p /var/lib/pgsql/data/data/userdata
+    chown -R 26:26 /var/lib/pgsql/data/data
+    chmod 0770 /var/lib/pgsql/data/data
+    chmod 0700 /var/lib/pgsql/data/data/userdata
+  web_resource_requirements: {}
+  task_resource_requirements: {}
+  ee_resource_requirements: {}
+  redis_resource_requirements: {}
+  rsyslog_resource_requirements: {}
+  postgres_resource_requirements: {}
+  init_container_resource_requirements: {}
+  postgres_init_container_resource_requirements: {}

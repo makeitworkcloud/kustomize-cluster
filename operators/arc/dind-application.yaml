@@ -1,0 +1,46 @@
+# ArgoCD Application for ARC dind-systems controller
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  name: arc-dind
+  namespace: openshift-gitops
+spec:
+  destination:
+    namespace: arc-dind-systems
+    server: https://kubernetes.default.svc
+  # Ignore fields on CRDs that Kubernetes mutates after creation
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jqPathExpressions:
+        - .metadata.annotations
+        - .spec.conversion
+        - .spec.preserveUnknownFields
+        - .status
+  project: default
+  source:
+    chart: actions-runner-controller
+    helm:
+      releaseName: arc-dind
+      valuesObject:
+        authSecret:
+          create: false
+          name: arc-dind-github-token
+        image:
+          repository: docker.io/summerwind/actions-runner-controller
+          actionsRunnerRepositoryAndTag: docker.io/summerwind/actions-runner:latest
+          dindSidecarRepositoryAndTag: docker.io/library/docker:dind
+        scope:
+          singleNamespace: true
+          watchNamespace: arc-dind-runners
+    repoURL: https://actions-runner-controller.github.io/actions-runner-controller
+    targetRevision: 0.23.7
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

@@ -67,15 +67,112 @@ Public `*.makeitwork.cloud` app DNS records are operator-managed from `TunnelBin
 
 ## SOPS/KSOPS Encryption
 
-Secrets encrypted with age. Each directory with secrets has a KSOPS generator file.
+Secrets are encrypted with age using **selective field encryption**. Only actual secret values are encrypted; metadata, comments, and non-sensitive configuration remain readable.
+
+### Configuration
+
+The `.sops.yaml` file defines `encrypted_regex` to target only sensitive fields:
+
+```yaml
+encrypted_regex: '^(token|api-token|clientID|clientSecret|password|secret|github_token|CLOUDFLARE_API_TOKEN|credentials\.json|.*_SERVICE_KEY|GF_AUTH_GITHUB_CLIENT_SECRET|GF_SECURITY_ADMIN_PASSWORD|dex\.github\.clientID|dex\.github\.clientSecret)$'
+```
+
+### File Structure Best Practices
+
+**DO:**
+- Create separate Secret files for sensitive values
+- Reference secrets from Applications/CRDs by name
+- Keep non-secret manifests completely unencrypted
+- Use comments in secret files to document purpose
+
+**DON'T:**
+- Encrypt entire Kubernetes manifests (configs, Namespaces, RBAC)
+- Mix secrets with configuration in the same file
+- Encrypt metadata fields (names, namespaces, labels, annotations)
+
+### Example: Proper Secret Structure
+
+```yaml
+# GitHub OAuth for ArgoCD - encrypted with sops
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-github-oauth
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+type: Opaque
+stringData:
+  # Only these values are encrypted
+  dex.github.clientID: Ov23liV3VghvjBnQjsWQ
+  dex.github.clientSecret: ae75f6c64ba9833bf7323c205f7b5ea368390788
+```
+
+### Commands
 
 ```bash
-# Encrypt
+# Encrypt a file (applies encrypted_regex from .sops.yaml)
 sops -e -i secret.yaml
 
-# Decrypt for viewing
+# Decrypt for viewing (stdout only, doesn't modify file)
 sops -d secret.yaml
+
+# Edit an encrypted file (decrypts in editor, re-encrypts on save)
+sops secret.yaml
+
+# Check if encryption worked correctly
+sops -d secret.yaml | grep -E "(apiVersion|kind|metadata|name|namespace)"
 ```
+
+### Adding New Secrets
+
+1. Create a plain YAML Secret file with the sensitive values
+2. Run `sops -e -i your-secret.yaml`
+3. Verify only the secret values are encrypted (metadata should be readable)
+4. Add the file to the appropriate `ksops-*.yaml` generator
+5. Never commit unencrypted secret files
+
+### KSOPS Integration
+
+Each directory with secrets has a KSOPS generator file that lists encrypted files:
+
+```yaml
+# ksops-example-secrets.yaml
+apiVersion: viaduct.ai/v1
+kind: ksops
+metadata:
+  name: ksops-example-secrets
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+files:
+  - github-oauth-secret.yaml
+  - api-token-secret.yaml
+```
+
+The kustomization.yaml separates resources (unencrypted) from generators (encrypted):
+
+```yaml
+resources:
+  - deployment.yaml        # Unencrypted manifest
+  - configmap.yaml         # Unencrypted config
+generators:
+  - ksops-example-secrets.yaml  # Decrypts secrets during kustomize build
+```
+
+### Migration from Full-File Encryption
+
+If you encounter files where everything is encrypted (apiVersion, kind, metadata):
+
+1. Decrypt the file: `sops -d old-file.yaml > decrypted.yaml`
+2. Split into separate files:
+   - One for Secret resources (re-encrypt with `sops -e -i`)
+   - One for non-secret resources (keep unencrypted)
+3. Update the kustomization.yaml to reference new file names
+4. Delete the old over-encrypted files
 
 **Key:** `age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l`
 

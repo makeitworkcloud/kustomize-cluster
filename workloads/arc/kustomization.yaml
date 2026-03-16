@@ -6,5 +6,9 @@ resources:
   - imagestream.yaml
   - dindrunners.yaml
   - registry.yaml
+  - namespace.yaml
+  - docker-daemon-config.yaml
+  - runner-application.yaml
+  - rbac.yaml
 generators:
   - ksops-arc-secrets.yaml
