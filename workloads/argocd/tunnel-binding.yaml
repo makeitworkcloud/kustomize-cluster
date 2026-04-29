@@ -3,11 +3,11 @@ apiVersion: networking.cfargotunnel.com/v1alpha1
 kind: TunnelBinding
 metadata:
   name: argocd
-  namespace: openshift-gitops
+  namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 subjects:
-  - name: openshift-gitops-server
+  - name: argocd-server
     spec:
       fqdn: argocd.makeitwork.cloud
       protocol: https

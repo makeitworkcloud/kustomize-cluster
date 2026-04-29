@@ -5,7 +5,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: wait-for-crds
-  namespace: openshift-gitops
+  namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
     argocd.argoproj.io/hook: PostSync
@@ -18,7 +18,7 @@ spec:
   activeDeadlineSeconds: 900
   template:
     spec:
-      serviceAccountName: openshift-gitops-argocd-application-controller
+      serviceAccountName: argocd-argocd-application-controller
       restartPolicy: Never
       securityContext:
         runAsNonRoot: true
@@ -26,7 +26,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: wait
-          image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+          image: bitnami/kubectl:latest
           command:
             - /bin/bash
             - -c
@@ -36,7 +36,7 @@ spec:
 
               # Wait for AWX CRD
               echo "Checking for AWX CRD..."
-              until oc get crd awxs.awx.ansible.com 2>/dev/null; do
+              until kubectl get crd awxs.awx.ansible.com 2>/dev/null; do
                 echo "Waiting for awxs.awx.ansible.com CRD..."
                 sleep 10
               done
@@ -44,7 +44,7 @@ spec:
 
               # Wait for ARC CRDs
               echo "Checking for ARC CRDs..."
-              until oc get crd runnerdeployments.actions.summerwind.dev 2>/dev/null; do
+              until kubectl get crd runnerdeployments.actions.summerwind.dev 2>/dev/null; do
                 echo "Waiting for runnerdeployments.actions.summerwind.dev CRD..."
                 sleep 10
               done
@@ -52,7 +52,7 @@ spec:
 
               # Wait for Cloudflare Operator CRDs
               echo "Checking for Cloudflare Operator CRDs..."
-              until oc get crd clustertunnels.networking.cfargotunnel.com 2>/dev/null; do
+              until kubectl get crd clustertunnels.networking.cfargotunnel.com 2>/dev/null; do
                 echo "Waiting for clustertunnels.networking.cfargotunnel.com CRD..."
                 sleep 10
               done
@@ -60,7 +60,7 @@ spec:
 
               # Wait for Tor Controller CRDs
               echo "Checking for Tor Controller CRDs..."
-              until oc get crd onionservices.tor.k8s.torproject.org 2>/dev/null; do
+              until kubectl get crd onionservices.tor.k8s.torproject.org 2>/dev/null; do
                 echo "Waiting for onionservices.tor.k8s.torproject.org CRD..."
                 sleep 10
               done
