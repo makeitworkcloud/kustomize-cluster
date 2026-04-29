@@ -1,13 +1,13 @@
 ---
-# OpenShift GitOps ArgoCD configuration
+# ArgoCD instance managed by argocd-operator (community).
 # - KSOPS for SOPS-encrypted secrets using AGE keys
 # - GitHub OAuth authentication via Dex
 # - RBAC with GitHub org/team mapping
 apiVersion: argoproj.io/v1beta1
 kind: ArgoCD
 metadata:
-  name: openshift-gitops
-  namespace: openshift-gitops
+  name: argocd
+  namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:

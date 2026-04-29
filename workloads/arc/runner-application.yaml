@@ -5,7 +5,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
   name: arc-runner-set
-  namespace: openshift-gitops
+  namespace: argocd
 spec:
   destination:
     namespace: arc-runners

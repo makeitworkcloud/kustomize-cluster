@@ -5,7 +5,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: ci-token-sync
-  namespace: openshift-gitops
+  namespace: argocd
   annotations:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
@@ -25,7 +25,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: sync
-          image: image-registry.openshift-image-registry.svc:5000/public-registry/gh-cli:latest
+          image: ghcr.io/makeitworkcloud/gh-cli:latest
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

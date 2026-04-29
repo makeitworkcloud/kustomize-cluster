@@ -1,5 +1,5 @@
 ---
-# ExternalName service to reference argocd server in openshift-gitops namespace
+# ExternalName service to reference argocd server in argocd namespace
 apiVersion: v1
 kind: Service
 metadata:
@@ -7,7 +7,7 @@ metadata:
   namespace: argocd-proxy
 spec:
   type: ExternalName
-  externalName: openshift-gitops-server.openshift-gitops.svc.cluster.local
+  externalName: argocd-server.argocd.svc.cluster.local
   ports:
     - port: 443
       targetPort: 443

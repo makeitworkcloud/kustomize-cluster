@@ -5,7 +5,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: wait-for-repo-server
-  namespace: openshift-gitops
+  namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "0"
     argocd.argoproj.io/hook: PostSync
@@ -18,7 +18,7 @@ spec:
   activeDeadlineSeconds: 600
   template:
     spec:
-      serviceAccountName: openshift-gitops-argocd-application-controller
+      serviceAccountName: argocd-argocd-application-controller
       restartPolicy: Never
       securityContext:
         runAsNonRoot: true
@@ -26,15 +26,15 @@ spec:
           type: RuntimeDefault
       containers:
         - name: wait
-          image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+          image: bitnami/kubectl:latest
           command:
             - /bin/bash
             - -c
             - |
               set -e
               echo "Waiting for repo-server deployment rollout..."
-              oc rollout status deployment/openshift-gitops-repo-server \
-                -n openshift-gitops \
+              kubectl rollout status deployment/argocd-repo-server \
+                -n argocd \
                 --timeout=300s
               echo "Repo-server is ready"
           securityContext:
