@@ -117,6 +117,13 @@ spec:
             secret: $dex.headlamp.clientSecret
             redirectURIs:
               - https://headlamp.makeitwork.cloud/oidc-callback
+          # Grafana uses Dex via GF_AUTH_GENERIC_OAUTH_*, replacing its
+          # built-in GitHub OAuth so all cluster apps share one IdP.
+          - id: grafana
+            name: Grafana
+            secret: $dex.grafana.clientSecret
+            redirectURIs:
+              - https://grafana.makeitwork.cloud/login/generic_oauth
   # RBAC with GitHub team mapping
   rbac:
     defaultPolicy: ''
