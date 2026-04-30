@@ -1,0 +1,23 @@
+---
+# Prometheus datasource for the main Grafana instance, sourced from
+# kube-prometheus-stack's in-cluster Prometheus. Selected onto the main
+# Grafana via the matching `dashboards: grafana` label.
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: grafana-prometheus
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: "grafana"
+  datasource:
+    name: Prometheus
+    type: prometheus
+    access: proxy
+    isDefault: true
+    url: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+    jsonData:
+      timeInterval: 30s
