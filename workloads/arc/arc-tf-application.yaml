@@ -1,0 +1,56 @@
+# GitHub Actions runner scale set running the tfroot-runner image.
+# Jobs labeled `runs-on: arc-tf` execute directly in this pod — no nested
+# `container:` block, no docker-in-docker. Replaces the legacy summerwind
+# arc-dind controller and the arc-runners-with-dind-sidecar pattern.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-tf
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  destination:
+    namespace: arc-runners
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    chart: gha-runner-scale-set
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    targetRevision: 0.13.1
+    helm:
+      releaseName: arc-tf
+      valuesObject:
+        runnerScaleSetName: arc-tf
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-runner-github-token
+        githubConfigUrl: https://github.com/makeitworkcloud
+        maxRunners: 3
+        minRunners: 0
+        template:
+          spec:
+            containers:
+              - name: runner
+                image: ghcr.io/makeitworkcloud/tfroot-runner:latest
+                command: ["/home/runner/run.sh"]
+  # The gha-runner-scale-set controller mutates listener resources at runtime
+  # (hash annotations, autoscaling spec). Ignore those drifts.
+  ignoreDifferences:
+    - group: actions.github.com
+      kind: AutoscalingListener
+      jsonPointers:
+        - /metadata/annotations
+        - /spec
+    - group: actions.github.com
+      kind: AutoscalingRunnerSet
+      jsonPointers:
+        - /metadata/annotations
+        - /spec/template
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - RespectIgnoreDifferences=true
