@@ -3,11 +3,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ansible
   - arc
   - cert-manager
   - cloudflare
-  - grafana
   - tor-controller
-generators:
-  - generator/ksops-generator.yaml
+  # ansible/ and grafana/ contain OLM Subscriptions; OLM is not installed on
+  # k3s. Re-enable here once they're rewritten as upstream operator manifests.
+  # - ansible
+  # - grafana
