@@ -11,6 +11,7 @@ resources:
   - arc-app.yaml
   - grafana-app.yaml
   - headlamp-app.yaml
+  - kubectl-tunnel-app.yaml
   - ../argocd  # Direct include - TunnelBinding for ArgoCD
   # ansible-app is paired with the AWX operator, which is being deprecated;
   # re-enable here only if the operator comes back.
