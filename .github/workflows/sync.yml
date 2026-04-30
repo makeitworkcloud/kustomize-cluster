@@ -12,7 +12,6 @@ permissions:
 
 jobs:
   sync:
-    name: Sync ArgoCD
     # In-cluster runner; kubectl uses its auto-mounted SA token to talk to
     # the API directly. The tfroot-runner image has kubectl preinstalled.
     runs-on: arc-tf
