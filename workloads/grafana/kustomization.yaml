@@ -9,6 +9,7 @@ resources:
   - status-datasource.yaml
   - status-dashboard.yaml
   - onion-service.yaml
+  - status-onion-service.yaml
   - tunnel-binding.yaml
 generators:
   - ksops-grafana-secrets.yaml
