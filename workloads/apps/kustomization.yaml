@@ -10,6 +10,7 @@ resources:
   # Wave 1: Depend on operator CRDs (TunnelBinding requires cloudflare-operator)
   - arc-app.yaml
   - grafana-app.yaml
+  - headlamp-app.yaml
   - ../argocd  # Direct include - TunnelBinding for ArgoCD
   # ansible-app is paired with the AWX operator, which is being deprecated;
   # re-enable here only if the operator comes back.
