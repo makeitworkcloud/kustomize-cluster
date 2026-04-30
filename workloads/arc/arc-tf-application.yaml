@@ -31,6 +31,7 @@ spec:
         minRunners: 0
         template:
           spec:
+            serviceAccountName: arc-tf-runner
             containers:
               - name: runner
                 image: ghcr.io/makeitworkcloud/tfroot-runner:latest

@@ -1,5 +1,5 @@
 ---
-name: CI/CD
+name: Test & Sync
 
 on:
   push:
@@ -15,8 +15,6 @@ permissions:
 jobs:
   test:
     name: Pre-commit Tests
-    # ubuntu-latest while arc-dind runners are unavailable during the libvirt
-    # migration. Revert to `arc` once the new k3s cluster has ARC runners up.
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -32,10 +30,9 @@ jobs:
 
   sync:
     name: Sync ArgoCD
-    # In-cluster `arc` runner uses its SA token to talk to the API directly;
-    # this job stays on `arc` because it needs cluster access. It will not run
-    # until ARC dind runners are deployed by kustomize-cluster post-bootstrap.
-    runs-on: arc
+    # In-cluster runner; kubectl uses its auto-mounted SA token to talk to
+    # the API directly. The tfroot-runner image has kubectl preinstalled.
+    runs-on: arc-tf
     needs: [test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 

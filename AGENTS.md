@@ -1,199 +1,120 @@
 # Agent Context for kustomize-cluster
 
-## Repository Overview
-
-GitOps repository for OpenShift CRC cluster. Uses ArgoCD with KSOPS for secret decryption.
+GitOps manifests for the k3s cluster behind makeitwork.cloud. ArgoCD reconciles this repo using KSOPS for inline secret decryption.
 
 ## Sync Wave Architecture
 
 ```
-Wave 0: Bootstrap and cluster baseline configuration
-Wave 1: Operator and CRD provider layer
-Wave 2: Workload layer depending on installed operators
-PostSync: Follow-up operational automation
+Wave 0: ArgoCD config, OIDC RBAC, CI service account
+Wave 1: bootstrap-secrets, gitops-operators
+Wave 2: gitops-workloads
+PostSync: ci-token-sync, wait-for-* jobs
 ```
 
-- Sync waves are per-Application, not global across all Applications
+Sync waves order resources within a single ArgoCD Application — they are **not** global across Applications. The App-of-Apps structure plus `wait-for-*` post-sync jobs enforces cross-Application ordering.
 
 ## Domain Architecture
 
-| Domain | Access Method | TLS Handling |
-|--------|---------------|--------------|
-| `*.makeitwork.cloud` | Cloudflare Tunnel | TLS terminated at Cloudflare edge |
-| `*.apps.makeitwork.cloud` | WARP only | Let's Encrypt cert in cluster |
-| `api.makeitwork.cloud` | WARP only | Let's Encrypt cert in cluster |
+| Domain | Access | TLS |
+|---|---|---|
+| `*.makeitwork.cloud` | Cloudflare Tunnel (`TunnelBinding`) | Cloudflare edge |
+| `*.apps.makeitwork.cloud` | WARP-only | Let's Encrypt (DNS-01) |
+| `api.makeitwork.cloud` | WARP-only | Let's Encrypt (DNS-01) |
+
+There is no in-cluster ingress controller. All `*.makeitwork.cloud` apps reach the cluster via a Cloudflare Tunnel managed by cloudflare-operator.
 
 ## Key Namespaces
 
-- `openshift-config` - Cluster-level secrets (certs, OAuth configs)
-- `openshift-ingress` - Router/IngressController resources
-- `openshift-ingress-operator` - IngressController CR
-- `cert-manager` - cert-manager controller pods
-- `openshift-gitops` - ArgoCD and KSOPS
-- `cloudflare-operator-system` - Cloudflare operator, tunnel deployment, DNS API secret
+- `argocd` — ArgoCD, KSOPS plugin, `sops-age-keys` Secret
+- `cert-manager` — cert-manager controllers + Cloudflare API token
+- `cloudflare-operator-system` — cloudflare-operator, tunnel deployment, Cloudflare API secret
+- `arc-system` — ARC controller (Actions Runner Controller)
 
 ## Certificate Management
 
-Certificates are managed by cert-manager with Let's Encrypt via DNS-01 (Cloudflare).
-
-**Critical:** cert-manager needs external DNS servers for DNS-01 validation because cluster DNS cannot resolve external domains. This is configured via `CertManager` CR:
+cert-manager issues Let's Encrypt certs via the Cloudflare DNS-01 solver. The cluster DNS cannot resolve external domains, so the controller is configured to use external recursive nameservers:
 
 ```yaml
-spec:
-  controllerConfig:
-    overrideArgs:
-      - "--dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53"
-      - "--dns01-recursive-nameservers-only"
+extraArgs:
+  - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
+  - --dns01-recursive-nameservers-only
 ```
 
-**Certificate locations:**
-- `openshift-config/wildcard-apps-makeitwork-cloud-tls` - for componentRoutes (console, oauth)
-- `openshift-config/api-makeitwork-cloud-tls` - for API server
-- Cloudflare API token in `cert-manager/cloudflare-api-token`
+The Cloudflare API token lives in `cert-manager/cloudflare-api-token` and is referenced from `ClusterIssuer` resources.
 
-**OpenShift config resources:**
-- `ingress.config.openshift.io/cluster` - componentRoutes for console/oauth certs
-- `apiserver.config.openshift.io/cluster` - API server cert
+## Cloudflare Tunnel DNS
 
-## Cloudflare Tunnel DNS Management
+Public `*.makeitwork.cloud` DNS records are operator-managed from `TunnelBinding` resources.
 
-Public `*.makeitwork.cloud` app DNS records are operator-managed from `TunnelBinding` resources.
+- Keep `tunnelRef.disableDNSUpdates: false` so the operator owns CNAMEs
+- `subjects[].name` must match the real Kubernetes `Service` name in the same namespace; if it doesn't exist, status reports `http_status:404`
+- Ownership is tracked in `_managed.<fqdn>` TXT records — deleting a CNAME without removing its matching TXT record causes update-by-stale-id failures (`Record does not exist. (81044)`)
 
-- Keep `TunnelBinding.tunnelRef.disableDNSUpdates: false` for operator-managed DNS
-- `subjects[].name` must match the real Kubernetes `Service` name in the same namespace
-- cloudflare-operator stores ownership metadata in `_managed.<fqdn>` TXT records
-- Do not delete CNAME records without deleting matching `_managed.<fqdn>` TXT records; stale TXT `DnsId` values cause reconcile failures (`81044`)
-- The old `dns-adoption-job` hook is intentionally not used
+## SOPS / KSOPS
 
-## SOPS/KSOPS Encryption
-
-Secrets are encrypted with age using **selective field encryption**. Only actual secret values are encrypted; metadata, comments, and non-sensitive configuration remain readable.
-
-### Configuration
-
-The `.sops.yaml` file defines `encrypted_regex` to target only sensitive fields:
+**Selective field encryption only.** `.sops.yaml` defines `encrypted_regex` so only sensitive values are encrypted; manifests stay diffable.
 
 ```yaml
 encrypted_regex: '^(token|api-token|clientID|clientSecret|password|secret|github_token|CLOUDFLARE_API_TOKEN|credentials\.json|.*_SERVICE_KEY|GF_AUTH_GITHUB_CLIENT_SECRET|GF_SECURITY_ADMIN_PASSWORD|dex\.github\.clientID|dex\.github\.clientSecret)$'
 ```
 
-### File Structure Best Practices
+### Conventions
 
-**DO:**
-- Create separate Secret files for sensitive values
-- Reference secrets from Applications/CRDs by name
-- Keep non-secret manifests completely unencrypted
-- Use comments in secret files to document purpose
+- One Secret per file; reference by name from CRDs/Applications
+- Never encrypt non-Secret manifests (Namespaces, RBAC, ConfigMaps)
+- Never encrypt metadata (names, namespaces, labels, annotations)
 
-**DON'T:**
-- Encrypt entire Kubernetes manifests (configs, Namespaces, RBAC)
-- Mix secrets with configuration in the same file
-- Encrypt metadata fields (names, namespaces, labels, annotations)
-
-### Example: Proper Secret Structure
+### Example
 
 ```yaml
-# GitHub OAuth for ArgoCD - encrypted with sops
 apiVersion: v1
 kind: Secret
 metadata:
   name: argocd-github-oauth
-  namespace: openshift-gitops
-  labels:
-    app.kubernetes.io/part-of: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
+  namespace: argocd
 type: Opaque
 stringData:
-  # Only these values are encrypted
   dex.github.clientID: Ov23liV3VghvjBnQjsWQ
-  dex.github.clientSecret: ae75f6c64ba9833bf7323c205f7b5ea368390788
+  dex.github.clientSecret: <only this and clientID get encrypted>
 ```
 
 ### Commands
 
 ```bash
-# Encrypt a file (applies encrypted_regex from .sops.yaml)
-sops -e -i secret.yaml
-
-# Decrypt for viewing (stdout only, doesn't modify file)
-sops -d secret.yaml
-
-# Edit an encrypted file (decrypts in editor, re-encrypts on save)
-sops secret.yaml
-
-# Check if encryption worked correctly
-sops -d secret.yaml | grep -E "(apiVersion|kind|metadata|name|namespace)"
+sops -e -i secret.yaml      # encrypt in place
+sops -d secret.yaml         # decrypt to stdout
+sops secret.yaml            # edit decrypted, re-encrypt on save
 ```
 
-### Adding New Secrets
+### KSOPS generators
 
-1. Create a plain YAML Secret file with the sensitive values
-2. Run `sops -e -i your-secret.yaml`
-3. Verify only the secret values are encrypted (metadata should be readable)
-4. Add the file to the appropriate `ksops-*.yaml` generator
-5. Never commit unencrypted secret files
-
-### KSOPS Integration
-
-Each directory with secrets has a KSOPS generator file that lists encrypted files:
-
-```yaml
-# ksops-example-secrets.yaml
-apiVersion: viaduct.ai/v1
-kind: ksops
-metadata:
-  name: ksops-example-secrets
-  annotations:
-    config.kubernetes.io/function: |
-      exec:
-        path: ksops
-files:
-  - github-oauth-secret.yaml
-  - api-token-secret.yaml
-```
-
-The kustomization.yaml separates resources (unencrypted) from generators (encrypted):
+Each directory with secrets has a generator listing its encrypted files; the kustomization separates plain `resources` from KSOPS `generators`:
 
 ```yaml
 resources:
-  - deployment.yaml        # Unencrypted manifest
-  - configmap.yaml         # Unencrypted config
+  - deployment.yaml
+  - configmap.yaml
 generators:
-  - ksops-example-secrets.yaml  # Decrypts secrets during kustomize build
+  - ksops-example-secrets.yaml
 ```
 
-### Migration from Full-File Encryption
-
-If you encounter files where everything is encrypted (apiVersion, kind, metadata):
-
-1. Decrypt the file: `sops -d old-file.yaml > decrypted.yaml`
-2. Split into separate files:
-   - One for Secret resources (re-encrypt with `sops -e -i`)
-   - One for non-secret resources (keep unencrypted)
-3. Update the kustomization.yaml to reference new file names
-4. Delete the old over-encrypted files
-
-**Key:** `age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l`
+The age private key is mounted into the ArgoCD repo-server as the `sops-age-keys` Secret in the `argocd` namespace.
 
 ## Tor Hidden Services
 
-Managed by tor-controller operator with OnionService CRDs per workload.
+Managed by tor-controller with `OnionService` CRDs per workload.
 
-**Critical:** Tor keys must use `data` field (not `stringData`) with base64-encoded raw binary. The key file starts with `== ed25519v1-secret: type0 ==`.
+- Tor keys must use `data` (not `stringData`) with base64-encoded raw binary; the file starts with `== ed25519v1-secret: type0 ==`
+- Public `.onion` addresses are documented in `../www/onion.makeitwork.cloud/index.html`
 
-Expected .onion addresses are documented in `../www/onion.makeitwork.cloud/index.html`.
+## Resource Sizing
 
-## Resource Management
+Single-node cluster — default to **no container `resources` block**.
 
-**Single-node CRC policy:** avoid container CPU/memory reservations by default.
+- Explicit requests trigger `Insufficient cpu/memory` scheduling failures
+- CPU limits cause throttling even with spare capacity
+- Memory limits can cause avoidable OOM kills
 
-- Prefer `resources: {}` or no `resources` block on app containers
-- Avoid both `requests` and `limits` unless a workload has a proven stability need
-- High requests on single-node CRC commonly trigger `Insufficient cpu/memory` scheduling failures
-- CPU limits cause throttling; memory limits can cause avoidable OOM kills
-
-When adding new workloads, default to no container requests/limits:
 ```yaml
 containers:
   - name: app
@@ -201,9 +122,7 @@ containers:
     resources: {}
 ```
 
-For operators installed via OLM (Subscription), tune through supported CR/Subscription fields where available (for example `spec.config.resources: {}` or operator-specific `*_resource_requirements: {}`). If the operator ignores these fields, accept operator defaults.
-
-For operators installed via kustomize remote refs, use JSON patches to remove the entire `resources` block:
+For operators installed via Helm/Subscription, prefer values that disable resources (`resources: {}` or operator-specific fields). For operators installed via kustomize remote refs, strip `resources` with a JSON patch:
 
 ```yaml
 patches:
@@ -215,110 +134,50 @@ patches:
       name: controller-manager
 ```
 
-If KubeLinter checks require explicit ignores for this cluster policy:
+If kube-linter complains, annotate the Deployment:
+
 ```yaml
 annotations:
-  ignore-check.kube-linter.io/unset-cpu-requirements: "No requests on single-node cluster"
-  ignore-check.kube-linter.io/unset-memory-requirements: "No limits on single-node cluster"
+  ignore-check.kube-linter.io/unset-cpu-requirements: "single-node policy"
+  ignore-check.kube-linter.io/unset-memory-requirements: "single-node policy"
 ```
 
-## Pre-commit Hooks
-
-This repository uses [pre-commit](https://pre-commit.com/) to enforce code quality and catch issues before they reach the repository.
-
-### Setup
+## Pre-commit
 
 ```bash
-# Install pre-commit hooks (run once after cloning)
 pre-commit install --hook-type commit-msg --hook-type pre-push
-
-# Verify hooks are installed
-ls -la .git/hooks/pre-commit .git/hooks/pre-push
-```
-
-### Pre-commit Checks
-
-| Hook | Purpose |
-|------|---------|
-| `conventional-pre-commit` | Validates conventional commit message format |
-| `check-yaml` | Validates YAML syntax |
-| `detect-private-key` | Prevents accidental commit of private keys |
-| `kube-linter` | Validates Kubernetes manifests |
-| `trailing-whitespace` | Removes trailing whitespace |
-| `end-of-file-fixer` | Ensures files end with newline |
-
-### Usage
-
-**Before committing:**
-```bash
-# Run all checks on changed files
-pre-commit run
-
-# Run all checks on all files
 pre-commit run --all-files
 ```
 
-**If pre-commit fails:**
-1. Fix the reported issues
-2. Stage your changes (`git add`)
-3. Run `pre-commit run` again to verify
-4. Then commit
-
-**Bypass (emergencies only):**
-```bash
-git commit --no-verify  # Skips pre-commit hooks
-```
-
-### Pre-push Protection
-
-The pre-push hook runs all checks before allowing `git push`. This prevents broken code from reaching the remote repository.
+| Hook | Purpose |
+|---|---|
+| `conventional-pre-commit` | Conventional commit message format |
+| `check-yaml` | YAML syntax |
+| `detect-private-key` | Block private key commits |
+| `kube-linter` | Kubernetes manifest sanity |
+| `trailing-whitespace`, `end-of-file-fixer` | Formatting |
 
 ## Common Gotchas
 
-1. **OpenShift operators reconcile routes** - Manual patches to routes get reverted. Use proper config resources (`ingress.config.openshift.io`, etc.)
-
-2. **componentRoutes vs IngressController default cert** - Different consumers:
-   - `IngressController.spec.defaultCertificate` - expects secret in `openshift-ingress`
-   - `Ingress.spec.componentRoutes` - expects secret in `openshift-config`
-
-3. **CertManager CR vs deployment patch** - The CertManager CR's `controllerConfig.overrideArgs` should apply to deployment, but verify with:
-   ```bash
-   kubectl get deploy cert-manager -n cert-manager -o jsonpath='{.spec.template.spec.containers[0].args}'
-   ```
-
-4. **Tor secret format** - Using `stringData` with base64 content causes double-encoding. Use `data` field directly.
-
-5. **ArgoCD sync waves** - Waves only order resources within a single Application. Cross-Application ordering requires hooks or separate sync operations.
-
-6. **OAuth Replace=true causes sync failures** - The `argocd.argoproj.io/sync-options: Replace=true` annotation causes ArgoCD to delete+create resources. OpenShift protects singleton resources like `oauths.config.openshift.io/cluster` from deletion. Use `ServerSideApply=true` instead for these resources.
-
-7. **Cloudflare stale TXT records break DNS reconciliation** - If `_managed.<fqdn>` TXT records point to deleted CNAME IDs, cloudflare-operator attempts update-by-stale-ID and fails with `Record does not exist. (81044)`. Remove stale `_managed.*` TXT records, then reconcile TunnelBindings.
-
-8. **TunnelBinding subject name is service lookup key** - `subjects[].name` is used to read the Kubernetes Service object. If this name does not exist, operator status falls back to `http_status:404`.
+1. **ArgoCD waves are per-Application** — Cross-Application ordering needs hooks or separate sync operations.
+2. **TunnelBinding `subjects[].name` is a Service lookup key** — A typo here surfaces as `http_status:404` in operator status, not a missing-Service error.
+3. **Cloudflare stale TXT records break reconciliation** — Remove orphan `_managed.<fqdn>` TXT records before recreating CNAMEs.
+4. **Tor secret format** — Use `data` with raw binary base64; `stringData` double-encodes.
+5. **KSOPS needs the age key in the repo-server pod** — Without `sops-age-keys` mounted, manifest generation fails before any sync.
+6. **DNS-01 requires external resolvers** — cluster DNS cannot validate Let's Encrypt challenges; the cert-manager controller args above are required.
 
 ## Useful Commands
 
 ```bash
-# Check cert status
-kubectl get certificate -A
-
-# Check challenges (DNS-01 validation)
-kubectl get challenges -A
-
-# Verify cert on endpoint
-openssl s_client -connect host:port -servername host 2>/dev/null | openssl x509 -noout -subject -issuer
-
-# Decrypt SOPS secret
-sops -d path/to/secret.yaml
-
-# Force ArgoCD sync
-argocd app sync <app-name>
-
-# Check ArgoCD app status
-argocd app get <app-name>
+kubectl get certificate -A          # cert status
+kubectl get challenges -A           # DNS-01 validation
+sops -d path/to/secret.yaml         # inspect a secret
+argocd app sync <app-name>          # force sync
+argocd app get <app-name>           # app status
 ```
 
 ## Related Repositories
 
-- `makeitworkcloud/www` - Static site with .onion address documentation
-- `makeitworkcloud/ansible-role-crc` - CRC cluster provisioning
+- `makeitworkcloud/ansible-site-cluster` — k3s cluster provisioning
+- `makeitworkcloud/www` — static site, source of `.onion` documentation
+- `makeitworkcloud/shared-workflows` — reusable GitHub Actions workflows
