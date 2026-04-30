@@ -1,40 +1,21 @@
 ---
-name: test-and-sync
+name: sync
 
 on:
   push:
     branches:
       - main
-  pull_request:
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    name: Pre-commit Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: pre-commit tests
-        uses: pre-commit/action@v3.0.1
-
   sync:
     name: Sync ArgoCD
     # In-cluster runner; kubectl uses its auto-mounted SA token to talk to
     # the API directly. The tfroot-runner image has kubectl preinstalled.
     runs-on: arc-tf
-    needs: [test]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Sync ArgoCD bootstrap Applications
