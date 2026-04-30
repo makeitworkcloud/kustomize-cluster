@@ -45,16 +45,6 @@ spec:
       resources:
         requests:
           storage: 2Gi
-  route:
-    spec:
-      host: status.makeitwork.cloud
-      tls:
-        termination: edge
-        insecureEdgeTerminationPolicy: Redirect
-      to:
-        kind: Service
-        name: grafana-status-service
-        weight: 100
 ---
 apiVersion: networking.cfargotunnel.com/v1alpha1
 kind: TunnelBinding
