@@ -32,6 +32,9 @@ spec:
         template:
           spec:
             serviceAccountName: arc-tf-runner
+            # The gha-runner-scale-set chart disables token automount by
+            # default; re-enable so kubectl can use the SA's projected token.
+            automountServiceAccountToken: true
             containers:
               - name: runner
                 image: ghcr.io/makeitworkcloud/tfroot-runner:latest
