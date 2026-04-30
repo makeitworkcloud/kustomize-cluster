@@ -27,6 +27,11 @@ spec:
             externalSecret:
               enabled: true
               name: oidc
+            # Don't let the chart render its own (empty) Secret named `oidc`,
+            # which otherwise clobbers the sops-decrypted one above.
+            secret:
+              create: false
+              name: oidc
         serviceAccount:
           create: true
         clusterRoleBinding:
@@ -38,9 +43,19 @@ spec:
             memory: 64Mi
           limits:
             memory: 256Mi
+  # Kubernetes defaults `pod.spec.hostUsers: true` server-side; the chart
+  # doesn't declare it, so ArgoCD sees permanent drift on the Deployment.
+  # Ignore that one path.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: headlamp
+      jsonPointers:
+        - /spec/template/spec/hostUsers
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
