@@ -2,17 +2,6 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: cluster-monitoring-config
-  namespace: openshift-monitoring
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-data:
-  config.yaml: |
-    enableUserWorkload: true
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
   name: blackbox-exporter-config
   namespace: grafana
   annotations:
@@ -108,38 +97,4 @@ spec:
       static:
         - https://argocd.makeitwork.cloud
         - https://grafana.makeitwork.cloud
-        - https://ansible.makeitwork.cloud
         - https://status.makeitwork.cloud
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: grafana-status-metrics-reader
-  namespace: grafana
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: grafana-status-metrics-reader-token
-  namespace: grafana
-  annotations:
-    kubernetes.io/service-account.name: grafana-status-metrics-reader
-    argocd.argoproj.io/sync-wave: "1"
-type: kubernetes.io/service-account-token
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: grafana-status-metrics-reader
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-monitoring-view
-subjects:
-  - kind: ServiceAccount
-    name: grafana-status-metrics-reader
-    namespace: grafana

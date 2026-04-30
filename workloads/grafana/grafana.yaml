@@ -71,13 +71,3 @@ spec:
       resources:
         requests:
           storage: 10Gi
-  route:
-    spec:
-      host: grafana.makeitwork.cloud
-      tls:
-        termination: edge
-        insecureEdgeTerminationPolicy: Redirect
-      to:
-        kind: Service
-        name: grafana-service
-        weight: 100

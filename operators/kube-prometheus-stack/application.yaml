@@ -1,0 +1,80 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  source:
+    chart: kube-prometheus-stack
+    repoURL: https://prometheus-community.github.io/helm-charts
+    targetRevision: 84.4.0
+    helm:
+      releaseName: kube-prometheus-stack
+      values: |
+        # grafana-operator manages our Grafana CRs separately
+        grafana:
+          enabled: false
+
+        # Single-node home cluster — drop multi-node tracking
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeProxy:
+          enabled: false
+        kubeEtcd:
+          enabled: false
+
+        alertmanager:
+          enabled: false
+
+        prometheusOperator:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+
+        prometheus:
+          prometheusSpec:
+            retention: 7d
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 1Gi
+            # Pick up ServiceMonitor / PodMonitor / PrometheusRule / Probe
+            # from any namespace, not just the chart's release namespace.
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            probeSelectorNilUsesHelmValues: false
+
+        nodeExporter:
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+
+        kubeStateMetrics:
+          enabled: true
+
+        kube-state-metrics:
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true

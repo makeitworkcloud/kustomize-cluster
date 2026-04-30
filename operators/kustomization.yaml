@@ -6,8 +6,9 @@ resources:
   - arc
   - cert-manager
   - cloudflare
+  - grafana
+  - kube-prometheus-stack
   - tor-controller
-  # ansible/ and grafana/ contain OLM Subscriptions; OLM is not installed on
-  # k3s. Re-enable here once they're rewritten as upstream operator manifests.
+  # ansible/ contains an OLM Subscription; AWX is being deprecated. Re-enable
+  # here only if the operator comes back.
   # - ansible
-  # - grafana
