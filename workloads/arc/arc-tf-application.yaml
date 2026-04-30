@@ -42,20 +42,23 @@ spec:
   # The gha-runner-scale-set controller propagates hash annotations into
   # AutoscalingRunnerSet metadata and spec.template.metadata; ignore only those
   # paths so selfHeal doesn't thrash, but spec.template.spec changes
-  # (serviceAccountName, image, etc.) still sync. The dynamically-created
-  # listener resources (AutoscalingListener + paired Role/RoleBinding) are
-  # cosmetically reported as OutOfSync because the chart doesn't render them
-  # and ArgoCD's label-based tracking still claims them — Health stays correct
-  # and Synced won't follow without a cluster-wide tracking-method change.
+  # (serviceAccountName, image, etc.) still sync.
   ignoreDifferences:
     - group: actions.github.com
       kind: AutoscalingRunnerSet
       jsonPointers:
         - /metadata/annotations
         - /spec/template/metadata/annotations
+  # prune is disabled because the controller dynamically creates an
+  # AutoscalingListener plus a paired Role/RoleBinding (named
+  # arc-tf-<hash>-listener) and labels them with app.kubernetes.io/instance,
+  # so ArgoCD's label-based tracking claims them as managed. The chart does
+  # not render these, so with prune=true ArgoCD repeatedly prunes them and
+  # the controller recreates them — a sync loop. selfHeal still keeps the
+  # chart-rendered resources reconciled.
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     syncOptions:
       - RespectIgnoreDifferences=true
