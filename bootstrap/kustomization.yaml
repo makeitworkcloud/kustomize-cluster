@@ -6,6 +6,8 @@ resources:
   # NOTE: cluster-admin ClusterRoleBinding is managed by ansible-role-crc
   #       (ArgoCD cannot grant itself permissions it doesn't have)
   - argocd-config.yaml
+  # Wave 0: GitHub-team-to-cluster-admin RBAC for OIDC users (Headlamp, kubectl)
+  - oidc-rbac.yaml
   # Wave 0: CI/CD service account with cluster-admin for GitHub Actions
   - ci-service-account.yaml
   # PostSync: Sync ci-deployer token to GitHub Actions secrets
