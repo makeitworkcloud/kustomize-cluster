@@ -40,6 +40,9 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
       - name: Sync ArgoCD bootstrap Applications
         run: |
           for app in bootstrap-secrets gitops-operators gitops-workloads; do

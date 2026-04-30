@@ -1,72 +1,75 @@
 # kustomize-cluster
 
-Kustomize configurations for OpenShift cluster workloads. Uses ArgoCD sync waves and KSOPS for secret decryption.
+GitOps manifests for the k3s cluster behind [makeitwork.cloud](https://makeitwork.cloud/). ArgoCD reconciles this repo using KSOPS for inline secret decryption.
+
+## Layout
+
+```
+bootstrap/   ArgoCD configuration, OIDC RBAC, CI service account, App-of-Apps roots
+operators/   Cluster operators that install CRDs (cert-manager, cloudflare, tor, ARC, …)
+workloads/   Workload Applications that depend on operator CRDs
+```
+
+The root `kustomization.yaml` is for local `kustomize build` testing only. ArgoCD drives production sync from the per-Application sources defined in `bootstrap/`.
 
 ## Sync Wave Flow
 
 ```
-Wave 0: Bootstrap and cluster baseline configuration
-Wave 1: Operator layer and CRD providers
-Wave 2: Workload layer that depends on installed operators
-PostSync: Operational follow-up automation
+Wave 0: ArgoCD configuration, RBAC, CI service account
+Wave 1: bootstrap-secrets and gitops-operators Applications
+Wave 2: gitops-workloads Application
+PostSync: ci-token-sync, wait-for-* jobs
 ```
 
-Waves are evaluated per ArgoCD Application. They provide ordering intent but do not create global ordering across all Applications.
+Sync waves order resources within a single Application — they are not global across Applications. Cross-Application ordering is enforced by the App-of-Apps structure and `wait-for-*` post-sync jobs.
 
-## Features
+## External Traffic
 
-- **GitHub SSO**: OpenShift, ArgoCD, AWX, and Grafana all authenticate via GitHub OAuth
-- **Cloudflare Tunnels**: External apps via cloudflare-operator with TunnelBindings per app
-- **Tor Hidden Services**: Centralized tor-controller with OnionService CRDs per workload
-- **Let's Encrypt Certs**: Wildcard `*.apps.makeitwork.cloud` via cert-manager DNS-01 (Cloudflare)
-- **Public Status Page**: `status.makeitwork.cloud` served by dedicated anonymous Grafana instance with blackbox probe metrics
-- **Pull-Through Cache**: Docker registry mirror for ARC runners to reduce rate limits
-- **App-of-Apps**: Each workload is a separate ArgoCD Application for independent sync
+| Domain | Path | TLS |
+|---|---|---|
+| `*.makeitwork.cloud` | Cloudflare Tunnel via cloudflare-operator `TunnelBinding` | Cloudflare edge |
+| `*.apps.makeitwork.cloud` | WARP-only | Let's Encrypt in cluster |
+| `api.makeitwork.cloud` | WARP-only | Let's Encrypt in cluster |
 
-## Requirements
+There is no in-cluster ingress controller. All public traffic flows through a Cloudflare Tunnel; in-cluster TLS is issued by cert-manager using the Cloudflare DNS-01 solver.
 
-- OpenShift GitOps operator
-- OpenShift cert-manager operator
-- CRC with monitoring enabled (`crc config set enable-cluster-monitoring true`)
-- `sops-age-keys` secret in `openshift-gitops` namespace (for SOPS decryption)
+### TunnelBinding DNS
 
-## Cloudflare DNS Ownership
+Public DNS under `*.makeitwork.cloud` is owned by cloudflare-operator from `TunnelBinding` resources in this repo.
 
-Public app DNS under `*.makeitwork.cloud` is managed by cloudflare-operator from `TunnelBinding` resources in this repo.
+- Keep `tunnelRef.disableDNSUpdates: false` so the operator manages CNAMEs
+- `subjects[].name` must match the real `Service` name in the same namespace
+- The operator stores ownership in `_managed.<fqdn>` TXT records; deleting a CNAME without removing its matching TXT record yields Cloudflare error `81044`
 
-- Keep `TunnelBinding.tunnelRef.disableDNSUpdates: false` for operator-managed DNS
-- Set `subjects[].name` to the real Service name in the same namespace
-- The operator writes `_managed.<fqdn>` TXT records alongside CNAMEs for ownership tracking
-- Do not delete CNAME records without deleting matching `_managed.<fqdn>` TXT records (stale TXT `DnsId` values cause reconcile error `81044`)
-- `operators/cloudflare/dns-adoption-job.yaml` is legacy and is intentionally not referenced from `operators/cloudflare/kustomization.yaml`
+## Authentication
+
+GitHub OAuth provides SSO for ArgoCD, Grafana, AWX, and kubectl/Headlamp (via OIDC). Cluster-admin RBAC for the maintainer GitHub team is defined in `bootstrap/oidc-rbac.yaml`. CI uses a dedicated `ci-deployer` ServiceAccount whose token is synced to GitHub Actions secrets by a PostSync job.
+
+## SOPS / KSOPS
+
+Secrets are age-encrypted with field-level selective encryption. The `.sops.yaml` `encrypted_regex` targets only sensitive values (tokens, passwords, OAuth client secrets) so metadata stays diffable.
+
+```bash
+sops -e -i secret.yaml      # encrypt in place
+sops -d secret.yaml         # decrypt to stdout
+sops secret.yaml            # decrypt → editor → re-encrypt on save
+```
+
+The age public key is committed in `.sops.yaml`. The matching private key is loaded into the cluster as the `sops-age-keys` Secret in the `argocd` namespace and consumed by the KSOPS plugin during ArgoCD manifest generation.
 
 ## CI/CD
 
-On push to `main`, GitHub Actions:
-1. Runs pre-commit tests (YAML lint, etc.)
-2. Connects to cluster via Cloudflare WARP
-3. Triggers ArgoCD sync via OpenShift API
+`.github/workflows/ci.yml`:
 
-The `ci-deployer` service account provides cluster-admin access for CI/CD workflows. Its token is automatically synced to GitHub Actions secrets (`OPENSHIFT_TOKEN`) via a PostSync job after each ArgoCD sync.
+1. **test** (`ubuntu-latest`) — runs pre-commit (yamllint, kube-linter, conventional-commit, etc.)
+2. **sync** (`arc` runner, `main` only) — `kubectl patch` each App-of-Apps root (`bootstrap-secrets`, `gitops-operators`, `gitops-workloads`) to trigger an ArgoCD sync at the new SHA
 
-## Resource Management
+The in-cluster ARC runner uses its ServiceAccount token to talk to the API directly.
 
-This is a single-node CRC cluster. Prefer **no container requests/limits** unless there is a proven stability need:
+## Resource Sizing
 
-- High requests commonly trigger `Insufficient cpu/memory` and block scheduling
-- CPU limits cause throttling even with spare capacity
-- Memory limits can cause avoidable OOM kills
+This is a single-node cluster. Default to **no `resources` block** on app containers — explicit requests trigger `Insufficient cpu/memory` and limits cause throttling or OOM kills with spare capacity. See `AGENTS.md` for guidance on operators installed via remote refs.
 
-See `AGENTS.md` for detailed guidance on resource configuration.
+## License
 
-## SOPS Encryption
-
-Secrets are encrypted with age. Each directory with secrets has a KSOPS generator:
-
-```bash
-# Encrypt a secret
-sops -e --age age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l secret.yaml
-
-# Decrypt for viewing
-sops -d secret.yaml
-```
+GPLv3
