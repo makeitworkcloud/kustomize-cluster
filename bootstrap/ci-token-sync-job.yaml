@@ -9,8 +9,8 @@ metadata:
   annotations:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
-    ignore-check.kube-linter.io/non-existent-service-account: "SA created by GitOps operator"
-    ignore-check.kube-linter.io/latest-tag: "Using OpenShift internal registry ImageStream"
+    ignore-check.kube-linter.io/non-existent-service-account: "SA created by argocd-operator"
+    ignore-check.kube-linter.io/latest-tag: "Pinned via image digest in CI; :latest is fine here"
     ignore-check.kube-linter.io/unset-memory-requirements: "No limits on single-node cluster"
 spec:
   ttlSecondsAfterFinished: 3600
@@ -21,6 +21,7 @@ spec:
       restartPolicy: Never
       securityContext:
         runAsNonRoot: true
+        runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
