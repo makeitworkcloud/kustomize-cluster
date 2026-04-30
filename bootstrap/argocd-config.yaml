@@ -97,7 +97,6 @@ spec:
   sso:
     provider: dex
     dex:
-      # openShiftOAuth defaults to false, using GitHub OAuth instead
       config: |
         connectors:
           - type: github
@@ -111,6 +110,13 @@ spec:
               loadAllGroups: true
               teamNameField: slug
               useLoginAsID: true
+        staticClients:
+          # Headlamp uses Dex as its OIDC provider (Dex bridges to GitHub).
+          - id: headlamp
+            name: Headlamp
+            secret: $dex.headlamp.clientSecret
+            redirectURIs:
+              - https://headlamp.makeitwork.cloud/oidc-callback
   # RBAC with GitHub team mapping
   rbac:
     defaultPolicy: ''
