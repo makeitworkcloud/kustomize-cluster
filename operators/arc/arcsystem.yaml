@@ -37,6 +37,11 @@ spec:
     targetRevision: 0.13.1
     helm:
       releaseName: arc
+      valuesObject:
+        metrics:
+          controllerManagerAddr: ":8080"
+          listenerAddr: ":8080"
+          listenerEndpoint: /metrics
   destination:
     server: "https://kubernetes.default.svc"
     namespace: arc-systems

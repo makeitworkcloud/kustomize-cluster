@@ -10,6 +10,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
+  uid: prometheus
   instanceSelector:
     matchLabels:
       dashboards: "grafana"
