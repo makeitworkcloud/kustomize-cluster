@@ -1,0 +1,21 @@
+---
+# Routes TCP traffic for k3s.makeitwork.cloud through the cluster-apps tunnel
+# to the in-cluster kube-apiserver Service. Combined with the Cloudflare Access
+# self-hosted app in tfroot-cloudflare, only authenticated org admins can
+# connect via `cloudflared access tcp --hostname k3s.makeitwork.cloud …`.
+apiVersion: networking.cfargotunnel.com/v1alpha1
+kind: TunnelBinding
+metadata:
+  name: kube-apiserver
+  namespace: default
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - name: kubernetes
+    spec:
+      fqdn: k3s.makeitwork.cloud
+      protocol: tcp
+      target: tcp://kubernetes.default.svc:443
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps
