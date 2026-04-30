@@ -124,6 +124,13 @@ spec:
             secret: $dex.grafana.clientSecret
             redirectURIs:
               - https://grafana.makeitwork.cloud/login/generic_oauth
+          # Forgejo uses Dex as its OIDC provider via the `dex` auth source
+          # configured at install time (see operators/forgejo/application.yaml).
+          - id: forgejo
+            name: Forgejo
+            secret: $dex.forgejo.clientSecret
+            redirectURIs:
+              - https://forgejo.makeitwork.cloud/user/oauth2/dex/callback
   # RBAC with GitHub team mapping
   rbac:
     defaultPolicy: ''

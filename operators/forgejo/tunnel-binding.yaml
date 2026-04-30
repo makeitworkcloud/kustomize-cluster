@@ -1,0 +1,16 @@
+---
+apiVersion: networking.cfargotunnel.com/v1alpha1
+kind: TunnelBinding
+metadata:
+  name: forgejo
+  namespace: forgejo
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - name: forgejo-http
+    spec:
+      fqdn: forgejo.makeitwork.cloud
+      target: http://forgejo-http.forgejo.svc:3000
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps

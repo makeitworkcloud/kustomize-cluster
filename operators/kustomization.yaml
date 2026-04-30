@@ -6,6 +6,7 @@ resources:
   - arc
   - cert-manager
   - cloudflare
+  - forgejo
   - grafana
   - headlamp
   - kube-prometheus-stack
