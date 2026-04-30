@@ -14,7 +14,6 @@ permissions:
 
 jobs:
   test:
-    name: Pre-commit Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
