@@ -11,7 +11,7 @@ metadata:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
     ignore-check.kube-linter.io/non-existent-service-account: "SA created by GitOps operator"
-    ignore-check.kube-linter.io/latest-tag: "Using cluster-managed OpenShift CLI imagestream"
+    ignore-check.kube-linter.io/latest-tag: "bitnami/kubectl:latest is acceptable for a one-shot bootstrap wait Job"
 spec:
   ttlSecondsAfterFinished: 300
   backoffLimit: 10

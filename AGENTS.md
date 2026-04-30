@@ -15,13 +15,12 @@ Sync waves order resources within a single ArgoCD Application — they are **not
 
 ## Domain Architecture
 
-| Domain | Access | TLS |
+| Domain | Path | TLS |
 |---|---|---|
-| `*.makeitwork.cloud` | Cloudflare Tunnel (`TunnelBinding`) | Cloudflare edge |
-| `*.apps.makeitwork.cloud` | WARP-only | Let's Encrypt (DNS-01) |
-| `api.makeitwork.cloud` | WARP-only | Let's Encrypt (DNS-01) |
+| `<app>.makeitwork.cloud` | HTTP via cloudflare-operator `TunnelBinding` | Cloudflare edge |
+| `k3s.makeitwork.cloud` | TCP via `ClusterTunnel` to kube-apiserver, gated by Cloudflare Access | Cloudflare edge |
 
-There is no in-cluster ingress controller. All `*.makeitwork.cloud` apps reach the cluster via a Cloudflare Tunnel managed by cloudflare-operator.
+There is no in-cluster ingress controller and no public IP. Every external entry point — public web, kubectl, everything — is a Cloudflare Tunnel managed by cloudflare-operator. Legacy hostnames `api.makeitwork.cloud` and `*.apps.makeitwork.cloud` are not in use.
 
 ## Key Namespaces
 

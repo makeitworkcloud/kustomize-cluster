@@ -53,17 +53,17 @@ spec:
               # (NOT the auto-mounted bound token which expires in 1 hour)
               SA_TOKEN=$(cat /var/run/secrets/ci-deployer/token)
 
-              # Repos that need the OpenShift token
+              # Repos that need the ci-deployer cluster API token
               REPOS=(
                 "makeitworkcloud/images"
                 "makeitworkcloud/kustomize-cluster"
               )
 
-              echo "Syncing OpenShift token to GitHub repositories..."
+              echo "Syncing ci-deployer token to GitHub repositories..."
 
               for repo in "${REPOS[@]}"; do
-                echo "Updating OPENSHIFT_TOKEN in $repo"
-                gh secret set OPENSHIFT_TOKEN \
+                echo "Updating CI_DEPLOYER_TOKEN in $repo"
+                gh secret set CI_DEPLOYER_TOKEN \
                   --repo "$repo" \
                   --body "$SA_TOKEN"
               done
