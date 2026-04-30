@@ -1,0 +1,85 @@
+---
+# ARC publishes Prometheus metrics from the controller-manager and scale-set
+# listener pods. Ephemeral runner pods do not expose separate ARC metrics;
+# their health and resource usage are covered by the cluster's standard pod
+# metrics and kube-state-metrics.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: arc-controller-metrics
+  namespace: arc-systems
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    ignore-check.kube-linter.io/dangling-service: "Targets ARC chart-managed controller pods not declared in this repo"
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/name: gha-rs-controller
+spec:
+  selector:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/name: gha-rs-controller
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: arc-controller
+  namespace: arc-systems
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  namespaceSelector:
+    matchNames:
+      - arc-systems
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: controller-manager
+      app.kubernetes.io/name: gha-rs-controller
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: arc-tf-listener-metrics
+  namespace: arc-runners
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    ignore-check.kube-linter.io/dangling-service: "Targets ARC listener pods created dynamically by the scale-set controller"
+  labels:
+    actions.github.com/scale-set-name: arc-tf
+    app.kubernetes.io/component: runner-scale-set-listener
+spec:
+  selector:
+    actions.github.com/scale-set-name: arc-tf
+    app.kubernetes.io/component: runner-scale-set-listener
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: arc-tf-listener
+  namespace: arc-runners
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  namespaceSelector:
+    matchNames:
+      - arc-runners
+  selector:
+    matchLabels:
+      actions.github.com/scale-set-name: arc-tf
+      app.kubernetes.io/component: runner-scale-set-listener
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
