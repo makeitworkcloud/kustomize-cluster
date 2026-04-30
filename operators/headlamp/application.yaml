@@ -31,6 +31,10 @@ spec:
             # supplies everything the Deployment needs.
             secret:
               create: false
+            # Store the auth session in a cookie so the popup callback flow
+            # doesn't depend on window.opener postMessage (which drops state
+            # across cross-origin redirects through Dex/GitHub).
+            useCookie: true
         serviceAccount:
           create: true
         clusterRoleBinding:
