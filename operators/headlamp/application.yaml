@@ -20,10 +20,12 @@ spec:
       values: |
         config:
           oidc:
-            # OIDC config is provided by the operators/headlamp/oidc-secret.yaml
-            # Secret which exists before this Application is reconciled.
-            secret:
-              create: false
+            # The chart envFroms this Secret into the container, so its keys
+            # must match Headlamp's expected env-var names (OIDC_CLIENT_ID,
+            # OIDC_CLIENT_SECRET, OIDC_ISSUER_URL, OIDC_SCOPES). See
+            # operators/headlamp/oidc-secret.yaml.
+            externalSecret:
+              enabled: true
               name: oidc
         serviceAccount:
           create: true
