@@ -4,5 +4,6 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - application.yaml
+  - tunnel-binding.yaml
 generators:
   - ksops-headlamp-secrets.yaml
