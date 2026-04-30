@@ -1,0 +1,22 @@
+---
+# Maps the GitHub team `makeitworkcloud:admins` (surfaced as a `groups` claim
+# by Dex's GitHub connector) to cluster-admin so OIDC-authenticated users
+# can use kubectl/Headlamp without a separate per-user binding.
+#
+# Pairs with the k3s apiserver flags in tfroot-libvirt cloud-init that point
+# at the same Dex issuer: --oidc-issuer-url, --oidc-client-id=headlamp,
+# --oidc-username-claim=email, --oidc-groups-claim=groups.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-makeitworkcloud-admins
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+subjects:
+  - kind: Group
+    name: makeitworkcloud:admins
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
