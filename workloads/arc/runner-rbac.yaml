@@ -1,0 +1,39 @@
+---
+# SA used by arc-tf runner pods. The runner's auto-mounted token authenticates
+# kubectl in-cluster, so no GitHub Actions secret is required.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: arc-tf-runner
+  namespace: arc-runners
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+---
+# Allow the runner to trigger ArgoCD syncs by patching Application CRs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-application-patcher
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: arc-tf-runner-application-patcher
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-application-patcher
+subjects:
+  - kind: ServiceAccount
+    name: arc-tf-runner
+    namespace: arc-runners
