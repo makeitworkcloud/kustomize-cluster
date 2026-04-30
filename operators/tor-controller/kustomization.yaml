@@ -9,6 +9,13 @@ resources:
 # Override namespace from tor-controller-system to tor-controller
 namespace: tor-controller
 
+# Upstream pins gcr.io/kubebuilder/kube-rbac-proxy which Google removed; re-point
+# to the maintained brancz fork.
+images:
+  - name: gcr.io/kubebuilder/kube-rbac-proxy
+    newName: quay.io/brancz/kube-rbac-proxy
+    newTag: v0.18.0
+
 patches:
   # Fix namespace references in ClusterRoleBinding
   - patch: |
