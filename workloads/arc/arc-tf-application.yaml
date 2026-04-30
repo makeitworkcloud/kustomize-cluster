@@ -36,9 +36,10 @@ spec:
               - name: runner
                 image: ghcr.io/makeitworkcloud/tfroot-runner:latest
                 command: ["/home/runner/run.sh"]
-  # The gha-runner-scale-set controller mutates AutoscalingRunnerSet at runtime
-  # (hash annotations propagate down through spec.template); ignore those drifts
-  # so selfHeal doesn't thrash on every reconcile. The dynamically-created
+  # The gha-runner-scale-set controller propagates hash annotations into
+  # AutoscalingRunnerSet metadata and spec.template.metadata; ignore only those
+  # paths so selfHeal doesn't thrash, but spec.template.spec changes
+  # (serviceAccountName, image, etc.) still sync. The dynamically-created
   # listener resources (AutoscalingListener + paired Role/RoleBinding) are
   # cosmetically reported as OutOfSync because the chart doesn't render them
   # and ArgoCD's label-based tracking still claims them — Health stays correct
@@ -48,7 +49,7 @@ spec:
       kind: AutoscalingRunnerSet
       jsonPointers:
         - /metadata/annotations
-        - /spec/template
+        - /spec/template/metadata/annotations
   syncPolicy:
     automated:
       prune: true
