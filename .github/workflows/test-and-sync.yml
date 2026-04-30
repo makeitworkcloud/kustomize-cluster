@@ -1,5 +1,5 @@
 ---
-name: Test & Sync
+name: test-and-sync
 
 on:
   push:
