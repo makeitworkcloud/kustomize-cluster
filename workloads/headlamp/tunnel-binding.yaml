@@ -1,0 +1,16 @@
+---
+apiVersion: networking.cfargotunnel.com/v1alpha1
+kind: TunnelBinding
+metadata:
+  name: headlamp
+  namespace: headlamp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - name: headlamp
+    spec:
+      fqdn: headlamp.makeitwork.cloud
+      target: http://headlamp.headlamp.svc:80
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps
