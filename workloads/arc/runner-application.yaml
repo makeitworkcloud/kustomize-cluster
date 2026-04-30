@@ -95,7 +95,23 @@ spec:
                 name: daemon-json
     repoURL: ghcr.io/actions/actions-runner-controller-charts
     targetRevision: 0.13.1
+  # The gha-runner-scale-set controller mutates listener resources at runtime
+  # (hash annotations, autoscaling spec). Ignore those drifts so ArgoCD doesn't
+  # report a permanent OutOfSync.
+  ignoreDifferences:
+    - group: actions.github.com
+      kind: AutoscalingListener
+      jsonPointers:
+        - /metadata/annotations
+        - /spec
+    - group: actions.github.com
+      kind: AutoscalingRunnerSet
+      jsonPointers:
+        - /metadata/annotations
+        - /spec/template
   syncPolicy:
     automated:
       prune: false
       selfHeal: true
+    syncOptions:
+      - RespectIgnoreDifferences=true
