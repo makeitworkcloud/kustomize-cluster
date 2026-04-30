@@ -35,8 +35,11 @@ spec:
               - name: runner
                 image: ghcr.io/makeitworkcloud/tfroot-runner:latest
                 command: ["/home/runner/run.sh"]
-  # The gha-runner-scale-set controller mutates listener resources at runtime
-  # (hash annotations, autoscaling spec). Ignore those drifts.
+  # The gha-runner-scale-set controller creates the listener AutoscalingListener
+  # and a paired Role/RoleBinding at runtime (named `<release>-<hash>-listener`),
+  # then continually rotates hash annotations on them. None of these are in the
+  # chart's rendered output. Ignore field-level drift, and rely on ServerSideApply
+  # so ArgoCD doesn't try to manage fields the controller owns.
   ignoreDifferences:
     - group: actions.github.com
       kind: AutoscalingListener
@@ -48,9 +51,18 @@ spec:
       jsonPointers:
         - /metadata/annotations
         - /spec/template
+    - group: rbac.authorization.k8s.io
+      kind: Role
+      jsonPointers:
+        - /metadata/annotations
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
+      jsonPointers:
+        - /metadata/annotations
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
+      - ServerSideApply=true
       - RespectIgnoreDifferences=true
