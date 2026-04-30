@@ -26,12 +26,11 @@ spec:
             # operators/headlamp/oidc-secret.yaml.
             externalSecret:
               enabled: true
-              name: oidc
-            # Don't let the chart render its own (empty) Secret named `oidc`,
-            # which otherwise clobbers the sops-decrypted one above.
+              name: headlamp-oidc
+            # Skip the chart's auto-generated Secret entirely — externalSecret
+            # supplies everything the Deployment needs.
             secret:
               create: false
-              name: oidc
         serviceAccount:
           create: true
         clusterRoleBinding:
