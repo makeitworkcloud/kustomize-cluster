@@ -27,11 +27,10 @@ Sync waves order resources within a single Application — they are not global a
 
 | Domain | Path | TLS |
 |---|---|---|
-| `*.makeitwork.cloud` | Cloudflare Tunnel via cloudflare-operator `TunnelBinding` | Cloudflare edge |
-| `*.apps.makeitwork.cloud` | WARP-only | Let's Encrypt in cluster |
-| `api.makeitwork.cloud` | WARP-only | Let's Encrypt in cluster |
+| `<app>.makeitwork.cloud` | HTTP via cloudflare-operator `TunnelBinding` | Cloudflare edge |
+| `k3s.makeitwork.cloud` | TCP via `ClusterTunnel` to kube-apiserver, gated by Cloudflare Access | Cloudflare edge |
 
-There is no in-cluster ingress controller. All public traffic flows through a Cloudflare Tunnel; in-cluster TLS is issued by cert-manager using the Cloudflare DNS-01 solver.
+There is no in-cluster ingress controller and no public IP. Every external entry point is a Cloudflare Tunnel.
 
 ### TunnelBinding DNS
 
