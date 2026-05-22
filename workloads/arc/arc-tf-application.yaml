@@ -29,14 +29,13 @@ spec:
         githubConfigUrl: https://github.com/makeitworkcloud
         maxRunners: 3
         minRunners: 1
-        listenerTemplate:
-          spec:
-            containers:
-              - name: listener
-                ports:
-                  - name: metrics
-                    containerPort: 8080
-                    protocol: TCP
+        # NOTE: do not add a `listenerTemplate.spec.containers[0].ports`
+        # entry for `metrics` here — enabling `listenerMetrics` below makes
+        # the chart inject a `metrics` port on the listener container, and a
+        # second one in listenerTemplate would collide
+        # ("Duplicate value: \"metrics\"") and prevent the listener pod from
+        # being scheduled. The Service/ServiceMonitor in
+        # metrics-monitoring.yaml scrapes the chart-injected port directly.
         listenerMetrics:
           counters:
             gha_started_jobs_total:
