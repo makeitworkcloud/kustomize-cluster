@@ -1,7 +1,7 @@
 ---
-# Highest-priority child Application for validating a KSOPS replacement path.
-# The operator must exist before any future KMS-backed SopsSecret workloads are
-# introduced, so it deliberately syncs before the ArgoCD/KSOPS wave 0 resources.
+# Installs sops-secrets-operator from the actively reconciled gitops-operators
+# Application. This only installs the CRD/controller; KMS-backed SopsSecret
+# reconciliation needs follow-up ambient AWS auth.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -24,7 +24,7 @@ spec:
         namespaced: false
         resources: {}
         extraEnv:
-          # SOPS can infer the region from the KMS ARN, but setting the SDK
+          # SOPS can infer the region from KMS recipients, but setting the SDK
           # region keeps AWS client startup deterministic in the k3s cluster.
           - name: AWS_REGION
             value: us-west-2
