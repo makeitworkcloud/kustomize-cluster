@@ -2,9 +2,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # Wave -2/-1: Install sops-secrets-operator before every other GitOps child.
-  - sops-secrets-operator-app.yaml
-  - wait-for-sops-secrets-operator.yaml
   # Wave 0: Configure ArgoCD (KSOPS + GitHub OAuth + RBAC)
   # NOTE: cluster-admin ClusterRoleBinding is managed by ansible-role-crc
   #       (ArgoCD cannot grant itself permissions it doesn't have)

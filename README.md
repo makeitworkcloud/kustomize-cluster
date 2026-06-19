@@ -50,7 +50,7 @@ Secrets are age-encrypted with field-level selective encryption. The `.sops.yaml
 
 ### sops-secrets-operator validation path
 
-`bootstrap/` installs `sops-secrets-operator` as the highest-priority child Application (`sync-wave: "-2"`) and waits for its CRD before the existing KSOPS-dependent waves continue. This is intentionally additive: KSOPS remains active until KMS-backed `SopsSecret` resources are proven and every existing age-encrypted Secret has been ported.
+`operators/` installs `sops-secrets-operator` as the highest-priority child Application within the actively reconciled `gitops-operators` tree (`sync-wave: "-2"`). This is intentionally additive: KSOPS remains active until KMS-backed `SopsSecret` resources are proven and every existing age-encrypted Secret has been ported.
 
 Future KMS-backed `SopsSecret` manifests should use the SOPS KMS recipient managed by the [`makeitworkcloud/tfroot-aws`](https://github.com/makeitworkcloud/tfroot-aws) repository with `encrypted_suffix: Templates`. Do not copy raw KMS key identifiers into docs or chat; use the applied OpenTofu output locally when encrypting migration manifests.
 
