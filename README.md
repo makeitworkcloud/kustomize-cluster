@@ -42,7 +42,7 @@ Public DNS under `*.makeitwork.cloud` is owned by cloudflare-operator from `Tunn
 
 ## Authentication
 
-GitHub OAuth provides SSO for ArgoCD, Grafana, AWX, and kubectl/Headlamp (via OIDC). Cluster-admin RBAC for the maintainer GitHub team is defined in `bootstrap/oidc-rbac.yaml`. CI uses a dedicated `ci-deployer` ServiceAccount whose token is synced to GitHub Actions secrets by a PostSync job.
+GitHub OAuth provides SSO for ArgoCD, Grafana, and kubectl/Headlamp (via OIDC). Cluster-admin RBAC for the maintainer GitHub team is defined in `bootstrap/oidc-rbac.yaml`. CI uses a dedicated `ci-deployer` ServiceAccount whose token is synced to GitHub Actions secrets by a PostSync job.
 
 ## SOPS / KSOPS
 

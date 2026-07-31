@@ -12,6 +12,3 @@ resources:
   - headlamp
   - kube-prometheus-stack
   - tor-controller
-  # ansible/ contains an OLM Subscription; AWX is being deprecated. Re-enable
-  # here only if the operator comes back.
-  # - ansible
