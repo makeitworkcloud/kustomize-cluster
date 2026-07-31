@@ -111,6 +111,13 @@ spec:
               teamNameField: slug
               useLoginAsID: true
         staticClients:
+          # kubelogin uses this public client for kubectl OIDC authentication.
+          - id: kubectl
+            name: kubectl
+            public: true
+            redirectURIs:
+              - http://localhost:8000
+              - http://localhost:18000
           # Headlamp uses Dex as its OIDC provider (Dex bridges to GitHub).
           - id: headlamp
             name: Headlamp
