@@ -54,7 +54,7 @@ spec:
 
               token = os.environ["CF_API_TOKEN"]
               domain = os.environ["CF_DOMAIN"]
-              hosts = ["argocd", "grafana", "status", "ansible"]
+              hosts = ["argocd", "grafana", "status"]
 
               def cf_request(method, path, params=None):
                   url = "https://api.cloudflare.com/client/v4" + path
