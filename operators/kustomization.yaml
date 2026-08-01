@@ -9,6 +9,5 @@ resources:
   - cloudflare
   - forgejo
   - grafana
-  - headlamp
   - kube-prometheus-stack
   - tor-controller
