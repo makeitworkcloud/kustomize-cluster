@@ -12,6 +12,3 @@ resources:
   - grafana-app.yaml
   - kubectl-tunnel-app.yaml
   - ../argocd  # Direct include - TunnelBinding for ArgoCD
-  # Note: Headlamp is installed by gitops-operators (operators/headlamp/) since
-  # the chart's Application CR + namespace/Secret/TunnelBinding all live together
-  # there. No separate workloads-app entry needed.

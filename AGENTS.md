@@ -13,6 +13,11 @@ PostSync: ci-token-sync, wait-for-* jobs
 
 Sync waves order resources within a single ArgoCD Application — they are **not** global across Applications. The App-of-Apps structure plus `wait-for-*` post-sync jobs enforces cross-Application ordering.
 
+The active Applications reconcile `bootstrap/secrets`, `operators`, and
+`workloads/apps`; they do **not** reconcile the rest of `bootstrap/`. Changes
+to the ArgoCD CR, OIDC RBAC, or CI ServiceAccount require a separately reviewed
+bootstrap apply or node provisioning.
+
 ## Domain Architecture
 
 | Domain | Path | TLS |
@@ -20,7 +25,7 @@ Sync waves order resources within a single ArgoCD Application — they are **not
 | `<app>.makeitwork.cloud` | HTTP via cloudflare-operator `TunnelBinding` | Cloudflare edge |
 | `k3s.makeitwork.cloud` | TCP via `ClusterTunnel` to kube-apiserver, gated by Cloudflare Access | Cloudflare edge |
 
-There is no in-cluster ingress controller and no public IP. Every external entry point — public web, kubectl, everything — is a Cloudflare Tunnel managed by cloudflare-operator. Legacy hostnames `api.makeitwork.cloud` and `*.apps.makeitwork.cloud` are not in use.
+There is no in-cluster ingress controller and no public IP. Every external entry point — public web, kubectl, everything — uses a Cloudflare Tunnel managed by cloudflare-operator. App CNAMEs are declared in `tfroot-cloudflare` and must stay aligned with the routes here. Legacy hostnames `api.makeitwork.cloud` and `*.apps.makeitwork.cloud` are not in use.
 
 ## Key Namespaces
 
@@ -43,11 +48,21 @@ The Cloudflare API token lives in `cert-manager/cloudflare-api-token` and is ref
 
 ## Cloudflare Tunnel DNS
 
-Public `*.makeitwork.cloud` DNS records are operator-managed from `TunnelBinding` resources.
+App DNS and routes have coordinated owners:
 
-- Keep `tunnelRef.disableDNSUpdates: false` so the operator owns CNAMEs
+- `tfroot-cloudflare/cf-tunnels.tf` declares CNAMEs
+- `TunnelBinding` resources declare routes and the operator-managed ownership TXT records
 - `subjects[].name` must match the real Kubernetes `Service` name in the same namespace; if it doesn't exist, status reports `http_status:404`
-- Ownership is tracked in `_managed.<fqdn>` TXT records — deleting a CNAME without removing its matching TXT record causes update-by-stale-id failures (`Record does not exist. (81044)`)
+- Remove and reconcile the `TunnelBinding` before removing its Terraform hostname; deleting only the CNAME leaves a stale `_managed.<fqdn>` TXT record and causes update-by-stale-id failures (`Record does not exist. (81044)`)
+
+## kubectl Access
+
+Use the dedicated `makeitworkcloud-k3s` kubeconfig and the Cloudflare/Dex OIDC
+procedure in `README.md#kubectl-access`. Never use or modify an unrelated
+production or staging context. If no Make IT Work Cloud context is configured,
+ask for the approved public server CA and create the non-secret exec kubeconfig
+from `docs/kubeconfig.example.yaml`; do not copy the k3s admin kubeconfig off
+the node.
 
 ## SOPS / KSOPS
 

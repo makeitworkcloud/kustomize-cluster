@@ -34,15 +34,110 @@ There is no in-cluster ingress controller and no public IP. Every external entry
 
 ### TunnelBinding DNS
 
-Public DNS under `*.makeitwork.cloud` is owned by cloudflare-operator from `TunnelBinding` resources in this repo.
+App hostnames have two coordinated declarative control points:
 
-- Keep `tunnelRef.disableDNSUpdates: false` so the operator manages CNAMEs
-- `subjects[].name` must match the real `Service` name in the same namespace
-- The operator stores ownership in `_managed.<fqdn>` TXT records; deleting a CNAME without removing its matching TXT record yields Cloudflare error `81044`
+- `tfroot-cloudflare/cf-tunnels.tf` declares the CNAME at Cloudflare.
+- Each `TunnelBinding` declares the in-cluster route and cloudflare-operator
+  tracks it with a `_managed.<fqdn>` TXT record.
+
+The hostname lists must stay aligned. To retire a route, remove and reconcile
+the `TunnelBinding` first so the operator can clear its ownership record, then
+remove the Terraform hostname and review a narrow OpenTofu plan. Do not delete
+only the CNAME: a stale managed TXT record causes Cloudflare error `81044`.
+`subjects[].name` must match the real Kubernetes `Service` name in the same
+namespace.
 
 ## Authentication
 
-GitHub OAuth provides SSO for ArgoCD, Grafana, and kubectl/Headlamp (via OIDC). Cluster-admin RBAC for the maintainer GitHub team is defined in `bootstrap/oidc-rbac.yaml`. CI uses a dedicated `ci-deployer` ServiceAccount whose token is synced to GitHub Actions secrets by a PostSync job.
+GitHub OAuth provides SSO for ArgoCD, Grafana, Forgejo, and kubectl. Dex issues
+kubectl tokens for the public `kubectl` client defined in
+`bootstrap/argocd-config.yaml`; the API server validates that audience and maps
+the `makeitworkcloud:admins` GitHub team to cluster-admin through
+`bootstrap/oidc-rbac.yaml`. CI uses a separate `ci-deployer` ServiceAccount.
+
+### kubectl access
+
+Access has two independent gates:
+
+1. Cloudflare Access authorizes the TCP connection to
+   `k3s.makeitwork.cloud` using the policy in `tfroot-cloudflare`.
+2. `kubelogin` obtains a Dex token. Dex includes the requested `email` and
+   `groups` claims, which the API server and Kubernetes RBAC validate.
+
+Install `cloudflared`, `kubectl`, and the `kubectl oidc-login` plugin. Confirm
+all three commands are available before continuing. Start the local TCP proxy
+in a dedicated terminal:
+
+```bash
+cloudflared access tcp --hostname k3s.makeitwork.cloud --url localhost:6443
+```
+
+If port 6443 is occupied, choose another local port and use the same port in
+the kubeconfig server URL.
+
+Create a dedicated kubeconfig such as `~/.kube/makeitworkcloud-k3s.yaml`, mode
+`0600`. Its cluster entry must point to `https://127.0.0.1:6443` and trust the
+public k3s server CA supplied by an administrator. That CA may be copied from
+`/var/lib/rancher/k3s/server/tls/server-ca.crt` on the k3s VM through an
+approved channel. The kubeconfig must not contain a token, client certificate,
+or client key. Do not copy `/etc/rancher/k3s/k3s.yaml` off the node: it contains
+cluster-admin client credentials.
+
+Copy `docs/kubeconfig.example.yaml` to that dedicated path, replace its
+`certificate-authority` placeholder with the absolute path to the approved CA
+file, and set mode `0600`. Its user exec credential is:
+
+```yaml
+user:
+  exec:
+    apiVersion: client.authentication.k8s.io/v1
+    command: kubectl
+    interactiveMode: IfAvailable
+    args:
+      - oidc-login
+      - get-token
+      - --oidc-issuer-url=https://argocd.makeitwork.cloud/api/dex
+      - --oidc-client-id=kubectl
+      - --oidc-extra-scope=email
+      - --oidc-extra-scope=groups
+      - --oidc-pkce-method=S256
+      - --token-cache-storage=keyring
+```
+
+Give this cluster a distinct context name such as `makeitworkcloud-k3s`; never
+reuse an unrelated production or staging context. With the proxy running,
+first confirm the dedicated file's current context, server, and user name
+without displaying credentials:
+
+```bash
+export KUBECONFIG="$HOME/.kube/makeitworkcloud-k3s.yaml"
+kubectl config current-context
+kubectl config view --minify \
+  -o jsonpath='{.clusters[0].cluster.server}{"\n"}{.users[0].name}{"\n"}'
+```
+
+The expected context is `makeitworkcloud-k3s`, the server is
+`https://127.0.0.1:6443`, and the user is the dedicated OIDC exec user. Then
+verify the authenticated identity before performing any change:
+
+```bash
+kubectl --context makeitworkcloud-k3s auth whoami
+kubectl --context makeitworkcloud-k3s auth can-i '*' '*' --all-namespaces
+```
+
+`auth whoami` should show your email and the `makeitworkcloud:admins` group;
+`auth can-i` should return `yes`. When finished, stop the local `cloudflared`
+process. OIDC and Cloudflare Access sessions expire independently; do not run a
+global credential-cache cleanup unless you have reviewed its scope.
+
+For break-glass access, SSH to the k3s VM through `hero.makeitwork.cloud` and
+run kubectl there with `/etc/rancher/k3s/k3s.yaml`; see `tfroot-libvirt`.
+
+The App-of-Apps Applications reconcile `bootstrap/secrets`, `operators`, and
+`workloads/apps`. They do not reconcile the rest of `bootstrap/`. Changes to
+the ArgoCD CR, OIDC RBAC, or CI ServiceAccount therefore require a separately
+reviewed bootstrap apply or node provisioning; an ordinary ArgoCD sync is not
+enough.
 
 ## SOPS / KSOPS
 
