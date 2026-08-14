@@ -163,12 +163,12 @@ The age public key is committed in `.sops.yaml`. The matching private key is loa
 
 ## CI/CD
 
-`.github/workflows/ci.yml`:
+The repository uses `.github/workflows/test.yml` and `.github/workflows/sync.yml`:
 
 1. **test** (`ubuntu-latest`) — runs pre-commit (yamllint, kube-linter, conventional-commit, etc.)
-2. **sync** (`arc` runner, `main` only) — `kubectl patch` each App-of-Apps root (`bootstrap-secrets`, `gitops-operators`, `gitops-workloads`) to trigger an ArgoCD sync at the new SHA
+2. **sync** (`arc-tf` runner, `main` only) — after tests pass, patches each App-of-Apps root (`bootstrap-secrets`, `gitops-operators`, `gitops-workloads`) to initiate an ArgoCD sync at the tested SHA
 
-The in-cluster ARC runner uses its ServiceAccount token to talk to the API directly.
+The in-cluster ARC runner uses its ServiceAccount token to talk to the API directly. The sync workflow initiates reconciliation but does not wait for it to finish. Afterward, confirm each affected Application reports the target revision, `Synced`, and `Healthy`. Use `workflow_dispatch` on `sync.yml` to retry the selected ref when necessary.
 
 ## Resource Sizing
 
