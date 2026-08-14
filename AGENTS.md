@@ -32,7 +32,8 @@ There is no in-cluster ingress controller and no public IP. Every external entry
 - `argocd` — ArgoCD, KSOPS plugin, `sops-age-keys` Secret
 - `cert-manager` — cert-manager controllers + Cloudflare API token
 - `cloudflare-operator-system` — cloudflare-operator, tunnel deployment, Cloudflare API secret
-- `arc-system` — ARC controller (Actions Runner Controller)
+- `arc-systems` — ARC controller (Actions Runner Controller)
+- `arc-runners` — ARC scale sets, listeners, and ephemeral runner pods
 
 ## Certificate Management
 
@@ -179,6 +180,7 @@ pre-commit run --all-files
 4. **Tor secret format** — Use `data` with raw binary base64; `stringData` double-encodes.
 5. **KSOPS needs the age key in the repo-server pod** — Without `sops-age-keys` mounted, manifest generation fails before any sync.
 6. **DNS-01 requires external resolvers** — cluster DNS cannot validate Let's Encrypt challenges; the cert-manager controller args above are required.
+7. **ARC upgrades can leave a stale listener** — because pruning is disabled for controller-generated listener resources, a chart upgrade can leave a listener referencing a deleted `EphemeralRunnerSet`. The listener then restarts with `ephemeralrunnersets.actions.github.com "<name>" not found`, and `arc-tf` jobs remain queued. Inspect the listener pod's owner and current ARC custom resources before deleting the stale `AutoscalingListener`; deleting only its pod recreates the same broken listener.
 
 ## Useful Commands
 
