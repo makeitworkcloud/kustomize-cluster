@@ -41,7 +41,7 @@ spec:
         runAsUser: 65532
       containers:
         - name: cloudflared
-          image: docker.io/cloudflare/cloudflared:2026.2.0
+          image: docker.io/cloudflare/cloudflared:2026.8.1
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false

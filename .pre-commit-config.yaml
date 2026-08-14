@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v4.3.0
+    rev: v4.4.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
@@ -26,6 +26,6 @@ repos:
         entry: gitleaks dir --redact --verbose .
         pass_filenames: false
   - repo: https://github.com/stackrox/kube-linter
-    rev: v0.8.2
+    rev: v0.8.3
     hooks:
       - id: kube-linter
