@@ -53,7 +53,6 @@ spec:
               # (NOT the auto-mounted bound token which expires in 1 hour)
               SA_TOKEN=$(cat /var/run/secrets/ci-deployer/token)
 
-              # Repos that need the ci-deployer cluster API token
               REPOS=(
                 "makeitworkcloud/images"
                 "makeitworkcloud/kustomize-cluster"

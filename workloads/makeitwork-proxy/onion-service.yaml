@@ -1,5 +1,4 @@
 ---
-# Nginx reverse proxy to makeitwork.cloud (external site)
 apiVersion: v1
 kind: ConfigMap
 metadata:

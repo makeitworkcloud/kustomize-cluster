@@ -1,11 +1,11 @@
 repos:
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v4.4.0
+    rev: 91ab4bf57e58b32adf1a122681f6ebe164d081c8 # v4.4.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # v6.0.0
     hooks:
       - id: check-case-conflict
       - id: check-merge-conflict
@@ -20,12 +20,12 @@ repos:
       - id: mixed-line-ending
       - id: trailing-whitespace
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.30.1
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e # v8.30.1
     hooks:
       - id: gitleaks
         entry: gitleaks dir --redact --verbose .
         pass_filenames: false
   - repo: https://github.com/stackrox/kube-linter
-    rev: v0.8.3
+    rev: 10ae003038c81855aca8489df5e35da150f4dc2e # v0.8.3
     hooks:
       - id: kube-linter
