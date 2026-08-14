@@ -180,7 +180,7 @@ pre-commit run --all-files
 4. **Tor secret format** — Use `data` with raw binary base64; `stringData` double-encodes.
 5. **KSOPS needs the age key in the repo-server pod** — Without `sops-age-keys` mounted, manifest generation fails before any sync.
 6. **DNS-01 requires external resolvers** — cluster DNS cannot validate Let's Encrypt challenges; the cert-manager controller args above are required.
-7. **ARC upgrades can leave a stale listener** — because pruning is disabled for controller-generated listener resources, a chart upgrade can leave a listener referencing a deleted `EphemeralRunnerSet`. The listener then restarts with `ephemeralrunnersets.actions.github.com "<name>" not found`, and `arc-tf` jobs remain queued. Inspect the listener pod's owner and current ARC custom resources before deleting the stale `AutoscalingListener`; deleting only its pod recreates the same broken listener.
+7. **ARC upgrades can leave stale runner objects** — because pruning is disabled for controller-generated listener resources, a chart upgrade can leave a listener referencing a deleted `EphemeralRunnerSet`. The listener then restarts with `ephemeralrunnersets.actions.github.com "<name>" not found`, and `arc-tf` jobs remain queued. Inspect the listener pod's owner and current ARC custom resources before cleanup. During the 0.14.2 upgrade, the stale `EphemeralRunner` object had to be deleted manually so ARC could redeploy its objects; restarting only the listener pod was insufficient.
 
 ## Useful Commands
 
