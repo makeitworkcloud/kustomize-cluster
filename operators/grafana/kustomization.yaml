@@ -3,7 +3,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - https://github.com/grafana/grafana-operator.git/deploy/kustomize/overlays/cluster_scoped?ref=v5.22.2
+  - https://github.com/grafana/grafana-operator.git/deploy/kustomize/overlays/cluster_scoped?ref=v5.24.0
 
 patches:
   # Drop resource requests/limits — single-node cluster doesn't need them.
