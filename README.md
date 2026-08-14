@@ -15,13 +15,16 @@ The root `kustomization.yaml` is for local `kustomize build` testing only. ArgoC
 ## Sync Wave Flow
 
 ```
-Wave 0: ArgoCD configuration, RBAC, CI service account
-Wave 1: bootstrap-secrets and gitops-operators Applications
-Wave 2: gitops-workloads Application
-PostSync: ci-token-sync, wait-for-* jobs
+Bootstrap apply: ArgoCD configuration, RBAC, CI, and independent root Applications
+gitops-operators: installs operator controllers and CRDs
+gitops-workloads PreSync: wait-for-crds blocks until required CRDs exist
+gitops-workloads Sync: creates child Applications and direct workload CRs
 ```
 
-Sync waves order resources within a single Application — they are not global across Applications. Cross-Application ordering is enforced by the App-of-Apps structure and `wait-for-*` post-sync jobs.
+The `bootstrap-secrets`, `gitops-operators`, and `gitops-workloads` root
+Applications reconcile independently. Sync waves are local to each Application;
+the `gitops-workloads` `PreSync` hook gates its child Application and direct CR
+creation until every workload-required operator CRD is available.
 
 ## External Traffic
 

@@ -13,9 +13,7 @@ spec:
     domain: makeitwork.cloud
     secret: cloudflare-api-credentials
     CLOUDFLARE_API_TOKEN: CLOUDFLARE_API_TOKEN
-  # Default fallback for unmatched requests
   fallbackTarget: http_status:404
-  # Patch the cloudflared deployment
   deployPatch: |
     spec:
       template:
@@ -23,7 +21,6 @@ spec:
           containers:
             - name: cloudflared
               image: docker.io/cloudflare/cloudflared:latest
-              # Increase probe delays to allow tunnel connection time
               livenessProbe:
                 initialDelaySeconds: 30
                 periodSeconds: 30

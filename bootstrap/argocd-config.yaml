@@ -1,8 +1,4 @@
 ---
-# ArgoCD instance managed by argocd-operator (community).
-# - KSOPS for SOPS-encrypted secrets using AGE keys
-# - GitHub OAuth authentication via Dex
-# - RBAC with GitHub org/team mapping
 apiVersion: argoproj.io/v1beta1
 kind: ArgoCD
 metadata:
@@ -11,9 +7,12 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
-  # Disable local admin account - use GitHub SSO instead
+  # Interactive access must use GitHub SSO.
   disableAdmin: true
-  # Server configuration
+  # API-only account; RBAC below restricts it to Application operations.
+  extraConfig:
+    accounts.mcp: apiKey
+  # CPU limits are omitted to avoid throttling on the single-node cluster.
   server:
     host: argocd.makeitwork.cloud
     resources:
@@ -22,7 +21,6 @@ spec:
         memory: 128Mi
       limits:
         memory: 256Mi
-  # Controller resources (no CPU limits to prevent throttling)
   controller:
     resources:
       requests:
@@ -30,7 +28,6 @@ spec:
         memory: 1Gi
       limits:
         memory: 2Gi
-  # ApplicationSet controller resources
   applicationSet:
     resources:
       requests:
@@ -38,7 +35,6 @@ spec:
         memory: 512Mi
       limits:
         memory: 1Gi
-  # Redis resources
   redis:
     resources:
       requests:
@@ -46,7 +42,6 @@ spec:
         memory: 128Mi
       limits:
         memory: 256Mi
-  # KSOPS configuration
   kustomizeBuildOptions: "--enable-alpha-plugins --enable-exec"
   repo:
     resources:
@@ -67,7 +62,6 @@ spec:
         secret:
           secretName: sops-age-keys
     initContainers:
-      # Use alpine to download and install KSOPS binaries
       - name: install-ksops
         image: docker.io/alpine:3.23
         command: ["/bin/sh", "-c"]
@@ -93,7 +87,6 @@ spec:
       - mountPath: /.config/sops/age/key.txt
         name: sops-age-keys
         subPath: key.txt
-  # GitHub OAuth via Dex (SSO)
   sso:
     provider: dex
     dex:
@@ -132,12 +125,12 @@ spec:
             secret: $dex.forgejo.clientSecret
             redirectURIs:
               - https://forgejo.makeitwork.cloud/user/oauth2/dex/callback
-  # RBAC with GitHub team mapping
   rbac:
     defaultPolicy: ''
     policy: |
-      # Admin access for admins team
       g, makeitworkcloud:admins, role:admin
-      # Read-only access for developers team
       g, makeitworkcloud:developers, role:readonly
+      # MCP has no access to projects, repositories, clusters, or accounts.
+      p, mcp, applications, get, */*, allow
+      p, mcp, applications, sync, */*, allow
     scopes: '[groups]'

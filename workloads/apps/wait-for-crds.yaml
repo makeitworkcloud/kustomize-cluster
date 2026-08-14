@@ -1,0 +1,66 @@
+---
+# Child Applications reconcile workload CRs immediately, so all required operator
+# CRDs must exist before those Applications are created.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wait-for-crds
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    ignore-check.kube-linter.io/non-existent-service-account: "SA created by GitOps operator"
+    ignore-check.kube-linter.io/latest-tag: "bitnami/kubectl:latest is acceptable for a one-shot bootstrap wait Job"
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 30
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      serviceAccountName: argocd-argocd-application-controller
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: wait
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              CRDS=(
+                autoscalingrunnersets.actions.github.com
+                tunnelbindings.networking.cfargotunnel.com
+                onionservices.tor.k8s.torproject.org
+                grafanas.grafana.integreatly.org
+                grafanadatasources.grafana.integreatly.org
+                grafanadashboards.grafana.integreatly.org
+                servicemonitors.monitoring.coreos.com
+                probes.monitoring.coreos.com
+              )
+
+              for crd in "${CRDS[@]}"; do
+                until kubectl wait --for=condition=Established --timeout=10s \
+                  "crd/$crd" >/dev/null 2>&1; do
+                  sleep 5
+                done
+              done
+
+              echo "All operator CRDs are available"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 128Mi

@@ -1,14 +1,12 @@
 ---
-# Workload Applications - each workload is deployed as a separate ArgoCD Application
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # Wave 0: No CRD dependencies
+  - wait-for-crds.yaml
   - argocd-proxy-app.yaml
   - makeitwork-proxy-app.yaml
   - warp-app.yaml
-  # Wave 1: Depend on operator CRDs (TunnelBinding requires cloudflare-operator)
   - arc-app.yaml
   - grafana-app.yaml
   - kubectl-tunnel-app.yaml
-  - ../argocd  # Direct include - TunnelBinding for ArgoCD
+  - ../argocd
