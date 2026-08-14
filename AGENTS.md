@@ -23,9 +23,10 @@ bootstrap apply or node provisioning.
 | Domain | Path | TLS |
 |---|---|---|
 | `<app>.makeitwork.cloud` | HTTP via cloudflare-operator `TunnelBinding` | Cloudflare edge |
-| `k3s.makeitwork.cloud` | TCP via `ClusterTunnel` to kube-apiserver, gated by Cloudflare Access | Cloudflare edge |
+| `api.makeitwork.cloud` | HTTPS via `ClusterTunnel` to kube-apiserver; Kubernetes OIDC required | Cloudflare edge |
+| `k3s.makeitwork.cloud` | TCP via `ClusterTunnel` to kube-apiserver, gated by Cloudflare Access (migration fallback) | Cloudflare edge |
 
-There is no in-cluster ingress controller and no public IP. Every external entry point — public web, kubectl, everything — uses a Cloudflare Tunnel managed by cloudflare-operator. App CNAMEs are declared in `tfroot-cloudflare` and must stay aligned with the routes here. Legacy hostnames `api.makeitwork.cloud` and `*.apps.makeitwork.cloud` are not in use.
+There is no in-cluster ingress controller and no public IP. Every external entry point — public web, kubectl, everything — uses a Cloudflare Tunnel managed by cloudflare-operator. App CNAMEs are declared in `tfroot-cloudflare` and must stay aligned with the routes here. The legacy `*.apps.makeitwork.cloud` hostnames are not in use.
 
 ## Key Namespaces
 
@@ -59,11 +60,12 @@ App DNS and routes have coordinated owners:
 ## kubectl Access
 
 Use the dedicated `makeitworkcloud-k3s` kubeconfig and the Cloudflare/Dex OIDC
-procedure in `README.md#kubectl-access`. Never use or modify an unrelated
-production or staging context. If no Make IT Work Cloud context is configured,
-ask for the approved public server CA and create the non-secret exec kubeconfig
-from `docs/kubeconfig.example.yaml`; do not copy the k3s admin kubeconfig off
-the node.
+procedure in `README.md#kubectl-access`. Normal access connects directly to
+`https://api.makeitwork.cloud`; Cloudflare provides public TLS and Dex provides
+the Kubernetes identity. Never use or modify an unrelated production or
+staging context. If no Make IT Work Cloud context is configured, create the
+non-secret exec kubeconfig from `docs/kubeconfig.example.yaml`; do not copy the
+k3s admin kubeconfig or private cluster CA off the node.
 
 ## SOPS / KSOPS
 

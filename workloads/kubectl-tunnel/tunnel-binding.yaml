@@ -1,8 +1,7 @@
 ---
-# Routes TCP traffic for k3s.makeitwork.cloud through the cluster-apps tunnel
-# to the in-cluster kube-apiserver Service. Combined with the Cloudflare Access
-# self-hosted app in tfroot-cloudflare, only authenticated org admins can
-# connect via `cloudflared access tcp --hostname k3s.makeitwork.cloud …`.
+# Publishes the kube-apiserver through the cluster-apps tunnel. The HTTPS route
+# supports direct kubectl OIDC access; the existing Access-gated TCP route is
+# retained as a migration fallback until the HTTPS path is validated.
 apiVersion: networking.cfargotunnel.com/v1alpha1
 kind: TunnelBinding
 metadata:
@@ -16,6 +15,15 @@ subjects:
       fqdn: k3s.makeitwork.cloud
       protocol: tcp
       target: tcp://kubernetes.default.svc:443
+  - name: kubernetes
+    spec:
+      fqdn: api.makeitwork.cloud
+      protocol: https
+      target: https://kubernetes.default.svc:443
+      # cloudflared cannot validate the private Kubernetes service CA until it
+      # is mounted through ClusterTunnel originCaPool. Traffic remains TLS
+      # encrypted inside the cluster; Cloudflare terminates public client TLS.
+      noTlsVerify: true
 tunnelRef:
   kind: ClusterTunnel
   name: cluster-apps
