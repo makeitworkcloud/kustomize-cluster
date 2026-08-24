@@ -33,7 +33,13 @@ spec:
           enabled: false
 
         alertmanager:
-          enabled: false
+          enabled: true
+          alertmanagerSpec:
+            configSecret: alertmanager-discord
+            resources:
+              requests:
+                cpu: 25m
+                memory: 32Mi
 
         prometheusOperator:
           resources:

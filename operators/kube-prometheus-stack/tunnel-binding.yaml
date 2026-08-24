@@ -1,0 +1,16 @@
+---
+apiVersion: networking.cfargotunnel.com/v1alpha1
+kind: TunnelBinding
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - name: alertmanager
+    spec:
+      fqdn: alertmanager.makeitwork.cloud
+      target: http://kube-prometheus-stack-alertmanager.monitoring.svc:9093
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps
