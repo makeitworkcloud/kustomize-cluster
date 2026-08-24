@@ -12,5 +12,8 @@ resources:
   - onion-service.yaml
   - status-onion-service.yaml
   - tunnel-binding.yaml
+  - contactpoint-discord.yaml
+  - notificationpolicy.yaml
+  - serviceaccount-alerts.yaml
 generators:
   - ksops-grafana-secrets.yaml
