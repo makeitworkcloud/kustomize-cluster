@@ -1,0 +1,11 @@
+# Managed by tfroot-github (gh-dependabot.tf); local edits are overwritten.
+"updates":
+- "directory": "/"
+  "groups":
+    "github-actions":
+      "patterns":
+      - "*"
+  "package-ecosystem": "github-actions"
+  "schedule":
+    "interval": "weekly"
+"version": 2
