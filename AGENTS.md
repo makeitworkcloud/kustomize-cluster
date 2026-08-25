@@ -55,6 +55,7 @@ App DNS and routes have coordinated owners:
 - `tfroot-cloudflare/cf-tunnels.tf` declares CNAMEs
 - `TunnelBinding` resources declare routes and the operator-managed ownership TXT records
 - `subjects[].name` must match the real Kubernetes `Service` name in the same namespace; if it doesn't exist, status reports `http_status:404`
+- Add-order matters: declare a new hostname in `tfroot-cloudflare` and let its apply create the CNAME *before* merging the `TunnelBinding` here. The operator creates DNS on sync; if it wins the race, the tfroot-cloudflare apply fails with `81053` (record already exists) and the record must be imported into state (see tfroot-cloudflare `AGENTS.md`, Failure Modes)
 - Remove and reconcile the `TunnelBinding` before removing its Terraform hostname; deleting only the CNAME leaves a stale `_managed.<fqdn>` TXT record and causes update-by-stale-id failures (`Record does not exist. (81044)`)
 
 ## kubectl Access
