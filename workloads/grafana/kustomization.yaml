@@ -1,0 +1,18 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - grafana.yaml
+  - datasource.yaml
+  - arc-dashboard.yaml
+  - status-grafana.yaml
+  - status-monitoring.yaml
+  - status-datasource.yaml
+  - status-dashboard.yaml
+  - onion-service.yaml
+  - status-onion-service.yaml
+  - tunnel-binding.yaml
+  - contactpoint-discord.yaml
+  - notificationpolicy.yaml
+generators:
+  - ksops-grafana-secrets.yaml

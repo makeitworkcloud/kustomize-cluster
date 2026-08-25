@@ -1,0 +1,133 @@
+# GitHub Actions runner scale set running the tfroot-runner image.
+# Jobs labeled `runs-on: arc-tf` execute directly in this pod — no nested
+# `container:` block, no docker-in-docker. Replaces the legacy summerwind
+# arc-dind controller and the arc-runners-with-dind-sidecar pattern.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-tf
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  destination:
+    namespace: arc-runners
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    chart: gha-runner-scale-set
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    targetRevision: 0.14.2
+    helm:
+      releaseName: arc-tf
+      valuesObject:
+        runnerScaleSetName: arc-tf
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-runner-github-token
+        githubConfigUrl: https://github.com/makeitworkcloud
+        maxRunners: 3
+        minRunners: 1
+        # NOTE: do not add a `listenerTemplate.spec.containers[0].ports`
+        # entry for `metrics` here — enabling `listenerMetrics` below makes
+        # the chart inject a `metrics` port on the listener container, and a
+        # second one in listenerTemplate would collide
+        # ("Duplicate value: \"metrics\"") and prevent the listener pod from
+        # being scheduled. The Service/ServiceMonitor in
+        # metrics-monitoring.yaml scrapes the chart-injected port directly.
+        listenerMetrics:
+          counters:
+            gha_started_jobs_total:
+              labels:
+                - repository
+                - organization
+                - enterprise
+                - job_name
+                - event_name
+                - job_workflow_ref
+                - job_workflow_name
+                - job_workflow_target
+            gha_completed_jobs_total:
+              labels:
+                - repository
+                - organization
+                - enterprise
+                - job_name
+                - event_name
+                - job_result
+                - job_workflow_ref
+                - job_workflow_name
+                - job_workflow_target
+          gauges:
+            gha_assigned_jobs:
+              labels: [name, namespace, repository, organization, enterprise]
+            gha_running_jobs:
+              labels: [name, namespace, repository, organization, enterprise]
+            gha_registered_runners:
+              labels: [name, namespace, repository, organization, enterprise]
+            gha_busy_runners:
+              labels: [name, namespace, repository, organization, enterprise]
+            gha_min_runners:
+              labels: [name, namespace, repository, organization, enterprise]
+            gha_max_runners:
+              labels: [name, namespace, repository, organization, enterprise]
+            gha_desired_runners:
+              labels: [name, namespace, repository, organization, enterprise]
+            gha_idle_runners:
+              labels: [name, namespace, repository, organization, enterprise]
+          histograms:
+            gha_job_startup_duration_seconds:
+              labels:
+                - repository
+                - organization
+                - enterprise
+                - job_name
+                - event_name
+                - job_workflow_ref
+                - job_workflow_name
+                - job_workflow_target
+            gha_job_execution_duration_seconds:
+              labels:
+                - repository
+                - organization
+                - enterprise
+                - job_name
+                - event_name
+                - job_result
+                - job_workflow_ref
+                - job_workflow_name
+                - job_workflow_target
+        template:
+          spec:
+            serviceAccountName: arc-tf-runner
+            # The gha-runner-scale-set chart disables token automount by
+            # default; re-enable so kubectl can use the SA's projected token.
+            automountServiceAccountToken: true
+            containers:
+              - name: runner
+                image: ghcr.io/makeitworkcloud/tfroot-runner:latest
+                command: ["/home/runner/run.sh"]
+  # The gha-runner-scale-set controller propagates hash annotations into
+  # AutoscalingRunnerSet metadata and spec.template.metadata; ignore only those
+  # paths so selfHeal doesn't thrash, but spec.template.spec changes
+  # (serviceAccountName, image, etc.) still sync.
+  ignoreDifferences:
+    - group: actions.github.com
+      kind: AutoscalingRunnerSet
+      jsonPointers:
+        - /metadata/annotations
+        - /spec/template/metadata/annotations
+  # prune is disabled because the controller dynamically creates an
+  # AutoscalingListener plus a paired Role/RoleBinding (named
+  # arc-tf-<hash>-listener) and labels them with app.kubernetes.io/instance,
+  # so ArgoCD's label-based tracking claims them as managed. The chart does
+  # not render these, so with prune=true ArgoCD repeatedly prunes them and
+  # the controller recreates them — a sync loop. selfHeal still keeps the
+  # chart-rendered resources reconciled.
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - RespectIgnoreDifferences=true

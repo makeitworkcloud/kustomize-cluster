@@ -1,0 +1,75 @@
+---
+apiVersion: grafana.integreatly.org/v1beta1
+kind: Grafana
+metadata:
+  name: grafana
+  namespace: grafana
+  labels:
+    dashboards: "grafana"
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  config:
+    log:
+      mode: "console"
+  disableDefaultAdminSecret: true
+  deployment:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: grafana
+              resources: {}
+              env:
+                - name: GF_SERVER_ROOT_URL
+                  value: "https://grafana.makeitwork.cloud"
+                - name: GF_SECURITY_ADMIN_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-admin-password
+                      key: GF_SECURITY_ADMIN_USER
+                - name: GF_SECURITY_ADMIN_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-admin-password
+                      key: GF_SECURITY_ADMIN_PASSWORD
+                # OIDC via ArgoCD's embedded Dex (Dex bridges to GitHub).
+                - name: GF_AUTH_GENERIC_OAUTH_ENABLED
+                  value: "true"
+                - name: GF_AUTH_GENERIC_OAUTH_NAME
+                  value: "GitHub"
+                - name: GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP
+                  value: "true"
+                - name: GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN
+                  value: "true"
+                - name: GF_AUTH_DISABLE_LOGIN_FORM
+                  value: "true"
+                - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-oidc
+                      key: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+                - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-oidc
+                      key: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+                - name: GF_AUTH_GENERIC_OAUTH_SCOPES
+                  value: "openid profile email groups"
+                - name: GF_AUTH_GENERIC_OAUTH_AUTH_URL
+                  value: "https://argocd.makeitwork.cloud/api/dex/auth"
+                - name: GF_AUTH_GENERIC_OAUTH_TOKEN_URL
+                  value: "https://argocd.makeitwork.cloud/api/dex/token"
+                - name: GF_AUTH_GENERIC_OAUTH_API_URL
+                  value: "https://argocd.makeitwork.cloud/api/dex/userinfo"
+                # Dex emits groups as `org:team` (from the GitHub connector's
+                # teamNameField: slug); map those to Grafana roles.
+                - name: GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH
+                  value: "contains(groups[*], 'makeitworkcloud:admins') && 'Admin' || contains(groups[*], 'makeitworkcloud:developers') && 'Viewer' || 'Viewer'"
+  persistentVolumeClaim:
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi

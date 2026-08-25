@@ -1,0 +1,13 @@
+---
+creation_rules:
+  - path_regex: cloudflared-credentials-secret\.yaml$
+    age: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
+    encrypted_regex: '^(credentials\.json)$'
+
+  - path_regex: alertmanager-discord-secret\.yaml$
+    age: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
+    encrypted_regex: '^(alertmanager\.yaml)$'
+
+  # Encrypt credential fields only so metadata remains reviewable.
+  - age: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l
+    encrypted_regex: '^(token|api-token|apiToken|clientID|clientSecret|client_id|client_secret|password|secret|github_token|CLOUDFLARE_API_TOKEN|credentials\.json|.*_SERVICE_KEY|GF_AUTH_(GITHUB|GENERIC_OAUTH)_CLIENT_SECRET|GF_SECURITY_ADMIN_PASSWORD|dex\.[a-z]+\.clientID|dex\.[a-z]+\.clientSecret|OIDC_CLIENT_(ID|SECRET))$'

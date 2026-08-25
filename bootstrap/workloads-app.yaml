@@ -1,0 +1,28 @@
+---
+# Workloads Application - deploys individual workload Applications
+# Deployed in wave 2 after operators are installed
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitops-workloads
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
+    path: workloads/apps
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        maxDuration: 5m
+        factor: 2

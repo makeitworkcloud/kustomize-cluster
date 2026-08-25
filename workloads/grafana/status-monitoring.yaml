@@ -1,0 +1,100 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blackbox-exporter-config
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  blackbox.yml: |
+    modules:
+      http_2xx:
+        prober: http
+        timeout: 10s
+        http:
+          method: GET
+          preferred_ip_protocol: ip4
+          valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blackbox-exporter
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    ignore-check.kube-linter.io/unset-memory-requirements: "No limits on single-node cluster"
+    ignore-check.kube-linter.io/unset-cpu-requirements: "No requests on single-node cluster"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blackbox-exporter
+  template:
+    metadata:
+      labels:
+        app: blackbox-exporter
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: blackbox-exporter
+          image: quay.io/prometheus/blackbox-exporter:v0.26.0
+          args:
+            - --config.file=/etc/blackbox/blackbox.yml
+          ports:
+            - containerPort: 9115
+              name: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+          volumeMounts:
+            - name: config
+              mountPath: /etc/blackbox
+      volumes:
+        - name: config
+          configMap:
+            name: blackbox-exporter-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blackbox-exporter
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  selector:
+    app: blackbox-exporter
+  ports:
+    - name: http
+      port: 9115
+      targetPort: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: status-endpoints
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  interval: 30s
+  module: http_2xx
+  prober:
+    path: /probe
+    url: blackbox-exporter.grafana.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - https://argocd.makeitwork.cloud
+        - https://grafana.makeitwork.cloud
+        - https://status.makeitwork.cloud

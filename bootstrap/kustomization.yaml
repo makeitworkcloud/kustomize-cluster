@@ -1,0 +1,12 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - argocd-config.yaml
+  - oidc-rbac.yaml
+  - ci-service-account.yaml
+  - ci-token-sync-job.yaml
+  - wait-for-repo-server.yaml
+  - bootstrap-secrets-app.yaml
+  - operators-app.yaml
+  - workloads-app.yaml

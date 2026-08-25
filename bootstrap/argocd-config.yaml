@@ -1,0 +1,136 @@
+---
+apiVersion: argoproj.io/v1beta1
+kind: ArgoCD
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  # Interactive access must use GitHub SSO.
+  disableAdmin: true
+  # API-only account; RBAC below restricts it to Application operations.
+  extraConfig:
+    accounts.mcp: apiKey
+  # CPU limits are omitted to avoid throttling on the single-node cluster.
+  server:
+    host: argocd.makeitwork.cloud
+    resources:
+      requests:
+        cpu: 125m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+  controller:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+  applicationSet:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+  redis:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+  kustomizeBuildOptions: "--enable-alpha-plugins --enable-exec"
+  repo:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+    env:
+      - name: XDG_CONFIG_HOME
+        value: /.config
+      - name: SOPS_AGE_KEY_FILE
+        value: /.config/sops/age/key.txt
+    volumes:
+      - name: custom-tools
+        emptyDir: {}
+      - name: sops-age-keys
+        secret:
+          secretName: sops-age-keys
+    initContainers:
+      - name: install-ksops
+        image: docker.io/alpine:3.23
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "Downloading kustomize v5.8.1..."
+            wget -qO- https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.1/kustomize_v5.8.1_linux_amd64.tar.gz | tar xz -C /custom-tools
+            echo "Downloading KSOPS v4.5.1..."
+            wget -qO- https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.5.1/ksops_4.5.1_Linux_x86_64.tar.gz | tar xz -C /custom-tools
+            chmod +x /custom-tools/kustomize /custom-tools/ksops
+            echo "Done."
+        volumeMounts:
+          - mountPath: /custom-tools
+            name: custom-tools
+    volumeMounts:
+      - mountPath: /usr/local/bin/kustomize
+        name: custom-tools
+        subPath: kustomize
+      - mountPath: /usr/local/bin/ksops
+        name: custom-tools
+        subPath: ksops
+      - mountPath: /.config/sops/age/key.txt
+        name: sops-age-keys
+        subPath: key.txt
+  sso:
+    provider: dex
+    dex:
+      config: |
+        connectors:
+          - type: github
+            id: github
+            name: GitHub
+            config:
+              clientID: $dex.github.clientID
+              clientSecret: $dex.github.clientSecret
+              orgs:
+                - name: makeitworkcloud
+              loadAllGroups: true
+              teamNameField: slug
+              useLoginAsID: true
+        staticClients:
+          # kubelogin uses this public client for kubectl OIDC authentication.
+          - id: kubectl
+            name: kubectl
+            public: true
+            redirectURIs:
+              - http://localhost:8000
+              - http://localhost:18000
+          # Grafana uses Dex via GF_AUTH_GENERIC_OAUTH_*, replacing its
+          # built-in GitHub OAuth so all cluster apps share one IdP.
+          - id: grafana
+            name: Grafana
+            secret: $dex.grafana.clientSecret
+            redirectURIs:
+              - https://grafana.makeitwork.cloud/login/generic_oauth
+          # Forgejo uses Dex as its OIDC provider via the `dex` auth source
+          # configured at install time (see operators/forgejo/application.yaml).
+          - id: forgejo
+            name: Forgejo
+            secret: $dex.forgejo.clientSecret
+            redirectURIs:
+              - https://forgejo.makeitwork.cloud/user/oauth2/dex/callback
+  rbac:
+    defaultPolicy: ''
+    policy: |
+      g, makeitworkcloud:admins, role:admin
+      g, makeitworkcloud:developers, role:readonly
+      # MCP has no access to projects, repositories, clusters, or accounts.
+      p, mcp, applications, get, */*, allow
+      p, mcp, applications, sync, */*, allow
+    scopes: '[groups]'

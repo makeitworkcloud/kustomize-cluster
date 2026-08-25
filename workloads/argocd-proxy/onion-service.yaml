@@ -1,0 +1,32 @@
+---
+# ExternalName service to reference argocd server in argocd namespace
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-server-external
+  namespace: argocd-proxy
+spec:
+  type: ExternalName
+  externalName: argocd-server.argocd.svc.cluster.local
+  ports:
+    - port: 443
+      targetPort: 443
+---
+apiVersion: tor.k8s.torproject.org/v1alpha2
+kind: OnionService
+metadata:
+  name: argocd
+  namespace: argocd-proxy
+spec:
+  version: 3
+  privateKeySecret:
+    name: tor-proxy-key
+    key: ARGOCD_TOR_SERVICE_KEY
+  rules:
+    - port:
+        number: 80
+      backend:
+        service:
+          name: argocd-server-external
+          port:
+            number: 443

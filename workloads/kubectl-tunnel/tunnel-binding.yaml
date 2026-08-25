@@ -1,0 +1,29 @@
+---
+# Publishes the kube-apiserver through the cluster-apps tunnel. The HTTPS route
+# supports direct kubectl OIDC access; the existing Access-gated TCP route is
+# retained as a migration fallback until the HTTPS path is validated.
+apiVersion: networking.cfargotunnel.com/v1alpha1
+kind: TunnelBinding
+metadata:
+  name: kube-apiserver
+  namespace: default
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - name: kubernetes
+    spec:
+      fqdn: k3s.makeitwork.cloud
+      protocol: tcp
+      target: tcp://kubernetes.default.svc:443
+  - name: kubernetes
+    spec:
+      fqdn: api.makeitwork.cloud
+      protocol: https
+      target: https://kubernetes.default.svc:443
+      # cloudflared cannot validate the private Kubernetes service CA until it
+      # is mounted through ClusterTunnel originCaPool. Traffic remains TLS
+      # encrypted inside the cluster; Cloudflare terminates public client TLS.
+      noTlsVerify: true
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps

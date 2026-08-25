@@ -1,0 +1,20 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/adyanth/cloudflare-operator.git/config/default?ref=v0.13.1
+  - cluster-tunnel.yaml
+generators:
+  - ksops-cloudflare-secrets.yaml
+images:
+  - name: adyanth/cloudflare-operator
+    newName: docker.io/adyanth/cloudflare-operator
+patches:
+  # Omit resource constraints on the single-node cluster.
+  - patch: |
+      - op: remove
+        path: /spec/template/spec/containers/0/resources
+    target:
+      kind: Deployment
+      name: cloudflare-operator-controller-manager
+      namespace: cloudflare-operator-system

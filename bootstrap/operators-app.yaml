@@ -1,0 +1,30 @@
+---
+# Operators Application - installs CRDs before workloads
+# Deployed in wave 1 after KSOPS is configured
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitops-operators
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
+    path: operators
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        maxDuration: 5m
+        factor: 2

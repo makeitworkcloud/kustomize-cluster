@@ -1,0 +1,27 @@
+---
+apiVersion: networking.cfargotunnel.com/v1alpha2
+kind: ClusterTunnel
+metadata:
+  name: cluster-apps
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  newTunnel:
+    name: cluster-apps-k3s
+  cloudflare:
+    accountId: "03f750691b4ad4d59aa4b7205adaa108"
+    domain: makeitwork.cloud
+    secret: cloudflare-api-credentials
+    CLOUDFLARE_API_TOKEN: CLOUDFLARE_API_TOKEN
+  fallbackTarget: http_status:404
+  deployPatch: |
+    spec:
+      template:
+        spec:
+          containers:
+            - name: cloudflared
+              image: docker.io/cloudflare/cloudflared:latest
+              livenessProbe:
+                initialDelaySeconds: 30
+                periodSeconds: 30
+                failureThreshold: 3

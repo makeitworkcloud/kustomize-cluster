@@ -1,0 +1,66 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: forgejo
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: forgejo
+  source:
+    chart: forgejo
+    repoURL: code.forgejo.org/forgejo-helm
+    targetRevision: 17.1.4
+    helm:
+      releaseName: forgejo
+      valuesObject:
+        # Enough for a single-user instance with some repos.
+        persistence:
+          enabled: true
+          size: 20Gi
+        # Single-replica is the only mode SQLite supports anyway.
+        replicaCount: 1
+        strategy:
+          type: Recreate
+        gitea:
+          # OIDC sign-in via ArgoCD's embedded Dex (`dex` auth source).
+          # The chart's init container runs `gitea admin auth add-oauth`
+          # using values pulled from the forgejo-oidc Secret (key/secret).
+          oauth:
+            - name: dex
+              provider: openidConnect
+              autoDiscoverUrl: https://argocd.makeitwork.cloud/api/dex/.well-known/openid-configuration
+              scopes: openid profile email groups
+              existingSecret: forgejo-oidc
+          config:
+            server:
+              ROOT_URL: https://forgejo.makeitwork.cloud/
+              DOMAIN: forgejo.makeitwork.cloud
+              # No SSH over the public tunnel; HTTPS git only.
+              DISABLE_SSH: true
+              START_SSH_SERVER: false
+            service:
+              # Local password auth disabled — OIDC primary.
+              ALLOW_ONLY_EXTERNAL_REGISTRATION: true
+              ENABLE_OPENID_SIGNIN: true
+              ENABLE_OPENID_SIGNUP: true
+            openid:
+              ENABLE_OPENID_SIGNIN: true
+              ENABLE_OPENID_SIGNUP: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 1Gi
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true

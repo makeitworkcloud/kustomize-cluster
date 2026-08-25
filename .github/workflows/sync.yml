@@ -1,0 +1,33 @@
+---
+name: sync
+
+# Triggered on successful completion of the `test` workflow on main, so a
+# merged PR's pre-commit run gates the ArgoCD sync. Manual dispatch is also
+# supported for re-syncing without a new commit.
+on:
+  workflow_run:
+    workflows: [test]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    # In-cluster runner; kubectl uses its auto-mounted SA token to talk to
+    # the API directly. The tfroot-runner image has kubectl preinstalled.
+    runs-on: arc-tf
+
+    steps:
+      - name: Sync ArgoCD bootstrap Applications
+        env:
+          REVISION: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          for app in bootstrap-secrets gitops-operators gitops-workloads; do
+            kubectl -n argocd patch application "$app" \
+              --type=merge \
+              -p "{\"operation\":{\"initiatedBy\":{\"username\":\"github-actions\"},\"sync\":{\"revision\":\"${REVISION}\"}}}"
+          done

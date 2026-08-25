@@ -1,0 +1,45 @@
+---
+# Installs sops-secrets-operator from the actively reconciled gitops-operators
+# Application. This only installs the CRD/controller; KMS-backed SopsSecret
+# reconciliation needs follow-up ambient AWS auth.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sops-secrets-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sops-secrets-operator
+  source:
+    chart: sops-secrets-operator
+    repoURL: https://isindir.github.io/sops-secrets-operator/
+    targetRevision: 0.27.2
+    helm:
+      releaseName: sops-secrets-operator
+      valuesObject:
+        namespaced: false
+        resources: {}
+        extraEnv:
+          # SOPS can infer the region from KMS recipients, but setting the SDK
+          # region keeps AWS client startup deterministic in the k3s cluster.
+          - name: AWS_REGION
+            value: us-west-2
+          - name: AWS_DEFAULT_REGION
+            value: us-west-2
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        maxDuration: 5m
+        factor: 2

@@ -1,0 +1,16 @@
+---
+apiVersion: networking.cfargotunnel.com/v1alpha1
+kind: TunnelBinding
+metadata:
+  name: grafana
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - name: grafana-service
+    spec:
+      fqdn: grafana.makeitwork.cloud
+      target: http://grafana-service.grafana.svc:3000
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps

@@ -1,0 +1,10 @@
+---
+# cert-manager itself is bootstrap-installed from tfroot-libvirt cloud-init.
+# This kustomization manages only the ClusterIssuer and the Cloudflare DNS-01
+# API token Secret it consumes.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cluster-issuer.yaml
+generators:
+  - ksops-cert-manager-secrets.yaml

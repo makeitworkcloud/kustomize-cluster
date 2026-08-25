@@ -1,0 +1,31 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - https://github.com/bugfest/tor-controller.git/config/default?ref=tor-controller-0.1.17
+
+namespace: tor-controller
+
+# Upstream pins gcr.io/kubebuilder/kube-rbac-proxy which Google removed; re-point
+# to the maintained brancz fork.
+images:
+  - name: gcr.io/kubebuilder/kube-rbac-proxy
+    newName: quay.io/brancz/kube-rbac-proxy
+    newTag: v0.18.0
+
+patches:
+  # The upstream binding still names tor-controller-system after the override.
+  - patch: |
+      - op: replace
+        path: /subjects/0/namespace
+        value: tor-controller
+    target:
+      kind: ClusterRoleBinding
+  # Omit resource constraints on the single-node cluster.
+  - patch: |
+      - op: remove
+        path: /spec/template/spec/containers/0/resources
+    target:
+      kind: Deployment
+      name: tor-controller-controller-manager

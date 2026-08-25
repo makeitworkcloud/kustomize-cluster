@@ -1,0 +1,13 @@
+---
+# Operators - install CRDs before workloads
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - sops-secrets-operator
+  - arc
+  - cert-manager
+  - cloudflare
+  - forgejo
+  - grafana
+  - kube-prometheus-stack
+  - tor-controller
