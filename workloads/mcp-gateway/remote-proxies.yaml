@@ -12,6 +12,10 @@ spec:
   remoteUrl: https://mcp.context7.com/mcp
   transport: streamable-http
 ---
+# Static PAT injection uses headerForward: externalAuthConfigRef is token
+# exchange, which needs an incoming client token we don't have (anonymous
+# incoming auth), so it rendered an empty auth middleware and the upstream
+# saw no Authorization header at all.
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
@@ -24,21 +28,9 @@ spec:
     name: gateway
   remoteUrl: https://api.githubcopilot.com/mcp/
   transport: streamable-http
-  externalAuthConfigRef:
-    name: github-token
----
-# The header value is injected verbatim, so the Secret holds "Bearer <pat>".
-apiVersion: toolhive.stacklok.dev/v1beta1
-kind: MCPExternalAuthConfig
-metadata:
-  name: github-token
-  namespace: mcp
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
-spec:
-  type: headerInjection
-  headerInjection:
-    headerName: Authorization
-    valueSecretRef:
-      name: mcp-github
-      key: github_token
+  headerForward:
+    addHeadersFromSecret:
+      - headerName: Authorization
+        valueSecretRef:
+          name: mcp-github
+          key: github_token
