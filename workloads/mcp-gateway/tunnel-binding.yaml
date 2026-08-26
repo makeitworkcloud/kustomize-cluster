@@ -1,0 +1,16 @@
+---
+apiVersion: networking.cfargotunnel.com/v1alpha1
+kind: TunnelBinding
+metadata:
+  name: mcp-gateway
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+subjects:
+  - name: vmcp-gateway
+    spec:
+      fqdn: mcp.makeitwork.cloud
+      target: http://vmcp-gateway.mcp.svc:4483
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps

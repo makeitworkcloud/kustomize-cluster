@@ -7,5 +7,6 @@ resources:
   - kubernetes-mcpserver.yaml
   - remote-proxies.yaml
   - vmcp.yaml
+  - tunnel-binding.yaml
 generators:
   - ksops-mcp-gateway-secrets.yaml
