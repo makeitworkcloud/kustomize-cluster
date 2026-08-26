@@ -59,6 +59,23 @@ kubectl tokens for the public `kubectl` client defined in
 the `makeitworkcloud:admins` GitHub team to cluster-admin through
 `bootstrap/oidc-rbac.yaml`. CI uses a separate `ci-deployer` ServiceAccount.
 
+### OpenCode access
+
+`opencode.makeitwork.cloud` is public at the Cloudflare edge so that
+`opencode attach` can use its native HTTP authentication. OpenCode enforces HTTP
+Basic authentication with the SOPS-encrypted `opencode-server-auth` Secret; it
+does not support Dex/OIDC or SAML authentication. Obtain the password through
+the approved secret-access process, store it in a local secure credential store,
+and connect without Cloudflare Access:
+
+```bash
+opencode attach https://opencode.makeitwork.cloud --username opencode --password "$OPENCODE_SERVER_PASSWORD"
+```
+
+Do not put the password in shell history, kubeconfig, or a committed OpenCode
+configuration file. After rotating the encrypted Secret, restart the Deployment
+so its environment is refreshed.
+
 ### kubectl access
 
 Normal access connects directly to `https://api.makeitwork.cloud`. Cloudflare

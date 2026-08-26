@@ -68,6 +68,11 @@ spec:
                 secretKeyRef:
                   name: opencode-kimi
                   key: KIMI_API_KEY
+            - name: OPENCODE_SERVER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-server-auth
+                  key: password
           ports:
             - name: http
               containerPort: 4096
