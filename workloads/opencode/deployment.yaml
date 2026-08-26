@@ -51,6 +51,33 @@ spec:
               mountPath: /agents
             - name: tmp
               mountPath: /tmp
+        - name: seed-openai-auth
+          image: docker.io/alpine/git:v2.49.1
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              # Seed the ChatGPT OAuth grant only when the PVC has none: opencode
+              # persists rotated tokens to the PVC, and re-seeding an older grant
+              # over a rotated one breaks refresh. Rotate by updating the secret
+              # and deleting the PVC file before restart.
+              mkdir -p /home/opencode/.local/share/opencode
+              if [ ! -f /home/opencode/.local/share/opencode/auth.json ]; then
+                cp /secrets/openai/auth.json /home/opencode/.local/share/opencode/auth.json
+                chmod 600 /home/opencode/.local/share/opencode/auth.json
+              fi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: home
+              mountPath: /home/opencode
+            - name: openai-auth
+              mountPath: /secrets/openai
+              readOnly: true
       containers:
         - name: opencode
           image: ghcr.io/anomalyco/opencode:1.18.23@sha256:182959d5ae507fa2b3dcfd6ec247ad625b7f15539977dd0620f43f7e24c78229
@@ -104,6 +131,9 @@ spec:
         - name: home
           persistentVolumeClaim:
             claimName: opencode-home
+        - name: openai-auth
+          secret:
+            secretName: opencode-openai-auth
         - name: agents
           emptyDir: {}
         - name: config

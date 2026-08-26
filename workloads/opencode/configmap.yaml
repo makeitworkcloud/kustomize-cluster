@@ -11,7 +11,7 @@ data:
     {
       "$schema": "https://opencode.ai/config.json",
       "model": "kimi-for-coding/k3",
-      "enabled_providers": ["kimi-for-coding"],
+      "enabled_providers": ["kimi-for-coding", "openai"],
       "provider": {
         "kimi-for-coding": {
           "options": {
