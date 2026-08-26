@@ -1,0 +1,23 @@
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: grafana-makeitwork
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  image: docker.io/grafana/mcp-grafana:1.2.0@sha256:cfae68f893dbe40cb6df69579f78beb226f973ded4436d47c844f91d2f00dc53
+  transport: streamable-http
+  mcpPort: 8000
+  args:
+    - -t
+    - streamable-http
+  env:
+    - name: GRAFANA_URL
+      value: http://grafana-service.grafana.svc.cluster.local:3000
+  secrets:
+    - name: mcp-grafana
+      key: GRAFANA_SERVICE_ACCOUNT_TOKEN
+      targetEnvName: GRAFANA_SERVICE_ACCOUNT_TOKEN

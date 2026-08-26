@@ -1,0 +1,20 @@
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: terraform-docs
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  image: docker.io/hashicorp/terraform-mcp-server:1.2.0@sha256:bd095e2b442a2cb61255fe4db52f9e824f35d307a2044784c95d37a93f18d324
+  transport: streamable-http
+  mcpPort: 8080
+  env:
+    - name: TRANSPORT_MODE
+      value: streamable-http
+    - name: TRANSPORT_HOST
+      value: 0.0.0.0
+    - name: TRANSPORT_PORT
+      value: "8080"

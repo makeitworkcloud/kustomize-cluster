@@ -5,6 +5,10 @@ resources:
   - namespace.yaml
   - mcpgroup.yaml
   - kubernetes-mcpserver.yaml
+  - argocd-mcpserver.yaml
+  - grafana-mcpserver.yaml
+  - aws-docs-mcpserver.yaml
+  - terraform-docs-mcpserver.yaml
   - remote-proxies.yaml
   - vmcp.yaml
   - tunnel-binding.yaml

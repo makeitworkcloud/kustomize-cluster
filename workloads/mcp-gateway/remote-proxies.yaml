@@ -34,3 +34,42 @@ spec:
         valueSecretRef:
           name: mcp-github
           key: github_token
+---
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPRemoteProxy
+metadata:
+  name: parallel-search
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  remoteUrl: https://search.parallel.ai/mcp
+  transport: streamable-http
+  headerForward:
+    addHeadersFromSecret:
+      - headerName: Authorization
+        valueSecretRef:
+          name: mcp-parallel
+          key: authorization
+---
+# Tool allowlist mirrors the local gateway's apify launcher (~/git/xnoto/mcp-gateway).
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPRemoteProxy
+metadata:
+  name: apify
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  remoteUrl: "https://mcp.apify.com/?tools=actors,apify/facebook-marketplace-scraper,apify/google-maps-scraper&telemetry-enabled=false"
+  transport: streamable-http
+  headerForward:
+    addHeadersFromSecret:
+      - headerName: Authorization
+        valueSecretRef:
+          name: mcp-apify
+          key: authorization

@@ -1,0 +1,29 @@
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: argocd-makeitwork
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  image: ghcr.io/argoproj-labs/mcp-for-argocd:v0.9.0@sha256:dffc6c719d8635be2d5f2c8ad1c0178540325da4b40da0b373307e12b4c48f86
+  transport: streamable-http
+  mcpPort: 3000
+  args:
+    - http
+    - --port
+    - "3000"
+  env:
+    - name: ARGOCD_BASE_URL
+      value: https://argocd-server.argocd.svc.cluster.local
+    # argocd-server terminates TLS with a self-signed cert in-cluster, and this
+    # pod's only upstream is argocd-server, so skipping verification is scoped
+    # to that one hop. RBAC scope lives on the ArgoCD `mcp` account instead.
+    - name: NODE_TLS_REJECT_UNAUTHORIZED
+      value: "0"
+  secrets:
+    - name: mcp-argocd
+      key: ARGOCD_API_TOKEN
+      targetEnvName: ARGOCD_API_TOKEN
