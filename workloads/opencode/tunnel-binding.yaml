@@ -1,0 +1,16 @@
+---
+apiVersion: networking.cfargotunnel.com/v1alpha1
+kind: TunnelBinding
+metadata:
+  name: opencode
+  namespace: opencode
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - name: opencode
+    spec:
+      fqdn: opencode.makeitwork.cloud
+      target: http://opencode.opencode.svc:4096
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps

@@ -9,4 +9,5 @@ resources:
   - arc-app.yaml
   - grafana-app.yaml
   - kubectl-tunnel-app.yaml
+  - opencode-app.yaml
   - ../argocd

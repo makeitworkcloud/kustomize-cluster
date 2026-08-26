@@ -1,0 +1,22 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opencode-config
+  namespace: opencode
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  opencode.json: |
+    {
+      "$schema": "https://opencode.ai/config.json",
+      "model": "kimi-for-coding/k3",
+      "enabled_providers": ["kimi-for-coding"],
+      "provider": {
+        "kimi-for-coding": {
+          "options": {
+            "apiKey": "{env:KIMI_API_KEY}"
+          }
+        }
+      }
+    }
