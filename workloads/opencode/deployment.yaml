@@ -1,0 +1,108 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencode
+  namespace: opencode
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    ignore-check.kube-linter.io/unset-cpu-requirements: "single-node policy"
+    ignore-check.kube-linter.io/unset-memory-requirements: "single-node policy"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opencode
+  template:
+    metadata:
+      labels:
+        app: opencode
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: agents
+          image: docker.io/alpine/git:v2.49.1
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              # Keep agent behavior reviewable through this pinned source revision.
+              git clone --depth 1 https://github.com/xnoto/opencode-config.git /tmp/opencode-config
+              test "$(git -C /tmp/opencode-config rev-parse HEAD)" = c1b8271767b801f4892415bd320fc9109db79e3e
+              cp -a /tmp/opencode-config/agents/. /agents/
+          env:
+            - name: HOME
+              value: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: agents
+              mountPath: /agents
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: opencode
+          image: ghcr.io/anomalyco/opencode:1.18.23@sha256:182959d5ae507fa2b3dcfd6ec247ad625b7f15539977dd0620f43f7e24c78229
+          args:
+            - web
+            - --hostname
+            - 0.0.0.0
+            - --port
+            - "4096"
+          env:
+            - name: HOME
+              value: /home/opencode
+            - name: KIMI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-kimi
+                  key: KIMI_API_KEY
+          ports:
+            - name: http
+              containerPort: 4096
+          readinessProbe:
+            tcpSocket:
+              port: http
+          livenessProbe:
+            tcpSocket:
+              port: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: home
+              mountPath: /home/opencode
+            - name: agents
+              mountPath: /home/opencode/.config/opencode/agents
+              readOnly: true
+            - name: config
+              mountPath: /home/opencode/.config/opencode/opencode.json
+              subPath: opencode.json
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: home
+          persistentVolumeClaim:
+            claimName: opencode-home
+        - name: agents
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: opencode-config
+        - name: tmp
+          emptyDir: {}
