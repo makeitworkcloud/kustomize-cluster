@@ -11,46 +11,10 @@ subjects:
     spec:
       fqdn: mcp.makeitwork.cloud
       target: http://vmcp-gateway.mcp.svc:4483
-  # Per-backend endpoints so MCP clients can address one integration per
-  # config entry instead of the aggregated, name-prefixed vmcp view. These
-  # terminate on the same anonymous proxyrunners behind the same Access
-  # service token; the trust boundary is unchanged.
-  - name: mcp-apify-remote-proxy
-    spec:
-      fqdn: apify.mcp.makeitwork.cloud
-      target: http://mcp-apify-remote-proxy.mcp.svc:8080
-  - name: mcp-argocd-makeitwork-proxy
-    spec:
-      fqdn: argocd-makeitwork.mcp.makeitwork.cloud
-      target: http://mcp-argocd-makeitwork-proxy.mcp.svc:8080
-  - name: mcp-aws-docs-proxy
-    spec:
-      fqdn: aws-docs.mcp.makeitwork.cloud
-      target: http://mcp-aws-docs-proxy.mcp.svc:8080
-  - name: mcp-context7-remote-proxy
-    spec:
-      fqdn: context7.mcp.makeitwork.cloud
-      target: http://mcp-context7-remote-proxy.mcp.svc:8080
-  - name: mcp-github-remote-proxy
-    spec:
-      fqdn: github.mcp.makeitwork.cloud
-      target: http://mcp-github-remote-proxy.mcp.svc:8080
-  - name: mcp-grafana-makeitwork-proxy
-    spec:
-      fqdn: grafana-makeitwork.mcp.makeitwork.cloud
-      target: http://mcp-grafana-makeitwork-proxy.mcp.svc:8080
-  - name: mcp-kubernetes-proxy
-    spec:
-      fqdn: kubernetes.mcp.makeitwork.cloud
-      target: http://mcp-kubernetes-proxy.mcp.svc:8080
-  - name: mcp-parallel-search-remote-proxy
-    spec:
-      fqdn: parallel-search.mcp.makeitwork.cloud
-      target: http://mcp-parallel-search-remote-proxy.mcp.svc:8080
-  - name: mcp-terraform-docs-proxy
-    spec:
-      fqdn: terraform-docs.mcp.makeitwork.cloud
-      target: http://mcp-terraform-docs-proxy.mcp.svc:8080
+  # Per-backend endpoints move to first-level mcp-<name>.makeitwork.cloud
+  # hostnames: Cloudflare Universal SSL only covers one subdomain level, so
+  # <name>.mcp.makeitwork.cloud cannot present a cert. Subjects return after
+  # the tfroot-cloudflare CNAME swap (AGENTS.md: remove before rename).
 tunnelRef:
   kind: ClusterTunnel
   name: cluster-apps
