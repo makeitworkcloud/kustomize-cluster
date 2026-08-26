@@ -35,7 +35,7 @@ spec:
             - |
               # Keep agent behavior reviewable through this pinned source revision.
               git clone --depth 1 https://github.com/xnoto/opencode-config.git /tmp/opencode-config
-              test "$(git -C /tmp/opencode-config rev-parse HEAD)" = c1b8271767b801f4892415bd320fc9109db79e3e
+              test "$(git -C /tmp/opencode-config rev-parse HEAD)" = 22a9446be2c5120474f3ce9000d0d5105c2b7737
               cp -a /tmp/opencode-config/agents/. /agents/
           env:
             - name: HOME
