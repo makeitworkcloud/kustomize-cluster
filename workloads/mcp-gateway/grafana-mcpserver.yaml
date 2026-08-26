@@ -14,6 +14,12 @@ spec:
   args:
     - -t
     - streamable-http
+    # The proxyrunner dials the backend svc ClusterIP, an unstable Host value
+    # that fails mcp-grafana's DNS-rebinding Host check (default: loopback
+    # only). Wildcard is upstream's documented case for a server behind a
+    # trusted reverse proxy; this backend is ClusterIP-only behind the gateway.
+    - --allowed-hosts
+    - "*"
   env:
     - name: GRAFANA_URL
       value: http://grafana-service.grafana.svc.cluster.local:3000

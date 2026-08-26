@@ -15,6 +15,14 @@ spec:
     - http
     - --port
     - "3000"
+    # The proxyrunner runs in a separate pod, so the server must leave
+    # loopback. Unauthenticated + skipped Host check (no --allowed-host-header)
+    # is acceptable: the backend svc is ClusterIP-only behind the gateway, the
+    # same trust boundary as the vmcp anonymous decision in vmcp.yaml, and the
+    # real credential (the ArgoCD mcp account token) stays server-side.
+    - --bind-address
+    - 0.0.0.0
+    - --allow-unauthenticated
   env:
     - name: ARGOCD_BASE_URL
       value: https://argocd-server.argocd.svc.cluster.local
