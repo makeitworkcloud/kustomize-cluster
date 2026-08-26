@@ -1,7 +1,7 @@
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
-  name: aws-docs
+  name: makeitwork-aws-docs
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
