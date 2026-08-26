@@ -15,6 +15,8 @@ spec:
       app: opencode
   template:
     metadata:
+      annotations:
+        checksum/opencode-server-auth: "6546672e9a81"
       labels:
         app: opencode
     spec:
@@ -104,11 +106,21 @@ spec:
                 secretKeyRef:
                   name: opencode-kimi
                   key: KIMI_API_KEY
+            - name: MINIMAX_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-minimax
+                  key: MINIMAX_API_KEY
             - name: OPENCODE_SERVER_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: opencode-server-auth
                   key: password
+            - name: ZHIPU_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-zai
+                  key: ZHIPU_API_KEY
           ports:
             - name: http
               containerPort: 4096
