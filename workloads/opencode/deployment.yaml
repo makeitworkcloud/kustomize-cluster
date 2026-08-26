@@ -38,7 +38,8 @@ spec:
               # Bump the SHA here to publish newer repo content.
               mkdir -p /tmp/server-config
               git -C /tmp/server-config init -q
-              git -C /tmp/server-config remote add origin https://github.com/xnoto/opencode-server-config.git
+              git -C /tmp/server-config remote add origin https://github.com/xnoto/opencode-server-config.git 2>/dev/null \
+                || git -C /tmp/server-config remote set-url origin https://github.com/xnoto/opencode-server-config.git
               git -C /tmp/server-config fetch -q --depth 1 origin 22037f0f9b44eca8770d491b33e1b2e005017802
               git -C /tmp/server-config checkout -q FETCH_HEAD
               cp -a /tmp/server-config/agents/. /agents/
