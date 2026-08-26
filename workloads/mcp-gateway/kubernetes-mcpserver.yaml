@@ -6,7 +6,9 @@ metadata:
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "0"
-automountServiceAccountToken: false
+# The server authenticates to the API with this token; the read-only
+# ClusterRole and --read-only flag bound what it can do with it.
+automountServiceAccountToken: true
 ---
 # Read-only across the cluster, but Secrets stay excluded: KSOPS-decrypted
 # secrets live in-cluster and the gateway must not become a read path to them.
@@ -87,5 +89,7 @@ spec:
   serviceAccount: mcp-kubernetes
   args:
     - --read-only
+    - --cluster-provider
+    - in-cluster
     - --port
     - "8080"
