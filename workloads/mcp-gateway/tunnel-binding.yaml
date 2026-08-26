@@ -16,42 +16,46 @@ subjects:
   # terminate on the same anonymous proxyrunners behind the same Access
   # service token; the trust boundary is unchanged. First-level hostnames
   # because Cloudflare Universal SSL covers only *.makeitwork.cloud.
-  - name: mcp-apify-remote-proxy
+  - name: mcp-makeitwork-apify-remote-proxy
     spec:
-      fqdn: mcp-apify.makeitwork.cloud
-      target: http://mcp-apify-remote-proxy.mcp.svc:8080
-  - name: mcp-argocd-makeitwork-proxy
+      fqdn: mcp-makeitwork-apify.makeitwork.cloud
+      target: http://mcp-makeitwork-apify-remote-proxy.mcp.svc:8080
+  - name: mcp-makeitwork-argocd-proxy
     spec:
-      fqdn: mcp-argocd-makeitwork.makeitwork.cloud
-      target: http://mcp-argocd-makeitwork-proxy.mcp.svc:8080
-  - name: mcp-aws-docs-proxy
+      fqdn: mcp-makeitwork-argocd.makeitwork.cloud
+      target: http://mcp-makeitwork-argocd-proxy.mcp.svc:8080
+  - name: mcp-makeitwork-aws-docs-proxy
     spec:
-      fqdn: mcp-aws-docs.makeitwork.cloud
-      target: http://mcp-aws-docs-proxy.mcp.svc:8080
-  - name: mcp-context7-remote-proxy
+      fqdn: mcp-makeitwork-aws-docs.makeitwork.cloud
+      target: http://mcp-makeitwork-aws-docs-proxy.mcp.svc:8080
+  - name: mcp-makeitwork-context7-remote-proxy
     spec:
-      fqdn: mcp-context7.makeitwork.cloud
-      target: http://mcp-context7-remote-proxy.mcp.svc:8080
-  - name: mcp-github-remote-proxy
+      fqdn: mcp-makeitwork-context7.makeitwork.cloud
+      target: http://mcp-makeitwork-context7-remote-proxy.mcp.svc:8080
+  - name: mcp-makeitwork-github-remote-proxy
     spec:
-      fqdn: mcp-github.makeitwork.cloud
-      target: http://mcp-github-remote-proxy.mcp.svc:8080
-  - name: mcp-grafana-makeitwork-proxy
+      fqdn: mcp-makeitwork-github.makeitwork.cloud
+      target: http://mcp-makeitwork-github-remote-proxy.mcp.svc:8080
+  - name: mcp-makeitwork-github-xnoto-remote-proxy
     spec:
-      fqdn: mcp-grafana-makeitwork.makeitwork.cloud
-      target: http://mcp-grafana-makeitwork-proxy.mcp.svc:8080
-  - name: mcp-kubernetes-proxy
+      fqdn: mcp-makeitwork-github-xnoto.makeitwork.cloud
+      target: http://mcp-makeitwork-github-xnoto-remote-proxy.mcp.svc:8080
+  - name: mcp-makeitwork-grafana-proxy
     spec:
-      fqdn: mcp-kubernetes.makeitwork.cloud
-      target: http://mcp-kubernetes-proxy.mcp.svc:8080
-  - name: mcp-parallel-search-remote-proxy
+      fqdn: mcp-makeitwork-grafana.makeitwork.cloud
+      target: http://mcp-makeitwork-grafana-proxy.mcp.svc:8080
+  - name: mcp-makeitwork-kubernetes-proxy
     spec:
-      fqdn: mcp-parallel-search.makeitwork.cloud
-      target: http://mcp-parallel-search-remote-proxy.mcp.svc:8080
-  - name: mcp-terraform-docs-proxy
+      fqdn: mcp-makeitwork-kubernetes.makeitwork.cloud
+      target: http://mcp-makeitwork-kubernetes-proxy.mcp.svc:8080
+  - name: mcp-makeitwork-parallel-search-remote-proxy
     spec:
-      fqdn: mcp-terraform-docs.makeitwork.cloud
-      target: http://mcp-terraform-docs-proxy.mcp.svc:8080
+      fqdn: mcp-makeitwork-parallel-search.makeitwork.cloud
+      target: http://mcp-makeitwork-parallel-search-remote-proxy.mcp.svc:8080
+  - name: mcp-makeitwork-terraform-docs-proxy
+    spec:
+      fqdn: mcp-makeitwork-terraform-docs.makeitwork.cloud
+      target: http://mcp-makeitwork-terraform-docs-proxy.mcp.svc:8080
 tunnelRef:
   kind: ClusterTunnel
   name: cluster-apps

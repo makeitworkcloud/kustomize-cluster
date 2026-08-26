@@ -2,7 +2,7 @@
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: context7
+  name: makeitwork-context7
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
@@ -19,7 +19,7 @@ spec:
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: github
+  name: makeitwork-github
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
@@ -32,13 +32,32 @@ spec:
     addHeadersFromSecret:
       - headerName: Authorization
         valueSecretRef:
-          name: mcp-github
+          name: mcp-makeitwork-github
           key: github_token
 ---
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: parallel-search
+  name: makeitwork-github-xnoto
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  remoteUrl: https://api.githubcopilot.com/mcp/
+  transport: streamable-http
+  headerForward:
+    addHeadersFromSecret:
+      - headerName: Authorization
+        valueSecretRef:
+          name: mcp-makeitwork-github-xnoto
+          key: github_token
+---
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPRemoteProxy
+metadata:
+  name: makeitwork-parallel-search
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
@@ -58,7 +77,7 @@ spec:
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: apify
+  name: makeitwork-apify
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
