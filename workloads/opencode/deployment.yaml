@@ -27,16 +27,22 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        - name: agents
+        - name: server-config
           image: docker.io/alpine/git:v2.49.1
           command:
             - /bin/sh
             - -ec
             - |
-              # Keep agent behavior reviewable through this pinned source revision.
-              git clone --depth 1 https://github.com/xnoto/opencode-config.git /tmp/opencode-config
-              test "$(git -C /tmp/opencode-config rev-parse HEAD)" = 22a9446be2c5120474f3ce9000d0d5105c2b7737
-              cp -a /tmp/opencode-config/agents/. /agents/
+              # Fetch the pinned server config (agents + opencode.json) by exact
+              # SHA: reproducible, and a moving main can never break restarts.
+              # Bump the SHA here to publish newer repo content.
+              mkdir -p /tmp/server-config
+              git -C /tmp/server-config init -q
+              git -C /tmp/server-config remote add origin https://github.com/xnoto/opencode-server-config.git
+              git -C /tmp/server-config fetch -q --depth 1 origin 22037f0f9b44eca8770d491b33e1b2e005017802
+              git -C /tmp/server-config checkout -q FETCH_HEAD
+              cp -a /tmp/server-config/agents/. /agents/
+              cp /tmp/server-config/opencode.json /serverconfig/opencode.json
           env:
             - name: HOME
               value: /tmp
@@ -49,6 +55,8 @@ spec:
           volumeMounts:
             - name: agents
               mountPath: /agents
+            - name: serverconfig
+              mountPath: /serverconfig
             - name: tmp
               mountPath: /tmp
         - name: seed-openai-auth
@@ -121,7 +129,7 @@ spec:
             - name: agents
               mountPath: /home/opencode/.config/opencode/agents
               readOnly: true
-            - name: config
+            - name: serverconfig
               mountPath: /home/opencode/.config/opencode/opencode.json
               subPath: opencode.json
               readOnly: true
@@ -136,8 +144,7 @@ spec:
             secretName: opencode-openai-auth
         - name: agents
           emptyDir: {}
-        - name: config
-          configMap:
-            name: opencode-config
+        - name: serverconfig
+          emptyDir: {}
         - name: tmp
           emptyDir: {}
