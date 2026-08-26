@@ -18,5 +18,13 @@ data:
             "apiKey": "{env:KIMI_API_KEY}"
           }
         }
+      },
+      "mcp": {
+        "mcp-gateway": {
+          "type": "remote",
+          "url": "http://vmcp-gateway.mcp.svc:4483/mcp",
+          "enabled": true,
+          "oauth": false
+        }
       }
     }

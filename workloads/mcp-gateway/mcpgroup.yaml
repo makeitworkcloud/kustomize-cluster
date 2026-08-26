@@ -1,0 +1,9 @@
+---
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPGroup
+metadata:
+  name: gateway
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec: {}
