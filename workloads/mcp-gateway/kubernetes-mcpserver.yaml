@@ -1,0 +1,91 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-kubernetes
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+automountServiceAccountToken: false
+---
+# Read-only across the cluster, but Secrets stay excluded: KSOPS-decrypted
+# secrets live in-cluster and the gateway must not become a read path to them.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mcp-kubernetes-readonly
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  - apiGroups: [""]
+    resources:
+      - configmaps
+      - endpoints
+      - events
+      - limitranges
+      - namespaces
+      - nodes
+      - persistentvolumeclaims
+      - pods
+      - pods/log
+      - replicationcontrollers
+      - resourcequotas
+      - serviceaccounts
+      - services
+    verbs: ["get", "list", "watch"]
+  - apiGroups:
+      - actions.github.com
+      - apiextensions.k8s.io
+      - apps
+      - argoproj.io
+      - autoscaling
+      - batch
+      - cert-manager.io
+      - grafana.integreatly.org
+      - metrics.k8s.io
+      - monitoring.coreos.com
+      - networking.cfargotunnel.com
+      - networking.k8s.io
+      - policy
+      - rbac.authorization.k8s.io
+      - storage.k8s.io
+      - toolhive.stacklok.dev
+      - tor.k8s.torproject.org
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mcp-kubernetes-readonly
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mcp-kubernetes-readonly
+subjects:
+  - kind: ServiceAccount
+    name: mcp-kubernetes
+    namespace: mcp
+---
+# --read-only is belt-and-braces: even an RBAC mistake cannot make this
+# server perform writes through the MCP tool surface.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: kubernetes
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  image: ghcr.io/containers/kubernetes-mcp-server:v0.0.66@sha256:6d650f4bd6ac303ad82713c997e73a2d001602f9bf17392c9b9a0e30e29c6423
+  transport: streamable-http
+  mcpPort: 8080
+  serviceAccount: mcp-kubernetes
+  args:
+    - --read-only
+    - --port
+    - "8080"

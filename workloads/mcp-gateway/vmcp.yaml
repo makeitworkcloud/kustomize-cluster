@@ -1,0 +1,16 @@
+---
+# ClusterIP-only trust boundary: edge auth is Cloudflare Access on
+# mcp.makeitwork.cloud (tfroot-cloudflare); flannel does not enforce
+# NetworkPolicy on this cluster, so anonymous here is a deliberate choice.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: VirtualMCPServer
+metadata:
+  name: gateway
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  groupRef:
+    name: gateway
+  incomingAuth:
+    type: anonymous
