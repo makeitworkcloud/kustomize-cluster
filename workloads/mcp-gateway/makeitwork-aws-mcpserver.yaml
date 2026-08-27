@@ -21,6 +21,8 @@ spec:
       value: /app/.aws/config
     - name: AWS_SDK_LOAD_CONFIG
       value: "1"
+    - name: AWS_API_MCP_WORKING_DIR
+      value: /tmp/aws-api-mcp/workdir
     - name: READ_OPERATIONS_ONLY
       value: "true"
     - name: AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS
@@ -33,6 +35,8 @@ spec:
         - name: aws-config
           configMap:
             name: mcp-aws-config
+        - name: aws-workdir
+          emptyDir: {}
       containers:
         - name: mcp
           env:
@@ -50,3 +54,5 @@ spec:
             - name: aws-config
               mountPath: /app/.aws
               readOnly: true
+            - name: aws-workdir
+              mountPath: /tmp
