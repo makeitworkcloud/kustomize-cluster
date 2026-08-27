@@ -9,6 +9,8 @@ resources:
   - grafana-mcpserver.yaml
   - aws-docs-mcpserver.yaml
   - terraform-docs-mcpserver.yaml
+  - makeitwork-github-mcpserver.yaml
+  - makeitwork-github-xnoto-mcpserver.yaml
   - remote-proxies.yaml
   - vmcp.yaml
   - tunnel-binding.yaml

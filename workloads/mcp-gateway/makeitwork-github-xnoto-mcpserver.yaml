@@ -1,0 +1,34 @@
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: makeitwork-github-xnoto
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  image: ghcr.io/github/github-mcp-server:v1.11.0@sha256:fbec75de11c255213fa08d80fb166abe73d851fff631c51c0079872967720699
+  transport: stdio
+  env:
+    - name: GITHUB_APP_ID
+      value: "4732925"
+    - name: GITHUB_APP_INSTALLATION_ID
+      value: "156877595"
+    - name: GITHUB_APP_PRIVATE_KEY_PATH
+      value: /var/run/secrets/github-app/private-key.pem
+  podTemplateSpec:
+    spec:
+      volumes:
+        - name: github-app-key
+          secret:
+            secretName: mcp-makeitwork-github-xnoto-app
+            items:
+              - key: github_app_private_key
+                path: private-key.pem
+      containers:
+        - name: mcp
+          volumeMounts:
+            - name: github-app-key
+              mountPath: /var/run/secrets/github-app
+              readOnly: true
