@@ -27,13 +27,6 @@ spec:
       value: no-access
     - name: AWS_API_MCP_TELEMETRY
       value: "false"
-  secrets:
-    - name: mcp-aws
-      key: AWS_ACCESS_KEY_ID
-      targetEnvName: AWS_ACCESS_KEY_ID
-    - name: mcp-aws
-      key: AWS_SECRET_ACCESS_KEY
-      targetEnvName: AWS_SECRET_ACCESS_KEY
   podTemplateSpec:
     spec:
       volumes:
@@ -42,6 +35,17 @@ spec:
             name: mcp-aws-config
       containers:
         - name: mcp
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-aws
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-aws
+                  key: AWS_SECRET_ACCESS_KEY
           volumeMounts:
             - name: aws-config
               mountPath: /app/.aws
