@@ -8,12 +8,16 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
-  source:
-    repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
-    path: workloads/opencode
-    targetRevision: main
+  sources:
+    - chart: opencode-server
+      repoURL: ghcr.io/makeitworkcloud/charts
+      targetRevision: 0.1.0
+    - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
+      path: workloads/opencode
+      targetRevision: main
   destination:
     server: https://kubernetes.default.svc
+    namespace: opencode
   syncPolicy:
     automated:
       prune: true
