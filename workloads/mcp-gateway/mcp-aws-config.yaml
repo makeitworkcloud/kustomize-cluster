@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-aws-config
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  config: |
+    [profile opencode-mcp]
+    role_arn = arn:aws:iam::332355796717:role/opencode-managed-mcp
+    credential_source = Environment
+    region = us-west-2
