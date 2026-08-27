@@ -13,6 +13,8 @@ spec:
   transport: stdio
   proxyMode: streamable-http
   env:
+    - name: HOME
+      value: /tmp
     - name: AWS_REGION
       value: us-west-2
     - name: AWS_API_MCP_PROFILE_NAME
