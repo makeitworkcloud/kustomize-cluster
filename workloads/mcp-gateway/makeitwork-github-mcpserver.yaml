@@ -9,8 +9,8 @@ spec:
   groupRef:
     name: gateway
   image: ghcr.io/github/github-mcp-server:v1.11.0@sha256:fbec75de11c255213fa08d80fb166abe73d851fff631c51c0079872967720699
-  transport: stdio
-  proxyMode: streamable-http
+  transport: streamable-http
+  mcpPort: 8080
   secrets:
     - name: mcp-makeitwork-github-token
       key: github_token
