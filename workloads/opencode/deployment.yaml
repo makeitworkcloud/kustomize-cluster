@@ -42,7 +42,7 @@ spec:
               git -C /tmp/server-config init -q
               git -C /tmp/server-config remote add origin https://github.com/makeitworkcloud/opencode-server-config.git 2>/dev/null \
                 || git -C /tmp/server-config remote set-url origin https://github.com/makeitworkcloud/opencode-server-config.git
-              git -C /tmp/server-config fetch -q --depth 1 origin 9d486a52d98ba802674632b392d662061ab2a161
+              git -C /tmp/server-config fetch -q --depth 1 origin 3d65af810a93bc7f34d5e4cc94cedbf5927166d5
               git -C /tmp/server-config checkout -q FETCH_HEAD
               cp -a /tmp/server-config/agents/. /agents/
               cp /tmp/server-config/opencode.json /serverconfig/opencode.json
