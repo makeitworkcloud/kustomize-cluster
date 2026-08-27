@@ -1,0 +1,48 @@
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: makeitwork-aws
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  # Pinned to the upstream source commit tag published by AWS Labs.
+  image: public.ecr.aws/awslabs-mcp/awslabs/aws-api-mcp-server:sha-ebcafaed027f56a2fc3faaa9ee6e95476b62adae #gitleaks:allow
+  transport: stdio
+  proxyMode: streamable-http
+  env:
+    - name: AWS_REGION
+      value: us-west-2
+    - name: AWS_API_MCP_PROFILE_NAME
+      value: opencode-mcp
+    - name: AWS_CONFIG_FILE
+      value: /app/.aws/config
+    - name: AWS_SDK_LOAD_CONFIG
+      value: "1"
+    - name: READ_OPERATIONS_ONLY
+      value: "true"
+    - name: AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS
+      value: no-access
+    - name: AWS_API_MCP_TELEMETRY
+      value: "false"
+  secrets:
+    - name: mcp-aws
+      key: AWS_ACCESS_KEY_ID
+      targetEnvName: AWS_ACCESS_KEY_ID
+    - name: mcp-aws
+      key: AWS_SECRET_ACCESS_KEY
+      targetEnvName: AWS_SECRET_ACCESS_KEY
+  podTemplateSpec:
+    spec:
+      volumes:
+        - name: aws-config
+          configMap:
+            name: mcp-aws-config
+      containers:
+        - name: mcp
+          volumeMounts:
+            - name: aws-config
+              mountPath: /app/.aws
+              readOnly: true

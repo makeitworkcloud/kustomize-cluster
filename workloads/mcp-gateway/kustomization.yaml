@@ -8,6 +8,8 @@ resources:
   - argocd-mcpserver.yaml
   - grafana-mcpserver.yaml
   - aws-docs-mcpserver.yaml
+  - mcp-aws-config.yaml
+  - makeitwork-aws-mcpserver.yaml
   - terraform-docs-mcpserver.yaml
   - makeitwork-github-mcpserver.yaml
   - remote-proxies.yaml
