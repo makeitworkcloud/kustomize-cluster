@@ -9,7 +9,7 @@ spec:
   groupRef:
     name: gateway
   # Pinned to the upstream source commit tag published by AWS Labs.
-  image: public.ecr.aws/awslabs-mcp/awslabs/aws-api-mcp-server:sha-ebcafaed027f56a2fc3faaa9ee6e95476b62adae
+  image: public.ecr.aws/awslabs-mcp/awslabs/aws-api-mcp-server:sha-ebcafaed027f56a2fc3faaa9ee6e95476b62adae #gitleaks:allow
   transport: stdio
   proxyMode: streamable-http
   env:
