@@ -8,7 +8,7 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
     makeitwork.cloud/dns-reconcile: "2026-08-28"
 subjects:
-  - name: alertmanager
+  - name: kube-prometheus-stack-alertmanager
     spec:
       fqdn: alertmanager.makeitwork.cloud
       target: http://kube-prometheus-stack-alertmanager.monitoring.svc:9093
