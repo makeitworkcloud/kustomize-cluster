@@ -9,10 +9,10 @@ spec:
   groupRef:
     name: gateway
   image: ghcr.io/github/github-mcp-server:v1.11.0@sha256:fbec75de11c255213fa08d80fb166abe73d851fff631c51c0079872967720699
-  transport: stdio
-  # OpenCode's remote MCP client uses streamable HTTP. Keep the stdio backend
-  # behind ToolHive's matching proxy mode so initialize is session-safe.
-  proxyMode: streamable-http
+  transport: streamable-http
+  mcpPort: 8082
+  args:
+    - http
   secrets:
     - name: mcp-makeitwork-github-token
       key: github_token
