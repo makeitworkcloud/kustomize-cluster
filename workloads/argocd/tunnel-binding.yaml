@@ -6,6 +6,7 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
+    makeitwork.cloud/dns-reconcile: "2026-08-28"
 subjects:
   - name: argocd-server
     spec:

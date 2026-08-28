@@ -50,13 +50,14 @@ The Cloudflare API token lives in `cert-manager/cloudflare-api-token` and is ref
 
 ## Cloudflare Tunnel DNS
 
-App DNS and routes have coordinated owners:
+Tunnel DNS and routes have a bootstrap boundary:
 
-- `tfroot-cloudflare/cf-tunnels.tf` declares CNAMEs
-- `TunnelBinding` resources declare routes and the operator-managed ownership TXT records
+- `tfroot-cloudflare/cf-tunnels.tf` owns the `api` and `k3s` bootstrap CNAMEs
+- Their `TunnelBinding` sets `tunnelRef.disableDNSUpdates: true` while managing routes
+- Workload `TunnelBinding` resources own both their CNAMEs and operator-managed ownership TXT records
 - `subjects[].name` must match the real Kubernetes `Service` name in the same namespace; if it doesn't exist, status reports `http_status:404`
-- Add-order matters: declare a new hostname in `tfroot-cloudflare` and let its apply create the CNAME *before* merging the `TunnelBinding` here. The operator creates DNS on sync; if it wins the race, the tfroot-cloudflare apply fails with `81053` (record already exists) and the record must be imported into state (see tfroot-cloudflare `AGENTS.md`, Failure Modes)
-- Remove and reconcile the `TunnelBinding` before removing its Terraform hostname; deleting only the CNAME leaves a stale `_managed.<fqdn>` TXT record and causes update-by-stale-id failures (`Record does not exist. (81044)`)
+- For a bootstrap hostname, add its CNAME to `tfroot-cloudflare` and set `disableDNSUpdates: true` here.
+- For a workload hostname, add it only to the appropriate `TunnelBinding`; do not create a Terraform CNAME.
 
 ## kubectl Access
 
@@ -179,7 +180,7 @@ pre-commit run --all-files
 
 1. **ArgoCD waves are per-Application** — Cross-Application ordering needs hooks or separate sync operations.
 2. **TunnelBinding `subjects[].name` is a Service lookup key** — A typo here surfaces as `http_status:404` in operator status, not a missing-Service error.
-3. **Cloudflare stale TXT records break reconciliation** — Remove orphan `_managed.<fqdn>` TXT records before recreating CNAMEs.
+3. **Bootstrap DNS is OpenTofu-owned** — Keep `api` and `k3s` DNS updates disabled in their `TunnelBinding`; workload DNS stays operator-owned.
 4. **Tor secret format** — Use `data` with raw binary base64; `stringData` double-encodes.
 5. **KSOPS needs the age key in the repo-server pod** — Without `sops-age-keys` mounted, manifest generation fails before any sync.
 6. **DNS-01 requires external resolvers** — cluster DNS cannot validate Let's Encrypt challenges; the cert-manager controller args above are required.

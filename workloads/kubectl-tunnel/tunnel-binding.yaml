@@ -27,3 +27,5 @@ subjects:
 tunnelRef:
   kind: ClusterTunnel
   name: cluster-apps
+  # tfroot-cloudflare owns the bootstrap DNS needed before workloads reconcile.
+  disableDNSUpdates: true
