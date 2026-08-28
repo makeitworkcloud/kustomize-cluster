@@ -11,7 +11,7 @@ resources:
   - mcp-aws-config.yaml
   - makeitwork-aws-mcpserver.yaml
   - terraform-docs-mcpserver.yaml
-  - makeitwork-github-mcpserver.yaml
+  - makeitwork-github-remote-proxy.yaml
   - remote-proxies.yaml
   - vmcp.yaml
   - tunnel-binding.yaml
