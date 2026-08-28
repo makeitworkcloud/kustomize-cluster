@@ -1,208 +1,26 @@
-# Agent Context for kustomize-cluster
+# Agent Instructions
 
-GitOps manifests for the k3s cluster behind makeitwork.cloud. ArgoCD reconciles this repo using KSOPS for inline secret decryption.
+## Ownership and safety
 
-## Sync Wave Architecture
+`kustomize-cluster` is live GitOps desired state for the Make IT Work Cloud k3s cluster. Argo CD reconciles `bootstrap/secrets`, `operators`, and `workloads/apps` using KSOPS. Treat every manifest change as potentially production-affecting.
 
-```
-Wave 0: ArgoCD config, OIDC RBAC, CI service account
-Wave 1: bootstrap-secrets, gitops-operators
-Wave 2: gitops-workloads
-PostSync: ci-token-sync, wait-for-* jobs
-```
+Use GitHub MCP for repository work and Argo CD, Kubernetes, and Grafana MCPs for read-only diagnosis. Do not use local `kubectl`, `sops`, `argocd`, or shell assumptions in this headless session. Do not sync, patch, restart, scale, delete, or run an Argo resource action without explicit confirmation.
 
-Sync waves order resources within a single ArgoCD Application — they are **not** global across Applications. The App-of-Apps structure plus `wait-for-*` post-sync jobs enforces cross-Application ordering.
+## Structure and ordering
 
-The active Applications reconcile `bootstrap/secrets`, `operators`, and
-`workloads/apps`; they do **not** reconcile the rest of `bootstrap/`. Changes
-to the ArgoCD CR, OIDC RBAC, or CI ServiceAccount require a separately reviewed
-bootstrap apply or node provisioning.
+- `bootstrap/` owns App-of-Apps wiring, Argo CD configuration, OIDC/RBAC, CI bootstrap, and bootstrap secrets.
+- `operators/` owns cluster operators and their configuration.
+- `workloads/` owns workload applications; `workloads/apps` is the reconciled application entry point.
+- Sync waves order resources only within an Argo CD Application. Cross-Application ordering is implemented by App-of-Apps wiring and wait jobs.
 
-## Domain Architecture
+Read the closest nested `AGENTS.md` before changing a subtree. Preserve Kustomize layout, KSOPS generators, Argo sync behavior, and existing ownership boundaries.
 
-| Domain | Path | TLS |
-|---|---|---|
-| `<app>.makeitwork.cloud` | HTTP via cloudflare-operator `TunnelBinding` | Cloudflare edge |
-| `api.makeitwork.cloud` | HTTPS via `ClusterTunnel` to kube-apiserver; Kubernetes OIDC required | Cloudflare edge |
-| `k3s.makeitwork.cloud` | TCP via `ClusterTunnel` to kube-apiserver, gated by Cloudflare Access (migration fallback) | Cloudflare edge |
+## Cross-repository ownership
 
-There is no in-cluster ingress controller and no public IP. Every external entry point — public web, kubectl, everything — uses a Cloudflare Tunnel managed by cloudflare-operator. `tfroot-cloudflare` owns bootstrap DNS, while workload `TunnelBinding` resources own their proxied CNAME and `_managed.<fqdn>` ownership TXT record; the legacy `*.apps.makeitwork.cloud` hostnames are not in use.
+- `charts/opencode-server` owns the packaged OpenCode server chart. Update the consuming `workloads/opencode` version only after the chart is published and only with explicit rollout approval.
+- `tfroot-cloudflare` owns bootstrap/non-tunnel Cloudflare infrastructure. Workload TunnelBinding resources own workload routes and DNS.
+- `images` owns shared runner images; `shared-workflows` owns reusable Actions.
 
-## Key Namespaces
+## Secrets and validation
 
-- `argocd` — ArgoCD, KSOPS plugin, `sops-age-keys` Secret
-- `cert-manager` — cert-manager controllers + Cloudflare API token
-- `cloudflare-operator-system` — cloudflare-operator, tunnel deployment, Cloudflare API secret
-- `arc-systems` — ARC controller (Actions Runner Controller)
-- `arc-runners` — ARC scale sets, listeners, and ephemeral runner pods
-
-## Certificate Management
-
-cert-manager issues Let's Encrypt certs via the Cloudflare DNS-01 solver. The cluster DNS cannot resolve external domains, so the controller is configured to use external recursive nameservers:
-
-```yaml
-extraArgs:
-  - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
-  - --dns01-recursive-nameservers-only
-```
-
-The Cloudflare API token lives in `cert-manager/cloudflare-api-token` and is referenced from `ClusterIssuer` resources.
-
-## Cloudflare Tunnel DNS
-
-Tunnel DNS and routes have a bootstrap boundary:
-
-- `tfroot-cloudflare/cf-tunnels.tf` owns the `api` and `k3s` bootstrap CNAMEs
-- Their `TunnelBinding` sets `tunnelRef.disableDNSUpdates: true` while managing routes
-- Workload `TunnelBinding` resources own both their CNAMEs and operator-managed ownership TXT records
-- `subjects[].name` must match the real Kubernetes `Service` name in the same namespace; if it doesn't exist, status reports `http_status:404`
-- For a bootstrap hostname, add its CNAME to `tfroot-cloudflare` and set `disableDNSUpdates: true` here.
-- For a workload hostname, add it only to the appropriate `TunnelBinding`; do not create a Terraform CNAME.
-
-## kubectl Access
-
-Use the dedicated `makeitworkcloud-k3s` kubeconfig and the Cloudflare/Dex OIDC
-procedure in `README.md#kubectl-access`. Normal access connects directly to
-`https://api.makeitwork.cloud`; Cloudflare provides public TLS and Dex provides
-the Kubernetes identity. Never use or modify an unrelated production or
-staging context. If no Make IT Work Cloud context is configured, create the
-non-secret exec kubeconfig from `docs/kubeconfig.example.yaml`; do not copy the
-k3s admin kubeconfig or private cluster CA off the node.
-
-## SOPS / KSOPS
-
-**Selective field encryption only.** `.sops.yaml` defines `encrypted_regex` so only sensitive values are encrypted; manifests stay diffable.
-
-```yaml
-encrypted_regex: '^(token|api-token|clientID|clientSecret|password|secret|github_token|CLOUDFLARE_API_TOKEN|credentials\.json|.*_SERVICE_KEY|GF_AUTH_GITHUB_CLIENT_SECRET|GF_SECURITY_ADMIN_PASSWORD|dex\.github\.clientID|dex\.github\.clientSecret)$'
-```
-
-### Conventions
-
-- One Secret per file; reference by name from CRDs/Applications
-- Never encrypt non-Secret manifests (Namespaces, RBAC, ConfigMaps)
-- Never encrypt metadata (names, namespaces, labels, annotations)
-
-### Example
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: argocd-github-oauth
-  namespace: argocd
-type: Opaque
-stringData:
-  dex.github.clientID: Ov23liV3VghvjBnQjsWQ
-  dex.github.clientSecret: <only this and clientID get encrypted>
-```
-
-### Commands
-
-```bash
-sops -e -i secret.yaml      # encrypt in place
-sops -d secret.yaml         # decrypt to stdout
-sops secret.yaml            # edit decrypted, re-encrypt on save
-```
-
-### KSOPS generators
-
-Each directory with secrets has a generator listing its encrypted files; the kustomization separates plain `resources` from KSOPS `generators`:
-
-```yaml
-resources:
-  - deployment.yaml
-  - configmap.yaml
-generators:
-  - ksops-example-secrets.yaml
-```
-
-The age private key is mounted into the ArgoCD repo-server as the `sops-age-keys` Secret in the `argocd` namespace.
-
-## Tor Hidden Services
-
-Managed by tor-controller with `OnionService` CRDs per workload.
-
-- Tor keys must use `data` (not `stringData`) with base64-encoded raw binary; the file starts with `== ed25519v1-secret: type0 ==`
-- Public `.onion` addresses are documented in `../www/onion.makeitwork.cloud/index.html`
-
-## Resource Sizing
-
-Single-node cluster — default to **no container `resources` block**.
-
-- Explicit requests trigger `Insufficient cpu/memory` scheduling failures
-- CPU limits cause throttling even with spare capacity
-- Memory limits can cause avoidable OOM kills
-
-```yaml
-containers:
-  - name: app
-    image: example/image:tag
-    resources: {}
-```
-
-For operators installed via Helm/Subscription, prefer values that disable resources (`resources: {}` or operator-specific fields). For operators installed via kustomize remote refs, strip `resources` with a JSON patch:
-
-```yaml
-patches:
-  - patch: |
-      - op: remove
-        path: /spec/template/spec/containers/0/resources
-    target:
-      kind: Deployment
-      name: controller-manager
-```
-
-If kube-linter complains, annotate the Deployment:
-
-```yaml
-annotations:
-  ignore-check.kube-linter.io/unset-cpu-requirements: "single-node policy"
-  ignore-check.kube-linter.io/unset-memory-requirements: "single-node policy"
-```
-
-## Pre-commit
-
-```bash
-pre-commit install --hook-type commit-msg --hook-type pre-push
-pre-commit run --all-files
-```
-
-| Hook | Purpose |
-|---|---|
-| `conventional-pre-commit` | Conventional commit message format |
-| `check-yaml` | YAML syntax |
-| `detect-private-key` | Block private key commits |
-| `kube-linter` | Kubernetes manifest sanity |
-| `trailing-whitespace`, `end-of-file-fixer` | Formatting |
-
-## Common Gotchas
-
-1. **ArgoCD waves are per-Application** — Cross-Application ordering needs hooks or separate sync operations.
-2. **TunnelBinding `subjects[].name` is a Service lookup key** — A typo here surfaces as `http_status:404` in operator status, not a missing-Service error.
-<<<<<<< HEAD
-3. **Tunnel DNS is operator-owned** — Do not add tunnel CNAMEs to OpenTofu; resolve `unmanaged FQDN present` by identifying and removing the conflicting owner.
-=======
-3. **Bootstrap DNS is OpenTofu-owned** — Keep `api` and `k3s` DNS updates disabled in their `TunnelBinding`; workload DNS stays operator-owned.
->>>>>>> 0234946 (fix: reconcile workload tunnel DNS)
-4. **Tor secret format** — Use `data` with raw binary base64; `stringData` double-encodes.
-5. **KSOPS needs the age key in the repo-server pod** — Without `sops-age-keys` mounted, manifest generation fails before any sync.
-6. **DNS-01 requires external resolvers** — cluster DNS cannot validate Let's Encrypt challenges; the cert-manager controller args above are required.
-7. **ARC upgrades can leave stale runner objects** — because pruning is disabled for controller-generated listener resources, a chart upgrade can leave a listener referencing a deleted `EphemeralRunnerSet`. The listener then restarts with `ephemeralrunnersets.actions.github.com "<name>" not found`, and `arc-tf` jobs remain queued. Inspect the listener pod's owner and current ARC custom resources before cleanup. During the 0.14.2 upgrade, the stale `EphemeralRunner` object had to be deleted manually so ARC could redeploy its objects; restarting only the listener pod was insufficient.
-
-## Useful Commands
-
-```bash
-kubectl get certificate -A          # cert status
-kubectl get challenges -A           # DNS-01 validation
-sops -d path/to/secret.yaml         # inspect a secret
-argocd app sync <app-name>          # force sync
-argocd app get <app-name>           # app status
-```
-
-## Related Repositories
-
-- `makeitworkcloud/ansible-site-cluster` — k3s cluster provisioning
-- `makeitworkcloud/www` — static site, source of `.onion` documentation
-- `makeitworkcloud/shared-workflows` — reusable GitHub Actions workflows
-- `makeitworkcloud/tfroot-cloudflare` — non-tunnel Cloudflare infrastructure
+Keep Secret data SOPS-encrypted and never expose plaintext, age keys, tokens, kubeconfigs, certificates, or sensitive plan output. Use repository CI as validation evidence. Report affected Application, paths, sync/health evidence, and rollout state.
