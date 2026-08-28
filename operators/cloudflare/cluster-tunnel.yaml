@@ -3,6 +3,8 @@ apiVersion: networking.cfargotunnel.com/v1alpha2
 kind: ClusterTunnel
 metadata:
   name: cluster-apps
+  # Existing tunnels are externally owned and must not use the operator's destructive finalizer.
+  finalizers: []
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
