@@ -17,7 +17,7 @@ Read the closest nested `AGENTS.md` before changing a subtree. Preserve Kustomiz
 
 ## Cross-repository ownership
 
-- `charts/opencode-server` owns the packaged OpenCode server chart. Update the consuming `workloads/opencode` version only after the chart is published and only with explicit rollout approval.
+- `charts/opencode-server` owns the packaged OpenCode server chart. Its post-publish workflow opens or updates a `kustomize-cluster` pull request that pins the `opencode` Application to the immutable published version. The generated PR must pass cluster CI and be reviewed and merged before GitOps reconciles it; the automation never syncs Argo CD or deploys directly.
 - `tfroot-cloudflare` owns bootstrap/non-tunnel Cloudflare infrastructure. Workload TunnelBinding resources own workload routes and DNS.
 - `images` owns shared runner images; `shared-workflows` owns reusable Actions.
 
