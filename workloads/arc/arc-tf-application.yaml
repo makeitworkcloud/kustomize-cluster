@@ -29,6 +29,20 @@ spec:
         githubConfigUrl: https://github.com/makeitworkcloud
         maxRunners: 5
         minRunners: 2
+        # ARC creates the listener and its Role/RoleBinding dynamically and
+        # propagates Argo CD's instance label to them. The chart does not
+        # render these resources, so ignore them for this application's sync
+        # status without suppressing their health.
+        resourceMeta:
+          autoscalingListener:
+            annotations:
+              argocd.argoproj.io/compare-options: IgnoreExtraneous
+          listenerRole:
+            annotations:
+              argocd.argoproj.io/compare-options: IgnoreExtraneous
+          listenerRoleBinding:
+            annotations:
+              argocd.argoproj.io/compare-options: IgnoreExtraneous
         # NOTE: do not add a `listenerTemplate.spec.containers[0].ports`
         # entry for `metrics` here — enabling `listenerMetrics` below makes
         # the chart inject a `metrics` port on the listener container, and a
@@ -118,13 +132,11 @@ spec:
       jsonPointers:
         - /metadata/annotations
         - /spec/template/metadata/annotations
-  # prune is disabled because the controller dynamically creates an
+  # prune remains disabled because ARC dynamically creates an
   # AutoscalingListener plus a paired Role/RoleBinding (named
-  # arc-tf-<hash>-listener) and labels them with app.kubernetes.io/instance,
-  # so ArgoCD's label-based tracking claims them as managed. The chart does
-  # not render these, so with prune=true ArgoCD repeatedly prunes them and
-  # the controller recreates them — a sync loop. selfHeal still keeps the
-  # chart-rendered resources reconciled.
+  # arc-tf-<hash>-listener) that the chart does not render. Pruning them would
+  # make ARC recreate them in a sync loop. selfHeal still keeps the chart-
+  # rendered resources reconciled.
   syncPolicy:
     automated:
       prune: false
