@@ -26,7 +26,7 @@ bootstrap apply or node provisioning.
 | `api.makeitwork.cloud` | HTTPS via `ClusterTunnel` to kube-apiserver; Kubernetes OIDC required | Cloudflare edge |
 | `k3s.makeitwork.cloud` | TCP via `ClusterTunnel` to kube-apiserver, gated by Cloudflare Access (migration fallback) | Cloudflare edge |
 
-There is no in-cluster ingress controller and no public IP. Every external entry point — public web, kubectl, everything — uses a Cloudflare Tunnel managed by cloudflare-operator. Each `TunnelBinding` exclusively owns its proxied CNAME and `_managed.<fqdn>` ownership TXT record; the legacy `*.apps.makeitwork.cloud` hostnames are not in use.
+There is no in-cluster ingress controller and no public IP. Every external entry point — public web, kubectl, everything — uses a Cloudflare Tunnel managed by cloudflare-operator. `tfroot-cloudflare` owns bootstrap DNS, while workload `TunnelBinding` resources own their proxied CNAME and `_managed.<fqdn>` ownership TXT record; the legacy `*.apps.makeitwork.cloud` hostnames are not in use.
 
 ## Key Namespaces
 
@@ -50,17 +50,14 @@ The Cloudflare API token lives in `cert-manager/cloudflare-api-token` and is ref
 
 ## Cloudflare Tunnel DNS
 
-`TunnelBinding` is the sole declarative owner of each tunnel hostname: it
-creates and reconciles the proxied CNAME and its `_managed.<fqdn>` TXT record.
-Do not declare tunnel-host CNAMEs in `tfroot-cloudflare` or any other system.
+Tunnel DNS and routes have a bootstrap boundary:
 
-- Add a hostname by adding it to the appropriate `TunnelBinding`.
-- Remove and reconcile the `TunnelBinding` before removing a route; its
-  finalizer removes both the CNAME and ownership TXT record.
-- `subjects[].name` must match the real Kubernetes `Service` name in the same
-  namespace; if it doesn't exist, status reports `http_status:404`.
-- If the operator reports `unmanaged FQDN present`, investigate the existing
-  record's owner; do not import it into OpenTofu.
+- `tfroot-cloudflare/cf-tunnels.tf` owns the `api` and `k3s` bootstrap CNAMEs
+- Their `TunnelBinding` sets `tunnelRef.disableDNSUpdates: true` while managing routes
+- Workload `TunnelBinding` resources own both their CNAMEs and operator-managed ownership TXT records
+- `subjects[].name` must match the real Kubernetes `Service` name in the same namespace; if it doesn't exist, status reports `http_status:404`
+- For a bootstrap hostname, add its CNAME to `tfroot-cloudflare` and set `disableDNSUpdates: true` here.
+- For a workload hostname, add it only to the appropriate `TunnelBinding`; do not create a Terraform CNAME.
 
 ## kubectl Access
 
@@ -183,7 +180,11 @@ pre-commit run --all-files
 
 1. **ArgoCD waves are per-Application** — Cross-Application ordering needs hooks or separate sync operations.
 2. **TunnelBinding `subjects[].name` is a Service lookup key** — A typo here surfaces as `http_status:404` in operator status, not a missing-Service error.
+<<<<<<< HEAD
 3. **Tunnel DNS is operator-owned** — Do not add tunnel CNAMEs to OpenTofu; resolve `unmanaged FQDN present` by identifying and removing the conflicting owner.
+=======
+3. **Bootstrap DNS is OpenTofu-owned** — Keep `api` and `k3s` DNS updates disabled in their `TunnelBinding`; workload DNS stays operator-owned.
+>>>>>>> 0234946 (fix: reconcile workload tunnel DNS)
 4. **Tor secret format** — Use `data` with raw binary base64; `stringData` double-encodes.
 5. **KSOPS needs the age key in the repo-server pod** — Without `sops-age-keys` mounted, manifest generation fails before any sync.
 6. **DNS-01 requires external resolvers** — cluster DNS cannot validate Let's Encrypt challenges; the cert-manager controller args above are required.

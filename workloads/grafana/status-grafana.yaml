@@ -8,6 +8,7 @@ metadata:
     dashboards: "grafana-status"
   annotations:
     argocd.argoproj.io/sync-wave: "1"
+    makeitwork.cloud/dns-reconcile: "2026-08-28"
 spec:
   config:
     log:
