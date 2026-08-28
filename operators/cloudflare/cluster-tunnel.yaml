@@ -3,11 +3,10 @@ apiVersion: networking.cfargotunnel.com/v1alpha2
 kind: ClusterTunnel
 metadata:
   name: cluster-apps
-  # Existing tunnels are externally owned and must not use the operator's destructive finalizer.
-  finalizers: []
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
+  # Terraform owns the remote tunnel lifecycle; the operator only reacquires it.
   existingTunnel:
     id: d17bee03-8687-46a7-831b-df48aacdea1e
     name: cluster-apps-k3s
