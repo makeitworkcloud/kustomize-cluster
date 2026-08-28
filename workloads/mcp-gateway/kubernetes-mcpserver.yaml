@@ -6,16 +6,18 @@ metadata:
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "0"
-# The server authenticates to the API with this token; the read-only
-# ClusterRole and --read-only flag bound what it can do with it.
+# The server authenticates to the API with this token. Its ClusterRole permits
+# CRUD for the explicitly listed non-Secret resources.
 automountServiceAccountToken: true
 ---
-# Read-only across the cluster, but Secrets stay excluded: KSOPS-decrypted
-# secrets live in-cluster and the gateway must not become a read path to them.
+# Operator access across the cluster. Secrets stay excluded: KSOPS-decrypted
+# secrets live in-cluster and the gateway must not become a read or write path
+# to them. The Kubernetes MCP server's generic resource operations use
+# server-side apply, which requires patch in addition to create/update/delete.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: mcp-kubernetes-readonly
+  name: mcp-kubernetes-operator
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 rules:
@@ -23,18 +25,27 @@ rules:
     resources:
       - configmaps
       - endpoints
-      - events
       - limitranges
       - namespaces
-      - nodes
       - persistentvolumeclaims
       - pods
-      - pods/log
       - replicationcontrollers
       - resourcequotas
       - serviceaccounts
       - services
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # These are diagnostics-only resources; retain the existing read access.
+  - apiGroups: [""]
+    resources:
+      - events
+      - nodes
+      - pods/log
     verbs: ["get", "list", "watch"]
+  # Exec is needed by the server's core pod tool.
+  - apiGroups: [""]
+    resources:
+      - pods/exec
+    verbs: ["create"]
   - apiGroups:
       - actions.github.com
       - apiextensions.k8s.io
@@ -54,25 +65,23 @@ rules:
       - toolhive.stacklok.dev
       - tor.k8s.torproject.org
     resources: ["*"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: mcp-kubernetes-readonly
+  name: mcp-kubernetes-operator
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: mcp-kubernetes-readonly
+  name: mcp-kubernetes-operator
 subjects:
   - kind: ServiceAccount
     name: mcp-kubernetes
     namespace: mcp
 ---
-# --read-only is belt-and-braces: even an RBAC mistake cannot make this
-# server perform writes through the MCP tool surface.
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
@@ -88,7 +97,6 @@ spec:
   mcpPort: 8080
   serviceAccount: mcp-kubernetes
   args:
-    - --read-only
     - --cluster-provider
     - in-cluster
     - --port
