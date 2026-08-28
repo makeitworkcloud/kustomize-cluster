@@ -22,7 +22,7 @@ metadata:
 spec:
   groupRef:
     name: gateway
-  remoteUrl: https://tryinspector.com/api/opencode-docs/mcp
+  remoteUrl: https://radiusbrowser.com/api/opencode-docs/mcp
   transport: streamable-http
 ---
 apiVersion: toolhive.stacklok.dev/v1beta1
