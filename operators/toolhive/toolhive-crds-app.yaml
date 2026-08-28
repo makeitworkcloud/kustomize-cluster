@@ -21,7 +21,7 @@ spec:
   source:
     chart: toolhive-operator-crds
     repoURL: ghcr.io/stacklok/toolhive
-    targetRevision: 0.44.0
+    targetRevision: 0.46.0
     helm:
       releaseName: toolhive-operator-crds
   syncPolicy:
