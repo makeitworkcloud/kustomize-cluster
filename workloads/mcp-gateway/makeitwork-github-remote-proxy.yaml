@@ -1,0 +1,31 @@
+---
+# Keep the GitHub PAT in the mcp namespace and inject it only on outbound
+# requests to GitHub's official remote MCP endpoint.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPExternalAuthConfig
+metadata:
+  name: makeitwork-github-auth
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  type: bearerToken
+  bearerToken:
+    tokenSecretRef:
+      name: mcp-makeitwork-github-token
+      key: github_token
+---
+# Cluster-internal only: omitting groupRef keeps this backend out of the
+# externally exposed VirtualMCPServer aggregation.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPRemoteProxy
+metadata:
+  name: makeitwork-github
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  remoteUrl: https://api.githubcopilot.com/mcp/
+  transport: streamable-http
+  externalAuthConfigRef:
+    name: makeitwork-github-auth

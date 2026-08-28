@@ -33,10 +33,6 @@ subjects:
     spec:
       fqdn: mcp-makeitwork-context7.makeitwork.cloud
       target: http://mcp-makeitwork-context7-remote-proxy.mcp.svc:8080
-  - name: mcp-makeitwork-github-proxy
-    spec:
-      fqdn: mcp-makeitwork-github.makeitwork.cloud
-      target: http://mcp-makeitwork-github-proxy.mcp.svc:8080
   - name: mcp-makeitwork-grafana-proxy
     spec:
       fqdn: mcp-makeitwork-grafana.makeitwork.cloud
