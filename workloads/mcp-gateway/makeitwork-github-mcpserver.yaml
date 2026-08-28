@@ -12,7 +12,7 @@ spec:
   transport: stdio
   # OpenCode's remote MCP client uses streamable HTTP. Keep the stdio backend
   # behind ToolHive's matching proxy mode so initialize is session-safe.
-  proxyMode: sse
+  proxyMode: streamable-http
   secrets:
     - name: mcp-makeitwork-github-token
       key: github_token
