@@ -38,18 +38,15 @@ There is no in-cluster ingress controller and no public IP. Every external entry
 
 ### TunnelBinding DNS
 
-App hostnames have two coordinated declarative control points:
+`TunnelBinding` is the exclusive declarative owner of tunnel-host DNS. For each
+configured FQDN, cloudflare-operator creates and reconciles the proxied CNAME
+to the referenced tunnel and its `_managed.<fqdn>` ownership TXT record.
+`tfroot-cloudflare` intentionally does not manage these CNAMEs.
 
-- `tfroot-cloudflare/cf-tunnels.tf` declares the CNAME at Cloudflare.
-- Each `TunnelBinding` declares the in-cluster route and cloudflare-operator
-  tracks it with a `_managed.<fqdn>` TXT record.
-
-The hostname lists must stay aligned. To retire a route, remove and reconcile
-the `TunnelBinding` first so the operator can clear its ownership record, then
-remove the Terraform hostname and review a narrow OpenTofu plan. Do not delete
-only the CNAME: a stale managed TXT record causes Cloudflare error `81044`.
-`subjects[].name` must match the real Kubernetes `Service` name in the same
-namespace.
+Add a public tunnel hostname by adding it to the workload's `TunnelBinding`.
+To retire one, remove and reconcile the `TunnelBinding`; its finalizer removes
+the CNAME and ownership TXT record. `subjects[].name` must match the real
+Kubernetes `Service` name in the same namespace.
 
 ## Authentication
 
