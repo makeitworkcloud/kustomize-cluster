@@ -27,8 +27,8 @@ spec:
           namespace: arc-systems
         githubConfigSecret: arc-runner-github-token
         githubConfigUrl: https://github.com/makeitworkcloud
-        maxRunners: 3
-        minRunners: 1
+        maxRunners: 5
+        minRunners: 2
         # NOTE: do not add a `listenerTemplate.spec.containers[0].ports`
         # entry for `metrics` here — enabling `listenerMetrics` below makes
         # the chart inject a `metrics` port on the listener container, and a
