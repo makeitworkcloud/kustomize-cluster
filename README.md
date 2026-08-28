@@ -38,15 +38,15 @@ There is no in-cluster ingress controller and no public IP. Every external entry
 
 ### TunnelBinding DNS
 
-`TunnelBinding` is the exclusive declarative owner of tunnel-host DNS. For each
-configured FQDN, cloudflare-operator creates and reconciles the proxied CNAME
-to the referenced tunnel and its `_managed.<fqdn>` ownership TXT record.
-`tfroot-cloudflare` intentionally does not manage these CNAMEs.
+`tfroot-cloudflare` owns the bootstrap `api` and `k3s` CNAMEs required to
+reach the Kubernetes API before cluster workloads reconcile. Their
+`TunnelBinding` manages routes with `tunnelRef.disableDNSUpdates: true`.
 
-Add a public tunnel hostname by adding it to the workload's `TunnelBinding`.
-To retire one, remove and reconcile the `TunnelBinding`; its finalizer removes
-the CNAME and ownership TXT record. `subjects[].name` must match the real
-Kubernetes `Service` name in the same namespace.
+Every workload `TunnelBinding` owns its own CNAME and
+`_managed.<fqdn>` ownership TXT record through cloudflare-operator. Add and
+retire workload DNS through the binding; do not declare it in OpenTofu.
+`subjects[].name` must match the real Kubernetes `Service` name in the same
+namespace.
 
 ## Authentication
 
