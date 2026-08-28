@@ -34,11 +34,14 @@ rules:
       - serviceaccounts
       - services
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Pod logs remain readable and exec is needed by the server's core pod tool.
+  # These are diagnostics-only resources; retain the existing read access.
   - apiGroups: [""]
     resources:
+      - events
+      - nodes
       - pods/log
-    verbs: ["get"]
+    verbs: ["get", "list", "watch"]
+  # Exec is needed by the server's core pod tool.
   - apiGroups: [""]
     resources:
       - pods/exec
