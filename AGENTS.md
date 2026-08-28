@@ -26,7 +26,7 @@ bootstrap apply or node provisioning.
 | `api.makeitwork.cloud` | HTTPS via `ClusterTunnel` to kube-apiserver; Kubernetes OIDC required | Cloudflare edge |
 | `k3s.makeitwork.cloud` | TCP via `ClusterTunnel` to kube-apiserver, gated by Cloudflare Access (migration fallback) | Cloudflare edge |
 
-There is no in-cluster ingress controller and no public IP. Every external entry point — public web, kubectl, everything — uses a Cloudflare Tunnel managed by cloudflare-operator. App CNAMEs are declared in `tfroot-cloudflare` and must stay aligned with the routes here. The legacy `*.apps.makeitwork.cloud` hostnames are not in use.
+There is no in-cluster ingress controller and no public IP. Every external entry point — public web, kubectl, everything — uses a Cloudflare Tunnel managed by cloudflare-operator. Each `TunnelBinding` exclusively owns its proxied CNAME and `_managed.<fqdn>` ownership TXT record; the legacy `*.apps.makeitwork.cloud` hostnames are not in use.
 
 ## Key Namespaces
 
@@ -50,13 +50,17 @@ The Cloudflare API token lives in `cert-manager/cloudflare-api-token` and is ref
 
 ## Cloudflare Tunnel DNS
 
-App DNS and routes have coordinated owners:
+`TunnelBinding` is the sole declarative owner of each tunnel hostname: it
+creates and reconciles the proxied CNAME and its `_managed.<fqdn>` TXT record.
+Do not declare tunnel-host CNAMEs in `tfroot-cloudflare` or any other system.
 
-- `tfroot-cloudflare/cf-tunnels.tf` declares CNAMEs
-- `TunnelBinding` resources declare routes and the operator-managed ownership TXT records
-- `subjects[].name` must match the real Kubernetes `Service` name in the same namespace; if it doesn't exist, status reports `http_status:404`
-- Add-order matters: declare a new hostname in `tfroot-cloudflare` and let its apply create the CNAME *before* merging the `TunnelBinding` here. The operator creates DNS on sync; if it wins the race, the tfroot-cloudflare apply fails with `81053` (record already exists) and the record must be imported into state (see tfroot-cloudflare `AGENTS.md`, Failure Modes)
-- Remove and reconcile the `TunnelBinding` before removing its Terraform hostname; deleting only the CNAME leaves a stale `_managed.<fqdn>` TXT record and causes update-by-stale-id failures (`Record does not exist. (81044)`)
+- Add a hostname by adding it to the appropriate `TunnelBinding`.
+- Remove and reconcile the `TunnelBinding` before removing a route; its
+  finalizer removes both the CNAME and ownership TXT record.
+- `subjects[].name` must match the real Kubernetes `Service` name in the same
+  namespace; if it doesn't exist, status reports `http_status:404`.
+- If the operator reports `unmanaged FQDN present`, investigate the existing
+  record's owner; do not import it into OpenTofu.
 
 ## kubectl Access
 
@@ -179,7 +183,7 @@ pre-commit run --all-files
 
 1. **ArgoCD waves are per-Application** — Cross-Application ordering needs hooks or separate sync operations.
 2. **TunnelBinding `subjects[].name` is a Service lookup key** — A typo here surfaces as `http_status:404` in operator status, not a missing-Service error.
-3. **Cloudflare stale TXT records break reconciliation** — Remove orphan `_managed.<fqdn>` TXT records before recreating CNAMEs.
+3. **Tunnel DNS is operator-owned** — Do not add tunnel CNAMEs to OpenTofu; resolve `unmanaged FQDN present` by identifying and removing the conflicting owner.
 4. **Tor secret format** — Use `data` with raw binary base64; `stringData` double-encodes.
 5. **KSOPS needs the age key in the repo-server pod** — Without `sops-age-keys` mounted, manifest generation fails before any sync.
 6. **DNS-01 requires external resolvers** — cluster DNS cannot validate Let's Encrypt challenges; the cert-manager controller args above are required.
@@ -200,3 +204,4 @@ argocd app get <app-name>           # app status
 - `makeitworkcloud/ansible-site-cluster` — k3s cluster provisioning
 - `makeitworkcloud/www` — static site, source of `.onion` documentation
 - `makeitworkcloud/shared-workflows` — reusable GitHub Actions workflows
+- `makeitworkcloud/tfroot-cloudflare` — non-tunnel Cloudflare infrastructure
