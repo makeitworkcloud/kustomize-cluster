@@ -2,6 +2,14 @@
 
 GitOps manifests for the k3s cluster behind [makeitwork.cloud](https://makeitwork.cloud/). ArgoCD reconciles this repo using KSOPS for inline secret decryption.
 
+## Contributor and operator guides
+
+- [Add a workload](docs/adding-a-workload.md)
+- [Roll out or roll back a chart workload](docs/rollout-and-rollback.md)
+- [Configure kubectl access](docs/kubeconfig.example.yaml)
+- [Author and publish a chart](https://github.com/makeitworkcloud/charts/blob/main/docs/adding-a-chart.md)
+- [Configure post-publish GitOps PR automation](https://github.com/makeitworkcloud/charts/blob/main/docs/gitops-update-automation.md)
+
 ## Layout
 
 ```
@@ -174,12 +182,14 @@ The age public key is committed in `.sops.yaml`. The matching private key is loa
 
 ## CI/CD
 
-The repository uses `.github/workflows/test.yml` and `.github/workflows/sync.yml`:
-
-1. **test** (`ubuntu-latest`) — runs pre-commit (yamllint, kube-linter, conventional-commit, etc.)
-2. **sync** (`arc-tf` runner, `main` only) — after tests pass, patches each App-of-Apps root (`bootstrap-secrets`, `gitops-operators`, `gitops-workloads`) to initiate an ArgoCD sync at the tested SHA
-
-The in-cluster ARC runner uses its ServiceAccount token to talk to the API directly. The sync workflow initiates reconciliation but does not wait for it to finish. Afterward, confirm each affected Application reports the target revision, `Synced`, and `Healthy`. Use `workflow_dispatch` on `sync.yml` to retry the selected ref when necessary.
+Pull requests and `main` run `.github/workflows/test.yml`, which executes the
+hooks in `.pre-commit-config.yaml`: YAML and repository hygiene checks, secret
+scanning, and kube-linter. After `main` passes, `.github/workflows/sync.yml`
+uses the in-cluster runner to request a sync of `bootstrap-secrets`,
+`gitops-operators`, and `gitops-workloads` at the tested SHA. It initiates
+reconciliation but does not wait for final health. Follow
+[Rollout and rollback](docs/rollout-and-rollback.md) for the publication, review,
+verification, failure, and rollback procedure.
 
 ## Resource Sizing
 
