@@ -15,6 +15,19 @@ spec:
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
+  name: opencode-docs
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  remoteUrl: https://tryinspector.com/api/opencode-docs/mcp
+  transport: streamable-http
+---
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPRemoteProxy
+metadata:
   name: makeitwork-parallel-search
   namespace: mcp
   annotations:
