@@ -8,29 +8,25 @@ metadata:
 spec:
   groupRef:
     name: gateway
-  # Pinned to the upstream source commit tag published by AWS Labs.
-  image: public.ecr.aws/awslabs-mcp/awslabs/aws-api-mcp-server:sha-ebcafaed027f56a2fc3faaa9ee6e95476b62adae #gitleaks:allow
+  # Pinned to the upstream AWS MCP Proxy v1.6.4 release.
+  image: public.ecr.aws/mcp-proxy-for-aws/mcp-proxy-for-aws:1.6.4
   transport: stdio
   proxyMode: streamable-http
+  args:
+    - https://aws-mcp.us-east-1.api.aws/mcp
+    - --profile
+    - opencode-mcp
+    - --metadata
+    - AWS_REGION=us-west-2
+    - --read-only
+    - --disable-telemetry
   env:
     - name: HOME
       value: /tmp
-    - name: AWS_REGION
-      value: us-west-2
-    - name: AWS_API_MCP_PROFILE_NAME
-      value: opencode-mcp
     - name: AWS_CONFIG_FILE
       value: /app/.aws/config
     - name: AWS_SDK_LOAD_CONFIG
       value: "1"
-    - name: AWS_API_MCP_WORKING_DIR
-      value: /tmp
-    - name: READ_OPERATIONS_ONLY
-      value: "true"
-    - name: AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS
-      value: no-access
-    - name: AWS_API_MCP_TELEMETRY
-      value: "false"
   podTemplateSpec:
     spec:
       volumes:
