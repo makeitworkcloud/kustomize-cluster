@@ -18,7 +18,8 @@ spec:
     - opencode-mcp
     - --metadata
     - AWS_REGION=us-west-2
-    - --read-only
+    # The assumed IAM role is the read boundary. --read-only hides aws___call_aws,
+    # including legitimate resource-discovery requests.
     - --disable-telemetry
   env:
     - name: HOME
