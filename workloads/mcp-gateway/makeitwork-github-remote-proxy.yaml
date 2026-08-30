@@ -29,3 +29,8 @@ spec:
   transport: streamable-http
   externalAuthConfigRef:
     name: makeitwork-github-auth
+  # GitHub's default remote-MCP toolsets omit Actions. Preserve the defaults
+  # and expose read-only Actions discovery and logs to OpenCode agents.
+  headerForward:
+    addPlaintextHeaders:
+      X-MCP-Toolsets: "default,actions"
