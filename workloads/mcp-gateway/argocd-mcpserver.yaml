@@ -5,9 +5,10 @@ metadata:
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-    # ToolHive's supported rolling restart annotation reloads the rotated
-    # ARGOCD_API_TOKEN from the referenced Secret without changing auth scope.
-    mcpserver.toolhive.stacklok.dev/restarted-at: "2026-08-30T21:25:00Z"
+    # The prior rolling restart refreshed only the proxy. Recreate the backend
+    # once so its Secret-backed ARGOCD_API_TOKEN environment is reloaded.
+    mcpserver.toolhive.stacklok.dev/restart-strategy: immediate
+    mcpserver.toolhive.stacklok.dev/restarted-at: "2026-08-30T21:45:00Z"
 spec:
   groupRef:
     name: gateway
