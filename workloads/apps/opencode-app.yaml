@@ -11,7 +11,7 @@ spec:
   sources:
     - chart: opencode-server
       repoURL: ghcr.io/makeitworkcloud/charts
-      targetRevision: 0.1.20
+      targetRevision: 0.1.21
     - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
       path: workloads/opencode
       targetRevision: main
