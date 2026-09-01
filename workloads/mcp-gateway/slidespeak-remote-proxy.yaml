@@ -1,0 +1,21 @@
+---
+# The SlideSpeak API key remains in the cluster and is injected only on
+# outbound requests to SlideSpeak's hosted MCP endpoint.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPRemoteProxy
+metadata:
+  name: makeitwork-slidespeak
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  remoteUrl: https://mcp.slidespeak.co/mcp
+  transport: streamable-http
+  headerForward:
+    addHeadersFromSecret:
+      - headerName: Authorization
+        valueSecretRef:
+          name: mcp-slidespeak
+          key: authorization

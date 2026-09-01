@@ -13,6 +13,7 @@ resources:
   - terraform-docs-mcpserver.yaml
   - makeitwork-github-remote-proxy.yaml
   - remote-proxies.yaml
+  - slidespeak-remote-proxy.yaml
   - vmcp.yaml
   - tunnel-binding.yaml
 generators:
