@@ -1,5 +1,7 @@
 # kustomize-cluster
 
+hello world
+
 GitOps manifests for the k3s cluster behind [makeitwork.cloud](https://makeitwork.cloud/). ArgoCD reconciles this repo using KSOPS for inline secret decryption.
 
 ## Contributor and operator guides
