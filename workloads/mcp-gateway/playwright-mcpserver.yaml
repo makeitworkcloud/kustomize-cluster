@@ -46,6 +46,10 @@ spec:
     - 0.0.0.0
     - --port
     - "8080"
+    # Browser launch configuration (crashpad workaround; see the ConfigMap
+    # mcp-playwright-config for rationale and contents).
+    - --config
+    - /config/config.json
   # ToolHive runs MCP server pods with a read-only root filesystem by
   # default. playwright-mcp mkdtemp()s an artifacts directory under /tmp on
   # every browser action, so without a writable /tmp every tool call fails
@@ -58,8 +62,14 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: config
+          configMap:
+            name: mcp-playwright-config
       containers:
         - name: mcp
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: config
+              mountPath: /config
+              readOnly: true
