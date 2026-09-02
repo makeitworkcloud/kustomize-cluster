@@ -8,6 +8,14 @@
 #
 # Deployment and Service share one multi-document file so per-file kube-linter
 # can resolve the Service selector against this workload's pod labels.
+#
+# Chromium resolves its crashpad database under XDG_CONFIG_HOME / HOME/.config;
+# with a read-only root filesystem the default HOME (/home/gotenberg) is
+# unwritable, so chromium exits with "chrome_crashpad_handler: --database is
+# required" on every conversion (observed 2026-09-02; same failure class and
+# fix as the playwright MCPServer backend, kustomize-cluster #143). Pointing
+# HOME and XDG dirs at the writable /tmp emptyDir lets chromium self-create
+# the database directory.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,6 +39,13 @@ spec:
           args:
             - gotenberg
             - --api-port=3000
+          env:
+            - name: HOME
+              value: /tmp
+            - name: XDG_CONFIG_HOME
+              value: /tmp/xdg-config
+            - name: XDG_CACHE_HOME
+              value: /tmp/xdg-cache
           ports:
             - name: http
               containerPort: 3000
