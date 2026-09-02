@@ -46,3 +46,20 @@ spec:
     - 0.0.0.0
     - --port
     - "8080"
+  # ToolHive runs MCP server pods with a read-only root filesystem by
+  # default. playwright-mcp mkdtemp()s an artifacts directory under /tmp on
+  # every browser action, so without a writable /tmp every tool call fails
+  # with EROFS (observed 2026-09-02: mkdtemp '/tmp/playwright-artifacts-*').
+  # The emptyDir-at-/tmp mount is ToolHive's documented pattern for this
+  # (operator quickstart); same podTemplateSpec.volume pattern as the aws
+  # MCPServer entry. The container name must be `mcp` per the CRD contract.
+  podTemplateSpec:
+    spec:
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: mcp
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
