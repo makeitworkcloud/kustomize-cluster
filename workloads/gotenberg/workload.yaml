@@ -80,4 +80,25 @@ spec:
             runAsUser: 1001
             runAsGroup: 1001
             seccompProfile:
-n              type: RuntimeDefault
+              type: RuntimeDefault
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gotenberg
+  namespace: gotenberg
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  selector:
+    app: gotenberg
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
