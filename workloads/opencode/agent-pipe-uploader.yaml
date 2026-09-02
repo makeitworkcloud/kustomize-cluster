@@ -10,6 +10,8 @@ metadata:
   namespace: opencode
   annotations:
     argocd.argoproj.io/sync-wave: "2"
+    ignore-check.kube-linter.io/unset-cpu-requirements: "single-node policy"
+    ignore-check.kube-linter.io/unset-memory-requirements: "single-node policy"
 spec:
   replicas: 1
   selector:
