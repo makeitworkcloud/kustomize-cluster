@@ -9,7 +9,9 @@ metadata:
   name: agent-pipe-uploader
   namespace: opencode
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    # local-path uses WaitForFirstConsumer. Keep this Deployment in the PVC's
+    # wave so Argo creates a consumer before waiting for the claim to bind.
+    argocd.argoproj.io/sync-wave: "1"
     ignore-check.kube-linter.io/unset-cpu-requirements: "single-node policy"
     ignore-check.kube-linter.io/unset-memory-requirements: "single-node policy"
 spec:
