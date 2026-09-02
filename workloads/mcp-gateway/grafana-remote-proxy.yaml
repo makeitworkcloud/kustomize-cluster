@@ -10,5 +10,8 @@ metadata:
 spec:
   groupRef:
     name: gateway
+  # This is a deliberately selected in-cluster ToolHive Service. ToolHive
+  # blocks private endpoints by default, so permit this single upstream.
+  allowPrivateEndpoint: true
   remoteUrl: http://mcp-grafana-mcp-backend-proxy.grafana.svc.cluster.local:8080/mcp
   transport: streamable-http
