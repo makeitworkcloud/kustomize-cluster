@@ -32,6 +32,11 @@ spec:
         kubeEtcd:
           enabled: false
 
+        # The Discord target check is complete; do not retain an always-firing alert.
+        defaultRules:
+          disabled:
+            Watchdog: true
+
         alertmanager:
           enabled: true
           alertmanagerSpec:
