@@ -6,5 +6,6 @@ resources:
   - persistent-volume-claim.yaml
   - service.yaml
   - tunnel-binding.yaml
+  - session-metrics.yaml
 generators:
   - ksops-opencode-secrets.yaml

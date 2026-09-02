@@ -1,0 +1,61 @@
+---
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: opencode-sessions
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: "grafana"
+  json: |
+    {
+      "uid": "opencode-sessions",
+      "title": "OpenCode Sessions",
+      "schemaVersion": 39,
+      "version": 1,
+      "editable": false,
+      "refresh": "30s",
+      "time": {"from": "now-6h", "to": "now"},
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Session-status poll",
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "max(opencode_session_status_up)", "refId": "A"}],
+          "fieldConfig": {"defaults": {"min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Active sessions",
+          "description": "Busy and retrying sessions. This is observability only; it does not block rollouts.",
+          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(opencode_active_sessions)", "refId": "A"}],
+          "fieldConfig": {"defaults": {"min": 0, "decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}]}}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Last successful poll age",
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "time() - max(opencode_session_status_last_success_timestamp_seconds)", "refId": "A"}],
+          "fieldConfig": {"defaults": {"unit": "s", "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 60}, {"color": "red", "value": 300}]}}, "overrides": []},
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
+        },
+        {
+          "id": 4,
+          "type": "timeseries",
+          "title": "Active sessions by status",
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 8},
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "opencode_active_sessions", "legendFormat": "{{state}}", "refId": "A"}],
+          "fieldConfig": {"defaults": {"min": 0, "decimals": 0}, "overrides": []},
+          "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
+        }
+      ]
+    }

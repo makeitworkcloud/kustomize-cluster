@@ -5,6 +5,7 @@ resources:
   - grafana.yaml
   - datasource.yaml
   - arc-dashboard.yaml
+  - opencode-dashboard.yaml
   - status-grafana.yaml
   - status-monitoring.yaml
   - status-datasource.yaml
