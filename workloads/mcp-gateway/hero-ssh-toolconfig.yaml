@@ -1,0 +1,21 @@
+---
+# SSH administration needs command and session tools. File-transfer tools are
+# intentionally omitted: this integration is not a general-purpose data-mover.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPToolConfig
+metadata:
+  name: hero-ssh-admin
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  toolsFilter:
+    - list-connections
+    - list-sessions
+    - open-session
+    - close-session
+    - read-session-output
+    - read-command
+    - run-command
+    - privileged-command
+    - signal-process
