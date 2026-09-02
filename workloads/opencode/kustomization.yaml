@@ -4,6 +4,8 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - persistent-volume-claim.yaml
+  - artifacts-persistent-volume-claim.yaml
+  - agent-pipe-uploader.yaml
   - service.yaml
   - tunnel-binding.yaml
   - session-metrics.yaml

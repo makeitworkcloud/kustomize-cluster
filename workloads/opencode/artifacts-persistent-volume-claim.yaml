@@ -1,0 +1,16 @@
+---
+# Derived agent artifacts are isolated from the OpenCode home PVC so the
+# upload helper never receives provider credentials or session configuration.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: opencode-artifacts
+  namespace: opencode
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
