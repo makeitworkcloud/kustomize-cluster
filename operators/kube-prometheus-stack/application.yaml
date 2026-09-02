@@ -74,8 +74,8 @@ spec:
         nodeExporter:
           resources:
             requests:
-                cpu: 25m
-                memory: 32Mi
+              cpu: 25m
+              memory: 32Mi
 
         kubeStateMetrics:
           enabled: true
