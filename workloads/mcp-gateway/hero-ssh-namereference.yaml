@@ -1,0 +1,11 @@
+# Teach Kustomize that the ToolHive RawExtension embeds a ConfigMap reference.
+# This keeps the generated, content-addressed ConfigMap name in the MCPServer
+# volume source so a policy edit advances the MCPServer generation.
+nameReference:
+  - kind: ConfigMap
+    version: v1
+    fieldSpecs:
+      - group: toolhive.stacklok.dev
+        version: v1beta1
+        kind: MCPServer
+        path: spec/podTemplateSpec/spec/volumes/configMap/name
