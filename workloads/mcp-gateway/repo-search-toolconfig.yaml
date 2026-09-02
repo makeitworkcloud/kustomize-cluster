@@ -1,0 +1,20 @@
+---
+# Restrict the repo-search filesystem MCP to read-only tools. The cache is a
+# discovery surface, never a write path; mutations continue through the
+# GitHub MCP integration.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPToolConfig
+metadata:
+  name: repo-search-readonly
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  toolsFilter:
+    - directory_tree
+    - get_file_info
+    - list_allowed_directories
+    - list_directory
+    - read_file
+    - read_multiple_files
+    - search_files

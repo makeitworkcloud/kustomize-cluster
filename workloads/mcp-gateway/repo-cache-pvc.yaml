@@ -1,0 +1,19 @@
+---
+# Backing store for the read-only repository cache consumed by the
+# repo-search MCP backend (repo-cache-sync writes, makeitwork-repo-search
+# reads). RWO relies on the cluster being single-node so the writer and
+# reader pods co-locate; if nodes are added, pin them together or move this
+# claim to RWX-capable storage.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mcp-repo-cache
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
