@@ -10,5 +10,6 @@ resources:
   - grafana-app.yaml
   - kubectl-tunnel-app.yaml
   - mcp-gateway-app.yaml
+  - gotenberg-app.yaml
   - opencode-app.yaml
   - ../argocd
