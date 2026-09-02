@@ -44,5 +44,12 @@ patches:
       kind: Deployment
       name: repo-cache-sync
       namespace: mcp
+  - path: repo-cache-sync-resources.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: repo-cache-sync
+      namespace: mcp
 generators:
   - ksops-mcp-gateway-secrets.yaml
