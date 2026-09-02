@@ -1,0 +1,36 @@
+---
+# Playwright MCP launch configuration. Mounted read-only into the backend
+# container at /config/config.json and referenced by --config.
+#
+# Why this exists: Chromium 128+ crashpad in containers fails with
+# "chrome_crashpad_handler: --database is required" and the browser exits
+# SIGTRAP when it cannot resolve a writable crash-report database (observed
+# 2026-09-02; same class as chrome-php#649 / playwright#34031). Crash
+# reporting is useless in an ephemeral pod, so disable it via browser launch
+# args and point crash dumps at the writable emptyDir /tmp. CLI flags on the
+# MCPServer remain authoritative for transport-level settings.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-playwright-config
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  config.json: |
+    {
+      "browser": {
+        "browserName": "chromium",
+        "isolated": true,
+        "launchOptions": {
+          "headless": true,
+          "args": [
+            "--no-sandbox",
+            "--disable-crash-reporter",
+            "--no-crashpad",
+            "--crash-dumps-dir=/tmp"
+          ]
+        }
+      },
+      "capabilities": ["core", "pdf"]
+    }
