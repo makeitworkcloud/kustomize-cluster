@@ -1,0 +1,51 @@
+---
+# Read-only search/read backend over the local repository cache maintained
+# by the repo-cache-sync Deployment (mcp-repo-cache PVC). Uses the official
+# mcp/filesystem reference server, pinned to the multi-arch index digest that
+# the `latest` tag resolved to on 2026-09-02 (image last pushed 2025-06-16
+# per Docker Hub metadata).
+#
+# Trust boundary matches makeitwork-github: no groupRef keeps the backend out
+# of the externally exposed VirtualMCPServer aggregation, and no TunnelBinding
+# subject keeps it ClusterIP-only. OpenCode consumes it per-backend at
+# http://mcp-makeitwork-repo-search-proxy.mcp.svc:8080/mcp.
+#
+# The cache is eventually consistent (bounded by the sync --period). Agents
+# must cite the synced SHA visible as the hash-named git-sync worktree next
+# to each /repos/<name>/current symlink, and use the GitHub MCP for writes or
+# freshness-critical reads.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: makeitwork-repo-search
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  image: docker.io/mcp/filesystem:latest@sha256:35fcf0217ca0d5bf7b0a5bd68fb3b89e08174676c0e0b4f431604512cf7b3f67
+  transport: stdio
+  proxyMode: streamable-http
+  toolConfigRef:
+    name: repo-search-readonly
+  args:
+    - /repos
+  env:
+    - name: HOME
+      value: /tmp
+  podTemplateSpec:
+    spec:
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: mcp-repo-cache
+            readOnly: true
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: mcp
+          volumeMounts:
+            - name: repos
+              mountPath: /repos
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp

@@ -1,0 +1,779 @@
+---
+# Read-only cache of the public makeitworkcloud repositories, synced with
+# the Kubernetes SIG git-sync image. This is the read/discovery surface for
+# OpenCode agents: it removes per-file GitHub API round trips (private-repo
+# code search is also unreliable for this org) in exchange for staleness
+# bounded by --period plus one sync. agent-knowledge is deliberately
+# excluded: it is private and its agent subtrees may hold personal or
+# operational data, so it stays GitHub-MCP-only. Adding a private repo here
+# later requires credentials and a fresh owner review.
+#
+# Writes never flow through this cache; agents keep using the GitHub MCP for
+# mutations and for anything they just pushed.
+#
+# Consumer contract (git-sync's published API): each repo lives at
+# /repos/<name>/current, a symlink git-sync flips atomically; the hash-named
+# sibling directory is the synced commit SHA agents should cite.
+#
+# One container per repo (git-sync syncs exactly one repo per process) with
+# a per-container --http-bind probe port: git-sync's HTTP endpoint returns
+# 5xx until the first sync completes and 200 thereafter, which is exactly
+# the readiness semantic wanted here. --max-failures=-1 keeps transient
+# GitHub failures from crash-looping a cache pod; staleness is preferable
+# to absence for this use.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: repo-cache-sync
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: repo-cache-sync
+  template:
+    metadata:
+      labels:
+        app: repo-cache-sync
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 65533
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: sync-charts
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/charts
+            - --ref=HEAD
+            - --root=/sync/charts
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9801
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9801
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9801
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-cflan
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/cflan
+            - --ref=HEAD
+            - --root=/sync/cflan
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9802
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9802
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9802
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-dotgithub
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/.github
+            - --ref=HEAD
+            - --root=/sync/dotgithub
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9803
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9803
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9803
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-images
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/images
+            - --ref=HEAD
+            - --root=/sync/images
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9804
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9804
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9804
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-kustomize-cluster
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/kustomize-cluster
+            - --ref=HEAD
+            - --root=/sync/kustomize-cluster
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9805
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9805
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9805
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-shared-workflows
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/shared-workflows
+            - --ref=HEAD
+            - --root=/sync/shared-workflows
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9806
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9806
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9806
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-terraform-libvirt-domain
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/terraform-libvirt-domain
+            - --ref=HEAD
+            - --root=/sync/terraform-libvirt-domain
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9807
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9807
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9807
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-tfroot-aws
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/tfroot-aws
+            - --ref=HEAD
+            - --root=/sync/tfroot-aws
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9808
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9808
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9808
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-tfroot-cloudflare
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/tfroot-cloudflare
+            - --ref=HEAD
+            - --root=/sync/tfroot-cloudflare
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9809
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9809
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9809
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-tfroot-gcp
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/tfroot-gcp
+            - --ref=HEAD
+            - --root=/sync/tfroot-gcp
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9810
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9810
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9810
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-tfroot-github
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/tfroot-github
+            - --ref=HEAD
+            - --root=/sync/tfroot-github
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9811
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9811
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9811
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-tfroot-libvirt
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/tfroot-libvirt
+            - --ref=HEAD
+            - --root=/sync/tfroot-libvirt
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9812
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9812
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9812
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-tfroot-namecheap
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/tfroot-namecheap
+            - --ref=HEAD
+            - --root=/sync/tfroot-namecheap
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9813
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9813
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9813
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-www
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/www
+            - --ref=HEAD
+            - --root=/sync/www
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9814
+          env:
+            - name: HOME
+              value: /tmp
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9814
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9814
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: mcp-repo-cache
+        - name: tmp
+          emptyDir: {}
