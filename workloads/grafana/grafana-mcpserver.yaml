@@ -1,0 +1,33 @@
+# Keep the credential-consuming backend with the Grafana Operator-managed
+# Secret. The externally exposed mcp namespace uses an MCPRemoteProxy.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: grafana-mcp-backend
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  image: docker.io/grafana/mcp-grafana:1.2.0@sha256:cfae68f893dbe40cb6df69579f78beb226f973ded4436d47c844f91d2f00dc53
+  transport: streamable-http
+  mcpPort: 8000
+  args:
+    - -t
+    - streamable-http
+    # The proxyrunner dials this backend through a ClusterIP Service. The
+    # upstream server otherwise permits only loopback Host headers.
+    - --allowed-hosts
+    - "*"
+  env:
+    - name: GRAFANA_URL
+      value: http://grafana-service.grafana.svc.cluster.local:3000
+  secrets:
+    - name: mcp-grafana-service-account-token
+      key: token
+      targetEnvName: GRAFANA_SERVICE_ACCOUNT_TOKEN
+  podTemplateSpec:
+    metadata:
+      annotations:
+        # Grafana token rotation updates or recreates this Secret. Reloader is
+        # namespace-scoped and restarts this backend only.
+        secret.reloader.stakater.com/reload: mcp-grafana-service-account-token

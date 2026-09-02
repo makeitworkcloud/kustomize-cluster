@@ -1,4 +1,3 @@
----
 # Child Applications reconcile workload CRs immediately, so all required operator
 # CRDs must exist before those Applications are created.
 apiVersion: batch/v1
@@ -40,6 +39,7 @@ spec:
                 grafanas.grafana.integreatly.org
                 grafanadatasources.grafana.integreatly.org
                 grafanadashboards.grafana.integreatly.org
+                grafanaserviceaccounts.grafana.integreatly.org
                 servicemonitors.monitoring.coreos.com
                 probes.monitoring.coreos.com
                 mcpservers.toolhive.stacklok.dev
