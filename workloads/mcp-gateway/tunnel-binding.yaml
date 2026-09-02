@@ -33,10 +33,10 @@ subjects:
     spec:
       fqdn: mcp-makeitwork-context7.makeitwork.cloud
       target: http://mcp-makeitwork-context7-remote-proxy.mcp.svc:8080
-  - name: mcp-makeitwork-grafana-proxy
+  - name: mcp-makeitwork-grafana-remote-proxy
     spec:
       fqdn: mcp-makeitwork-grafana.makeitwork.cloud
-      target: http://mcp-makeitwork-grafana-proxy.mcp.svc:8080
+      target: http://mcp-makeitwork-grafana-remote-proxy.mcp.svc:8080
   - name: mcp-makeitwork-kubernetes-proxy
     spec:
       fqdn: mcp-makeitwork-kubernetes.makeitwork.cloud
