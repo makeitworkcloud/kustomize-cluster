@@ -9,7 +9,13 @@ metadata:
   name: repo-cache-sync
   namespace: mcp
 spec:
+  selector:
+    matchLabels:
+      app: repo-cache-sync
   template:
+    metadata:
+      labels:
+        app: repo-cache-sync
     spec:
       containers:
         - name: sync-xnoto-dotgithub
@@ -837,3 +843,9 @@ spec:
               mountPath: /sync
             - name: tmp
               mountPath: /tmp
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: mcp-repo-cache
+        - name: tmp
+          emptyDir: {}
