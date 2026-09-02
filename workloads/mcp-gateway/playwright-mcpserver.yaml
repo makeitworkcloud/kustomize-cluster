@@ -1,0 +1,45 @@
+---
+# Playwright MCP (Microsoft official container): headless Chromium with the
+# PDF capability enabled. Serves server-side browser automation and HTML/markdown
+# print-to-PDF for OpenCode agents (career-agent research thread, see
+# agent-knowledge docs/agents/career/work/2026-09-02-pdf-generation-mcp-landscape.md).
+#
+# Cluster-internal only: omitting groupRef keeps this backend out of the
+# externally exposed VirtualMCPServer aggregation (same decision as
+# makeitwork-github in makeitwork-github-remote-proxy.yaml).
+#
+# Image digest resolved against the registry manifest API (OCI image index,
+# amd64/linux present): sha256 of the v0.0.80 index.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: makeitwork-playwright
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  image: mcr.microsoft.com/playwright/mcp:v0.0.80@sha256:dda1f7f9b812e22946635c8af7df9288b96d3b9e3f0f1b8576d6823e2031c1de
+  transport: streamable-http
+  mcpPort: 8080
+  args:
+    - --headless
+    - --browser
+    - chromium
+    # Headless Chromium in a container cannot use its own sandbox; upstream's
+    # documented long-lived-service invocation uses --no-sandbox. The backend
+    # is ClusterIP-only behind the ToolHive proxy.
+    - --no-sandbox
+    # Enable the PDF capability (browser_page_pdf). Core automation tools are
+    # always on; pdf is opt-in per upstream README.
+    - --caps
+    - pdf
+    # Shared long-lived service: keep browser state in memory per session
+    # instead of persisting a profile to disk across agent sessions.
+    - --isolated
+    # The proxyrunner dials the backend svc ClusterIP; bind all interfaces so
+    # the server is reachable outside loopback (same rationale as the argocd
+    # and grafana MCPServer entries).
+    - --host
+    - 0.0.0.0
+    - --port
+    - "8080"

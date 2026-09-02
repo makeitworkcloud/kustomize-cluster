@@ -11,6 +11,7 @@ resources:
   - mcp-aws-config.yaml
   - makeitwork-aws-mcpserver.yaml
   - terraform-docs-mcpserver.yaml
+  - playwright-mcpserver.yaml
   - makeitwork-github-remote-proxy.yaml
   - remote-proxies.yaml
   - slidespeak-remote-proxy.yaml
