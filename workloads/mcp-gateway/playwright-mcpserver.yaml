@@ -8,10 +8,8 @@
 # externally exposed VirtualMCPServer aggregation (same decision as
 # makeitwork-github in makeitwork-github-remote-proxy.yaml).
 #
-# PRE-MERGE TODO: fleet convention pins images by digest; the v0.0.80 digest
-# was not retrievable from the headless agent session. Resolve with
-# `crane digest mcr.microsoft.com/playwright/mcp:v0.0.80` (or equivalent)
-# and pin before merging.
+# Image digest resolved against the registry manifest API (OCI image index,
+# amd64/linux present): sha256 of the v0.0.80 index.
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
@@ -20,7 +18,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  image: mcr.microsoft.com/playwright/mcp:v0.0.80
+  image: mcr.microsoft.com/playwright/mcp:v0.0.80@sha256:dda1f7f9b812e22946635c8af7df9288b96d3b9e3f0f1b8576d6823e2031c1de
   transport: streamable-http
   mcpPort: 8080
   args:
