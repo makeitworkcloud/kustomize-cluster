@@ -18,13 +18,24 @@ resources:
   - repo-cache-sync.yaml
   - repo-search-toolconfig.yaml
   - repo-search-mcpserver.yaml
-  - hero-ssh-config.yaml
   - hero-ssh-toolconfig.yaml
   - hero-ssh-mcpserver.yaml
   - remote-proxies.yaml
   - slidespeak-remote-proxy.yaml
   - vmcp.yaml
   - tunnel-binding.yaml
+configMapGenerator:
+  # A content-addressed ConfigMap name changes the MCPServer pod template,
+  # causing ToolHive to roll the proxy and backend when this policy changes.
+  - name: mcp-hero-ssh-config
+    namespace: mcp
+    files:
+      - config.toml=hero-ssh-config.toml
+    options:
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
+configurations:
+  - hero-ssh-namereference.yaml
 patches:
   - path: repo-cache-sync-xnoto.yaml
     target:
