@@ -50,6 +50,12 @@ spec:
     # mcp-playwright-config for rationale and contents).
     - --config
     - /config/config.json
+    # Tool output files (browser_pdf_save, screenshots) default to the process
+    # working directory (/home/node — read-only rootfs). Redirect to the
+    # writable /tmp emptyDir (observed 2026-09-02: EROFS open
+    # '/home/node/playwright-demo.pdf' with navigate/evaluate already working).
+    - --output-dir
+    - /tmp/output
   # ToolHive runs MCP server pods with a read-only root filesystem by
   # default. playwright-mcp mkdtemp()s an artifacts directory under /tmp on
   # every browser action, so without a writable /tmp every tool call fails
