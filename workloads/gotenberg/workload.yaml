@@ -8,6 +8,14 @@
 #
 # Deployment and Service share one multi-document file so per-file kube-linter
 # can resolve the Service selector against this workload's pod labels.
+#
+# Chromium resolves its crashpad database under XDG_CONFIG_HOME / HOME/.config;
+# with a read-only root filesystem the default HOME (/home/gotenberg) is
+# unwritable, so chromium exits with "chrome_crashpad_handler: --database is
+# required" on every conversion (observed 2026-09-02; same failure class and
+# fix as the playwright MCPServer backend, kustomize-cluster #143). Pointing
+# HOME and XDG dirs at the writable /tmp emptyDir lets chromium self-create
+# the database directory.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,4 +27,57 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-n      app: gotenberg
+      app: gotenberg
+  template:
+    metadata:
+      labels:
+        app: gotenberg
+    spec:
+      containers:
+        - name: gotenberg
+          image: gotenberg/gotenberg:8.36.0-chromium@sha256:a40f92d7419adbf98fd2ab2e4211f6186c9fd44f196a5aadbd2769bf237faae6
+          args:
+            - gotenberg
+            - --api-port=3000
+          env:
+            - name: HOME
+              value: /tmp
+            - name: XDG_CONFIG_HOME
+              value: /tmp/xdg-config
+            - name: XDG_CACHE_HOME
+              value: /tmp/xdg-cache
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1536Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            seccompProfile:
+n              type: RuntimeDefault
