@@ -44,5 +44,82 @@ patches:
       kind: Deployment
       name: repo-cache-sync
       namespace: mcp
+  # The single-node workload policy favors spare-capacity bursts over CPU CFS
+  # throttling. Keep this inline so kube-linter does not lint a partial patch as
+  # a standalone Deployment.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: repo-cache-sync
+        namespace: mcp
+      spec:
+        template:
+          spec:
+            containers:
+              - name: sync-charts
+                resources: null
+              - name: sync-cflan
+                resources: null
+              - name: sync-dotgithub
+                resources: null
+              - name: sync-images
+                resources: null
+              - name: sync-kustomize-cluster
+                resources: null
+              - name: sync-shared-workflows
+                resources: null
+              - name: sync-terraform-libvirt-domain
+                resources: null
+              - name: sync-tfroot-aws
+                resources: null
+              - name: sync-tfroot-cloudflare
+                resources: null
+              - name: sync-tfroot-gcp
+                resources: null
+              - name: sync-tfroot-github
+                resources: null
+              - name: sync-tfroot-libvirt
+                resources: null
+              - name: sync-tfroot-namecheap
+                resources: null
+              - name: sync-www
+                resources: null
+              - name: sync-xnoto-dotgithub
+                resources: null
+              - name: sync-xnoto-alacritty-theme-linux-vconsole
+                resources: null
+              - name: sync-xnoto-brewfile
+                resources: null
+              - name: sync-xnoto-claude-config
+                resources: null
+              - name: sync-xnoto-codex-config
+                resources: null
+              - name: sync-xnoto-dotfiles
+                resources: null
+              - name: sync-xnoto-herofand
+                resources: null
+              - name: sync-xnoto-homebrew-opencode-agent-hub
+                resources: null
+              - name: sync-xnoto-llama-hero
+                resources: null
+              - name: sync-xnoto-mcp-gateway
+                resources: null
+              - name: sync-xnoto-messaging-service
+                resources: null
+              - name: sync-xnoto-opencode-agent-hub
+                resources: null
+              - name: sync-xnoto-opencode-config
+                resources: null
+              - name: sync-xnoto-opencode-llama-config
+                resources: null
+              - name: sync-xnoto-xbox-media-utils
+                resources: null
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: repo-cache-sync
+      namespace: mcp
 generators:
   - ksops-mcp-gateway-secrets.yaml
