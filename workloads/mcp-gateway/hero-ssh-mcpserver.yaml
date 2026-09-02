@@ -1,0 +1,106 @@
+---
+# Internal-only SSH administration backend for hero.makeitwork.cloud. Omitting
+# groupRef keeps it out of the externally exposed VirtualMCPServer, and no
+# TunnelBinding is created. OpenCode will consume the ToolHive proxy Service at
+# http://mcp-makeitwork-hero-ssh-proxy.mcp.svc:8080/mcp after its chart update.
+#
+# `mcp-hero-ssh` is intentionally referenced but not added in this commit: the
+# owner will add its SOPS-encrypted privateKey field and register that one Secret
+# file in ksops-mcp-gateway-secrets.yaml before this draft PR is merged.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: makeitwork-hero-ssh
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  # Docker Official Node runtime, pinned to an immutable image index digest.
+  image: docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+  transport: stdio
+  proxyMode: streamable-http
+  permissionProfile:
+    type: builtin
+    name: network
+  toolConfigRef:
+    name: hero-ssh-admin
+  args:
+    - npm
+    - exec
+    - --yes
+    - --package=ssh-mcp@2.5.1
+    - --
+    - ssh-mcp
+    - --config=/home/node/.config/ssh-mcp/config.toml
+  podTemplateSpec:
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: home
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: config-source
+          configMap:
+            name: mcp-hero-ssh-config
+        - name: key-source
+          secret:
+            secretName: mcp-hero-ssh
+            defaultMode: 288
+            items:
+              - key: privateKey
+                path: identity
+      initContainers:
+        - name: prepare-ssh-mcp
+          image: docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              umask 077
+              mkdir -p /home/node/.config/ssh-mcp /home/node/.ssh
+              chmod 0700 /home/node/.config /home/node/.config/ssh-mcp /home/node/.ssh
+              cp /config-source/config.toml /home/node/.config/ssh-mcp/config.toml
+              cp /key-source/identity /home/node/.ssh/identity
+              chmod 0600 /home/node/.config/ssh-mcp/config.toml /home/node/.ssh/identity
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: home
+              mountPath: /home/node
+            - name: config-source
+              mountPath: /config-source
+              readOnly: true
+            - name: key-source
+              mountPath: /key-source
+              readOnly: true
+      containers:
+        - name: mcp
+          env:
+            - name: HOME
+              value: /home/node
+            - name: NPM_CONFIG_CACHE
+              value: /tmp/npm-cache
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: home
+              mountPath: /home/node
+            - name: tmp
+              mountPath: /tmp
