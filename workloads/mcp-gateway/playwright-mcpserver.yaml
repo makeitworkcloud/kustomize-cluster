@@ -57,6 +57,13 @@ spec:
   # The emptyDir-at-/tmp mount is ToolHive's documented pattern for this
   # (operator quickstart); same podTemplateSpec.volume pattern as the aws
   # MCPServer entry. The container name must be `mcp` per the CRD contract.
+  #
+  # Chromium resolves its crashpad database under XDG_CONFIG_HOME / HOME/.config;
+  # on a read-only rootfs the default HOME is unwritable, which is what invokes
+  # chrome_crashpad_handler with no --database (SIGTRAP). Pointing HOME and
+  # XDG_CONFIG_HOME at the writable /tmp emptyDir lets Chromium self-create the
+  # Crashpad database dir — the mechanism confirmed working in chrome-php#649
+  # ("create ~/.config/google-chrome/Crashpad") and puppeteer#11023.
   podTemplateSpec:
     spec:
       volumes:
@@ -67,6 +74,11 @@ spec:
             name: mcp-playwright-config
       containers:
         - name: mcp
+          env:
+            - name: HOME
+              value: /tmp
+            - name: XDG_CONFIG_HOME
+              value: /tmp/xdg-config
           volumeMounts:
             - name: tmp
               mountPath: /tmp

@@ -5,10 +5,15 @@
 # Why this exists: Chromium 128+ crashpad in containers fails with
 # "chrome_crashpad_handler: --database is required" and the browser exits
 # SIGTRAP when it cannot resolve a writable crash-report database (observed
-# 2026-09-02; same class as chrome-php#649 / playwright#34031). Crash
-# reporting is useless in an ephemeral pod, so disable it via browser launch
-# args and point crash dumps at the writable emptyDir /tmp. CLI flags on the
-# MCPServer remain authoritative for transport-level settings.
+# 2026-09-02; same class as chrome-php#649 / playwright#34031).
+#
+# Chromium resolves the crashpad database under $XDG_CONFIG_HOME / $HOME/.config;
+# with a read-only root filesystem that path is unwritable/empty, so the handler
+# is invoked with no --database at all. The container-level fix (MCPServer
+# podTemplateSpec env) points HOME and XDG_CONFIG_HOME at the writable emptyDir
+# /tmp; these launch args additionally disable the crash reporters outright.
+# Chromium-1243 ignores some of these flags for the handler spawn, hence the
+# belt-and-braces combination.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -28,6 +33,8 @@ data:
             "--no-sandbox",
             "--disable-crash-reporter",
             "--no-crashpad",
+            "--disable-crashpad-handler",
+            "--disable-breakpad",
             "--crash-dumps-dir=/tmp"
           ]
         }
