@@ -18,6 +18,9 @@ resources:
   - repo-cache-sync.yaml
   - repo-search-toolconfig.yaml
   - repo-search-mcpserver.yaml
+  - hero-ssh-config.yaml
+  - hero-ssh-toolconfig.yaml
+  - hero-ssh-mcpserver.yaml
   - remote-proxies.yaml
   - slidespeak-remote-proxy.yaml
   - vmcp.yaml
