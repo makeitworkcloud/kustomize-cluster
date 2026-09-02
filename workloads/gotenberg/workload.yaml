@@ -15,4 +15,8 @@ metadata:
   namespace: gotenberg
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-nspec: placeholder
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+n      app: gotenberg
