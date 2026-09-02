@@ -33,9 +33,12 @@ spec:
           enabled: false
 
         # The Discord target check is complete; do not retain an always-firing alert.
+        # InfoInhibitor only mirrors the presence of info alerts and routes nowhere;
+        # drop the helper so alert enumerations stay clean.
         defaultRules:
           disabled:
             Watchdog: true
+            InfoInhibitor: true
 
         alertmanager:
           enabled: true
@@ -71,8 +74,8 @@ spec:
         nodeExporter:
           resources:
             requests:
-              cpu: 25m
-              memory: 32Mi
+                cpu: 25m
+                memory: 32Mi
 
         kubeStateMetrics:
           enabled: true
