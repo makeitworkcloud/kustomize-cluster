@@ -23,7 +23,8 @@ data:
     commandMaxChars = 5000
     commandMaxOutputBytes = 1048576
     connectionIdleReapMs = 900000
-    commandQuotaPerDay = 50
+    # ssh-mcp defines 0 as unlimited; retain command-class and confirmation gates.
+    commandQuotaPerDay = 0
     approvalMode = "auto"
 
     [[profiles]]
