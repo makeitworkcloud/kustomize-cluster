@@ -6,7 +6,7 @@ resources:
   - mcpgroup.yaml
   - kubernetes-mcpserver.yaml
   - argocd-mcpserver.yaml
-  - grafana-mcpserver.yaml
+  - grafana-remote-proxy.yaml
   - aws-docs-mcpserver.yaml
   - mcp-aws-config.yaml
   - makeitwork-aws-mcpserver.yaml
