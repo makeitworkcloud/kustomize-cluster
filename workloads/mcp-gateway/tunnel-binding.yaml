@@ -6,7 +6,7 @@ metadata:
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "2"
-    makeitwork.cloud/dns-reconcile: "2026-08-28"
+    makeitwork.cloud/dns-reconcile: "2026-09-02"
 subjects:
   - name: vmcp-gateway
     spec:
