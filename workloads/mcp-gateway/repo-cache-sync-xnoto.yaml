@@ -1,0 +1,851 @@
+---
+# Extends repo-cache-sync with every public xnoto repository. Cache roots use
+# the xnoto- prefix to avoid collisions with the makeitworkcloud source set;
+# xnoto/.github is exposed as xnoto-dotgithub. These sources remain public,
+# default-branch-only, credential-free, and read-only to the MCP backend.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: repo-cache-sync
+  namespace: mcp
+spec:
+  selector:
+    matchLabels:
+      app: repo-cache-sync
+  template:
+    metadata:
+      labels:
+        app: repo-cache-sync
+    spec:
+      containers:
+        - name: sync-xnoto-dotgithub
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/.github
+            - --ref=HEAD
+            - --root=/sync/xnoto-dotgithub
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9815
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9815
+              containerPort: 9815
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9815
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9815
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-alacritty-theme-linux-vconsole
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/alacritty-theme-linux-vconsole
+            - --ref=HEAD
+            - --root=/sync/xnoto-alacritty-theme-linux-vconsole
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9816
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9816
+              containerPort: 9816
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9816
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9816
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-brewfile
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/brewfile
+            - --ref=HEAD
+            - --root=/sync/xnoto-brewfile
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9817
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9817
+              containerPort: 9817
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9817
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9817
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-claude-config
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/claude-config
+            - --ref=HEAD
+            - --root=/sync/xnoto-claude-config
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9818
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9818
+              containerPort: 9818
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9818
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9818
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-codex-config
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/codex-config
+            - --ref=HEAD
+            - --root=/sync/xnoto-codex-config
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9819
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9819
+              containerPort: 9819
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9819
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9819
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-dotfiles
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/dotfiles
+            - --ref=HEAD
+            - --root=/sync/xnoto-dotfiles
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9820
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9820
+              containerPort: 9820
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9820
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9820
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-herofand
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/herofand
+            - --ref=HEAD
+            - --root=/sync/xnoto-herofand
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9821
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9821
+              containerPort: 9821
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9821
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9821
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-homebrew-opencode-agent-hub
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/homebrew-opencode-agent-hub
+            - --ref=HEAD
+            - --root=/sync/xnoto-homebrew-opencode-agent-hub
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9822
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9822
+              containerPort: 9822
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9822
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9822
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-llama-hero
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/llama-hero
+            - --ref=HEAD
+            - --root=/sync/xnoto-llama-hero
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9823
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9823
+              containerPort: 9823
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9823
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9823
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-mcp-gateway
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/mcp-gateway
+            - --ref=HEAD
+            - --root=/sync/xnoto-mcp-gateway
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9824
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9824
+              containerPort: 9824
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9824
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9824
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-messaging-service
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/messaging-service
+            - --ref=HEAD
+            - --root=/sync/xnoto-messaging-service
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9825
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9825
+              containerPort: 9825
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9825
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9825
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-opencode-agent-hub
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/opencode-agent-hub
+            - --ref=HEAD
+            - --root=/sync/xnoto-opencode-agent-hub
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9826
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9826
+              containerPort: 9826
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9826
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9826
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-opencode-config
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/opencode-config
+            - --ref=HEAD
+            - --root=/sync/xnoto-opencode-config
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9827
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9827
+              containerPort: 9827
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9827
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9827
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-opencode-llama-config
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/opencode-llama-config
+            - --ref=HEAD
+            - --root=/sync/xnoto-opencode-llama-config
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9828
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9828
+              containerPort: 9828
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9828
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9828
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+        - name: sync-xnoto-xbox-media-utils
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/xnoto/xbox-media-utils
+            - --ref=HEAD
+            - --root=/sync/xnoto-xbox-media-utils
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9829
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9829
+              containerPort: 9829
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9829
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9829
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: mcp-repo-cache
+        - name: tmp
+          emptyDir: {}
