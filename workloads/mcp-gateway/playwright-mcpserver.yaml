@@ -25,9 +25,6 @@ spec:
     - --headless
     - --browser
     - chromium
-    # Headless Chromium in a container cannot use its own sandbox; upstream's
-    # documented long-lived-service invocation uses --no-sandbox. The backend
-    # is ClusterIP-only behind the ToolHive proxy.
     - --no-sandbox
     # Enable the PDF capability (browser_page_pdf). Core automation tools are
     # always on; pdf is opt-in per upstream README.
@@ -36,9 +33,15 @@ spec:
     # Shared long-lived service: keep browser state in memory per session
     # instead of persisting a profile to disk across agent sessions.
     - --isolated
-    # The proxyrunner dials the backend svc ClusterIP; bind all interfaces so
-    # the server is reachable outside loopback (same rationale as the argocd
-    # and grafana MCPServer entries).
+    # The proxyrunner dials the backend svc ClusterIP, whose Host header fails
+    # playwright-mcp's DNS-rebinding Host check (observed: HTTP 403 on every
+    # initialize, proxyrunner log 2026-09-02). Wildcard is upstream's documented
+    # case for a server behind a trusted reverse proxy — same rationale and fix
+    # as the grafana MCPServer entry. Backend remains ClusterIP-only.
+    - --allowed-hosts
+    - "*"
+    # The proxyrunner runs in a separate pod, so the server must leave
+    # loopback (same rationale as the argocd and grafana MCPServer entries).
     - --host
     - 0.0.0.0
     - --port
