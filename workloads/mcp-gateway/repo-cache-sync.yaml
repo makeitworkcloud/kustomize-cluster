@@ -18,7 +18,10 @@
 # One container per repo (git-sync syncs exactly one repo per process) with
 # a per-container --http-bind probe port: git-sync's HTTP endpoint returns
 # 5xx until the first sync completes and 200 thereafter, which is exactly
-# the readiness semantic wanted here. --max-failures=-1 keeps transient
+# the readiness semantic wanted here. Ports are declared (and probes use the
+# names) because kube-linter's readiness-port/liveness-port checks require
+# HTTPGet probes to reference an exposed container port; port names must be
+# unique across all containers in the pod. --max-failures=-1 keeps transient
 # GitHub failures from crash-looping a cache pod; staleness is preferable
 # to absence for this use.
 apiVersion: apps/v1
@@ -58,17 +61,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9801
+              containerPort: 9801
           readinessProbe:
             httpGet:
               path: /
-              port: 9801
+              port: probe9801
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9801
+              port: probe9801
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -110,17 +116,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9802
+              containerPort: 9802
           readinessProbe:
             httpGet:
               path: /
-              port: 9802
+              port: probe9802
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9802
+              port: probe9802
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -162,17 +171,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9803
+              containerPort: 9803
           readinessProbe:
             httpGet:
               path: /
-              port: 9803
+              port: probe9803
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9803
+              port: probe9803
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -214,17 +226,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9804
+              containerPort: 9804
           readinessProbe:
             httpGet:
               path: /
-              port: 9804
+              port: probe9804
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9804
+              port: probe9804
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -266,17 +281,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9805
+              containerPort: 9805
           readinessProbe:
             httpGet:
               path: /
-              port: 9805
+              port: probe9805
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9805
+              port: probe9805
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -318,17 +336,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9806
+              containerPort: 9806
           readinessProbe:
             httpGet:
               path: /
-              port: 9806
+              port: probe9806
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9806
+              port: probe9806
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -370,17 +391,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9807
+              containerPort: 9807
           readinessProbe:
             httpGet:
               path: /
-              port: 9807
+              port: probe9807
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9807
+              port: probe9807
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -422,17 +446,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9808
+              containerPort: 9808
           readinessProbe:
             httpGet:
               path: /
-              port: 9808
+              port: probe9808
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9808
+              port: probe9808
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -474,17 +501,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9809
+              containerPort: 9809
           readinessProbe:
             httpGet:
               path: /
-              port: 9809
+              port: probe9809
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9809
+              port: probe9809
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -526,17 +556,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9810
+              containerPort: 9810
           readinessProbe:
             httpGet:
               path: /
-              port: 9810
+              port: probe9810
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9810
+              port: probe9810
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -578,17 +611,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9811
+              containerPort: 9811
           readinessProbe:
             httpGet:
               path: /
-              port: 9811
+              port: probe9811
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9811
+              port: probe9811
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -630,17 +666,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9812
+              containerPort: 9812
           readinessProbe:
             httpGet:
               path: /
-              port: 9812
+              port: probe9812
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9812
+              port: probe9812
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -682,17 +721,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9813
+              containerPort: 9813
           readinessProbe:
             httpGet:
               path: /
-              port: 9813
+              port: probe9813
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9813
+              port: probe9813
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
@@ -734,17 +776,20 @@ spec:
           env:
             - name: HOME
               value: /tmp
+          ports:
+            - name: probe9814
+              containerPort: 9814
           readinessProbe:
             httpGet:
               path: /
-              port: 9814
+              port: probe9814
             initialDelaySeconds: 5
             periodSeconds: 15
             failureThreshold: 20
           livenessProbe:
             httpGet:
               path: /
-              port: 9814
+              port: probe9814
             initialDelaySeconds: 60
             periodSeconds: 60
             failureThreshold: 6
