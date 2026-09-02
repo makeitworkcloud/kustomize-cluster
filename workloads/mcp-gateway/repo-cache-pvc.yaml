@@ -4,13 +4,20 @@
 # reads). RWO relies on the cluster being single-node so the writer and
 # reader pods co-locate; if nodes are added, pin them together or move this
 # claim to RWX-capable storage.
+#
+# Sync wave 1, shared with the consumers: the k3s local-path StorageClass
+# uses WaitForFirstConsumer, so this claim stays Pending until a pod mounts
+# it. In its own earlier wave, Argo CD's wave health gate waits for a Bound
+# claim that can never bind and the sync deadlocks before the consumer pod is
+# ever applied (observed 2026-09-02: "waiting for healthy state of
+# /PersistentVolumeClaim/mcp-repo-cache").
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: mcp-repo-cache
   namespace: mcp
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   accessModes:
     - ReadWriteOnce
