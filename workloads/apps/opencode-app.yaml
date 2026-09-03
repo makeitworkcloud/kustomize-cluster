@@ -11,7 +11,7 @@ spec:
   sources:
     - chart: opencode-server
       repoURL: ghcr.io/makeitworkcloud/charts
-      targetRevision: 0.1.56
+      targetRevision: 0.1.57
     - chart: agent-pipe-uploader
       repoURL: ghcr.io/makeitworkcloud/charts
       targetRevision: 0.2.0
