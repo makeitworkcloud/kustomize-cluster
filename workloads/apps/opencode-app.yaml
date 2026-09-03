@@ -12,6 +12,9 @@ spec:
     - chart: opencode-server
       repoURL: ghcr.io/makeitworkcloud/charts
       targetRevision: 0.1.56
+    - chart: agent-pipe-uploader
+      repoURL: ghcr.io/makeitworkcloud/charts
+      targetRevision: 0.1.0
     - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
       path: workloads/opencode
       targetRevision: main

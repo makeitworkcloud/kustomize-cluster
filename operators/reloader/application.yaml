@@ -1,5 +1,5 @@
-# Reloader is scoped to the Grafana namespace and restarts only workloads that
-# explicitly opt into a named Secret reload annotation.
+# Reloader is scoped to the Grafana and OpenCode namespaces and restarts only
+# workloads that explicitly opt into a named Secret reload annotation.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -24,6 +24,7 @@ spec:
           watchGlobally: false
           namespaces:
             - grafana
+            - opencode
           # Grafana service-account token rotation replaces its Secret.
           reloadOnCreate: true
           reloadOnDelete: true
