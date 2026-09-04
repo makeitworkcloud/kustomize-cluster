@@ -12,4 +12,5 @@ resources:
   - mcp-gateway-app.yaml
   - gotenberg-app.yaml
   - opencode-app.yaml
+  - opencode-sms-bridge-app.yaml
   - ../argocd
