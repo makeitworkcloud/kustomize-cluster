@@ -1,0 +1,75 @@
+---
+# Adds the active public tfroot-twilio OpenTofu root to the read-only
+# Make IT Work Cloud repository cache. The cache never receives private
+# repositories, including agent-knowledge; see repo-cache-auto-discovery.md
+# for the proposed successor that discovers eligible public repositories.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: repo-cache-sync
+  namespace: mcp
+spec:
+  selector:
+    matchLabels:
+      app: repo-cache-sync
+  template:
+    metadata:
+      labels:
+        app: repo-cache-sync
+    spec:
+      containers:
+        - name: sync-tfroot-twilio
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/tfroot-twilio
+            - --ref=HEAD
+            - --root=/sync/tfroot-twilio
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --http-bind=:9830
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9830
+              containerPort: 9830
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9830
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9830
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
