@@ -122,8 +122,6 @@ patches:
                 resources: null
               - name: sync-xnoto-opencode-llama-config
                 resources: null
-              - name: sync-xnoto-opencode-llama-config
-                resources: null
               - name: sync-xnoto-xbox-media-utils
                 resources: null
     target:
