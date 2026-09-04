@@ -1,0 +1,16 @@
+---
+apiVersion: networking.cfargotunnel.com/v1alpha1
+kind: TunnelBinding
+metadata:
+  name: opencode-sms-bridge
+  namespace: opencode
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+subjects:
+  - name: opencode-sms-bridge
+    spec:
+      fqdn: sms.makeitwork.cloud
+      target: http://opencode-sms-bridge.opencode.svc:80
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps

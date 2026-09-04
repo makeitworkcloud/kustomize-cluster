@@ -1,0 +1,39 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opencode-sms-bridge
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  sources:
+    - chart: opencode-sms-bridge
+      repoURL: ghcr.io/makeitworkcloud/charts
+      targetRevision: 0.1.1
+      helm:
+        values: |
+          image:
+            tag: "8fbb926ea958fff53edff11238891ac84c4da305"
+          config:
+            canonicalWebhookUrl: https://sms.makeitwork.cloud/twilio/inbound
+    - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
+      path: workloads/opencode-sms-bridge
+      targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opencode
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        maxDuration: 5m
+        factor: 2
