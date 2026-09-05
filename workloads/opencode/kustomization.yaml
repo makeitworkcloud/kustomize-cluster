@@ -10,3 +10,14 @@ resources:
   - session-metrics.yaml
 generators:
   - ksops-opencode-secrets.yaml
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: opencode-session-metrics
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/annotations
+        value:
+          opencode.makeitwork.cloud/config-revision: token-telemetry-v1
