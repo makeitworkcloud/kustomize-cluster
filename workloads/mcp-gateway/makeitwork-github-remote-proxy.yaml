@@ -1,6 +1,9 @@
 ---
-# Keep the GitHub PAT in the mcp namespace and inject it only on outbound
-# requests to GitHub's official remote MCP endpoint.
+# Keep the GitHub PAT in the mcp namespace. This file injects it on outbound
+# requests to GitHub's official remote MCP endpoint; the same
+# mcp-makeitwork-github-token Secret is also mounted read-only at
+# /etc/git-secret in the two credentialed repo-cache-sync private-allowlist
+# containers (repo-cache-sync-private.yaml) and nowhere else.
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPExternalAuthConfig
 metadata:
