@@ -14,7 +14,7 @@ spec:
       helm:
         values: |
           image:
-            tag: "6b48ddeaa5897a3d07dc28aa929a941219ec8993"
+            tag: "adb1e0e72729a7182b4a4929bd67e0275fba8173"
           config:
             canonicalWebhookUrl: https://sms.makeitwork.cloud/twilio/inbound
     - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
