@@ -51,6 +51,13 @@ patches:
       kind: Deployment
       name: repo-cache-sync
       namespace: mcp
+  - path: repo-cache-sync-private.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: repo-cache-sync
+      namespace: mcp
   # The single-node workload policy favors spare-capacity bursts over CPU CFS
   # throttling. Keep this inline so kube-linter does not lint a partial patch as
   # a standalone Deployment.
@@ -64,6 +71,10 @@ patches:
         template:
           spec:
             containers:
+              - name: sync-agent-knowledge
+                resources: null
+              - name: sync-channel-project
+                resources: null
               - name: sync-charts
                 resources: null
               - name: sync-cflan
