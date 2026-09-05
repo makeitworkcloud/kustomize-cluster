@@ -1,0 +1,161 @@
+---
+# Owner-approved explicit private allowlist for the read-only Make IT Work
+# Cloud repository cache. agent-knowledge and channel-project are the only
+# private, non-archived makeitworkcloud repositories (verified 2026-09-05,
+# both default branch main) and the owner approved caching both.
+#
+# Unlike the public sources, these two containers authenticate with git-sync
+# v4's documented --username=x-access-token and --password-file flags against
+# the existing SOPS-encrypted mcp-makeitwork-github-token Secret, mounted
+# read-only at /etc/git-secret in these two containers only. The encrypted
+# Secret source is never decrypted, printed, or edited here, and the
+# repo-search backend keeps its uncredentialed read-only view of the same
+# mcp-repo-cache PVC; writes still never flow through this cache.
+#
+# This allowlist is deliberately separate from public automatic discovery
+# (docs/repo-cache-auto-discovery.md), which remains public-only and never
+# adds private repositories. Extending the private allowlist to another
+# repository requires a fresh owner review and its own GitOps change.
+#
+# Same consumer contract, probe-port scheme, and per-container structure as
+# repo-cache-sync.yaml; ports continue sequentially after the previous
+# highest (9830).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: repo-cache-sync
+  namespace: mcp
+spec:
+  selector:
+    matchLabels:
+      app: repo-cache-sync
+  template:
+    metadata:
+      labels:
+        app: repo-cache-sync
+    spec:
+      containers:
+        - name: sync-agent-knowledge
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/agent-knowledge
+            - --ref=HEAD
+            - --root=/sync/agent-knowledge
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --username=x-access-token
+            - --password-file=/etc/git-secret/github_token
+            - --http-bind=:9831
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9831
+              containerPort: 9831
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9831
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9831
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+            - name: git-secret
+              mountPath: /etc/git-secret
+              readOnly: true
+        - name: sync-channel-project
+          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          args:
+            - --repo=https://github.com/makeitworkcloud/channel-project
+            - --ref=HEAD
+            - --root=/sync/channel-project
+            - --link=current
+            - --depth=1
+            - --period=120s
+            - --max-failures=-1
+            - --group-write
+            - --username=x-access-token
+            - --password-file=/etc/git-secret/github_token
+            - --http-bind=:9832
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: probe9832
+              containerPort: 9832
+          readinessProbe:
+            httpGet:
+              path: /
+              port: probe9832
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            failureThreshold: 20
+          livenessProbe:
+            httpGet:
+              path: /
+              port: probe9832
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65533
+            runAsGroup: 65533
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: repos
+              mountPath: /sync
+            - name: tmp
+              mountPath: /tmp
+            - name: git-secret
+              mountPath: /etc/git-secret
+              readOnly: true
+      volumes:
+        - name: git-secret
+          secret:
+            secretName: mcp-makeitwork-github-token

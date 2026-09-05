@@ -1,8 +1,10 @@
 ---
 # Adds the active public tfroot-twilio OpenTofu root to the read-only
-# Make IT Work Cloud repository cache. The cache never receives private
-# repositories, including agent-knowledge; see repo-cache-auto-discovery.md
-# for the proposed successor that discovers eligible public repositories.
+# Make IT Work Cloud repository cache. Public sources such as this one stay
+# credential-free; private repositories are never added by public discovery,
+# only through the owner-approved credentialed allowlist in
+# repo-cache-sync-private.yaml. See repo-cache-auto-discovery.md for the
+# proposed successor that discovers eligible public repositories.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

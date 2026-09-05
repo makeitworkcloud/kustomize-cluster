@@ -1,12 +1,14 @@
 ---
-# Read-only cache of the public makeitworkcloud repositories, synced with
+# Read-only cache of the makeitworkcloud repositories, synced with
 # the Kubernetes SIG git-sync image. This is the read/discovery surface for
 # OpenCode agents: it removes per-file GitHub API round trips (private-repo
 # code search is also unreliable for this org) in exchange for staleness
-# bounded by --period plus one sync. agent-knowledge is deliberately
-# excluded: it is private and its agent subtrees may hold personal or
-# operational data, so it stays GitHub-MCP-only. Adding a private repo here
-# later requires credentials and a fresh owner review.
+# bounded by --period plus one sync. The containers defined in this file are
+# the public, credential-free sources. The only private sources are the two
+# owner-approved, credentialed containers in repo-cache-sync-private.yaml
+# (agent-knowledge and channel-project); private repositories are never
+# added automatically. See docs/repo-cache-auto-discovery.md for the
+# public-only automatic discovery design.
 #
 # Writes never flow through this cache; agents keep using the GitHub MCP for
 # mutations and for anything they just pushed.
