@@ -1,0 +1,20 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: agent-pipe-uploader
+  namespace: opencode
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groups:
+    - name: agent-pipe-uploader
+      rules:
+        - alert: AgentPipeUploaderUnavailable
+          expr: kube_deployment_status_replicas_available{namespace="opencode",deployment="agent-pipe-uploader"} < 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: Agent Pipe uploader has no available replicas
+            description: Signed artifact transfers are unavailable until the agent-pipe-uploader Deployment is ready.
