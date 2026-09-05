@@ -10,17 +10,23 @@ data:
   exporter.py: |
     import base64
     import json
+    import math
     import os
     import threading
     import time
+    import urllib.parse
     import urllib.request
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     STATUS_URL = os.environ.get("OPENCODE_STATUS_URL", "http://opencode.opencode.svc:4096/session/status")
+    API_BASE_URL = os.environ.get("OPENCODE_API_BASE_URL", "http://opencode.opencode.svc:4096").rstrip("/")
     USERNAME = os.environ.get("OPENCODE_STATUS_USERNAME", "opencode")
     PASSWORD = os.environ.get("OPENCODE_STATUS_PASSWORD", "")
     POLL_INTERVAL_SECONDS = max(float(os.environ.get("POLL_INTERVAL_SECONDS", "5")), 1.0)
+    USAGE_POLL_INTERVAL_SECONDS = max(float(os.environ.get("USAGE_POLL_INTERVAL_SECONDS", "30")), 5.0)
     REQUEST_TIMEOUT_SECONDS = max(float(os.environ.get("REQUEST_TIMEOUT_SECONDS", "5")), 1.0)
+    SESSION_LIST_LIMIT = max(int(os.environ.get("SESSION_LIST_LIMIT", "1000")), 1)
+    TOKEN_KINDS = ("input", "output", "reasoning", "cache_read", "cache_write")
 
     state_lock = threading.Lock()
     state = {
@@ -29,19 +35,53 @@ data:
         "retry": 0,
         "last_success": 0.0,
         "poll_errors": 0,
+        "usage_up": 0,
+        "usage_last_success": 0.0,
+        "usage_scan_errors": 0,
+        "usage_scan_truncated": 0,
+        "usage_projects": 0,
+        "usage_sessions": 0,
+        "usage_initialized": False,
+        "usage_baselines": {},
+        "usage_totals": {kind: 0.0 for kind in TOKEN_KINDS},
     }
 
-    def poll_status():
+    def authorization_header():
         credentials = base64.b64encode(f"{USERNAME}:{PASSWORD}".encode()).decode()
+        return f"Basic {credentials}"
+
+    def fetch_json(url, query=None):
+        if query:
+            url = f"{url}?{urllib.parse.urlencode(query)}"
         request = urllib.request.Request(
-            STATUS_URL,
-            headers={"Accept": "application/json", "Authorization": f"Basic {credentials}"},
+            url,
+            headers={"Accept": "application/json", "Authorization": authorization_header()},
         )
+        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            if response.status != 200:
+                raise RuntimeError("unexpected status response")
+            return json.load(response)
+
+    def finite_nonnegative(value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return 0.0
+        value = float(value)
+        return value if math.isfinite(value) and value >= 0 else 0.0
+
+    def session_tokens(session):
+        tokens = session.get("tokens") if isinstance(session.get("tokens"), dict) else {}
+        cache = tokens.get("cache") if isinstance(tokens.get("cache"), dict) else {}
+        return {
+            "input": finite_nonnegative(tokens.get("input")),
+            "output": finite_nonnegative(tokens.get("output")),
+            "reasoning": finite_nonnegative(tokens.get("reasoning")),
+            "cache_read": finite_nonnegative(cache.get("read")),
+            "cache_write": finite_nonnegative(cache.get("write")),
+        }
+
+    def poll_status():
         try:
-            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-                if response.status != 200:
-                    raise RuntimeError("unexpected status response")
-                payload = json.load(response)
+            payload = fetch_json(STATUS_URL)
             if not isinstance(payload, dict):
                 raise RuntimeError("unexpected status payload")
             counts = {"busy": 0, "retry": 0}
@@ -54,15 +94,74 @@ data:
             with state_lock:
                 state.update(up=0, busy=0, retry=0, poll_errors=state["poll_errors"] + 1)
 
-    def poll_forever():
+    def poll_usage():
+        try:
+            projects = fetch_json(f"{API_BASE_URL}/project")
+            if not isinstance(projects, list):
+                raise RuntimeError("unexpected project payload")
+
+            sessions_by_id = {}
+            truncated = False
+            project_count = 0
+            for project in projects:
+                if not isinstance(project, dict) or not isinstance(project.get("worktree"), str):
+                    raise RuntimeError("unexpected project entry")
+                project_count += 1
+                sessions = fetch_json(
+                    f"{API_BASE_URL}/session",
+                    {"directory": project["worktree"], "scope": "project", "limit": SESSION_LIST_LIMIT},
+                )
+                if not isinstance(sessions, list):
+                    raise RuntimeError("unexpected session payload")
+                if len(sessions) >= SESSION_LIST_LIMIT:
+                    truncated = True
+                for session in sessions:
+                    if isinstance(session, dict) and isinstance(session.get("id"), str):
+                        sessions_by_id[session["id"]] = session
+
+            if truncated:
+                with state_lock:
+                    state.update(usage_up=0, usage_scan_truncated=1)
+                return
+
+            baselines = {
+                session_id: session_tokens(session)
+                for session_id, session in sessions_by_id.items()
+            }
+            with state_lock:
+                if state["usage_initialized"]:
+                    for session_id, current in baselines.items():
+                        previous = state["usage_baselines"].get(session_id, {})
+                        for kind in TOKEN_KINDS:
+                            state["usage_totals"][kind] += max(current[kind] - previous.get(kind, 0.0), 0.0)
+                state.update(
+                    usage_up=1,
+                    usage_last_success=time.time(),
+                    usage_scan_truncated=0,
+                    usage_projects=project_count,
+                    usage_sessions=len(baselines),
+                    usage_initialized=True,
+                    usage_baselines=baselines,
+                )
+        except Exception:
+            with state_lock:
+                state.update(usage_up=0, usage_scan_errors=state["usage_scan_errors"] + 1)
+
+    def poll_status_forever():
         while True:
             poll_status()
             time.sleep(POLL_INTERVAL_SECONDS)
 
+    def poll_usage_forever():
+        while True:
+            poll_usage()
+            time.sleep(USAGE_POLL_INTERVAL_SECONDS)
+
     def metrics_body():
         with state_lock:
             snapshot = state.copy()
-        return "\n".join([
+            snapshot["usage_totals"] = state["usage_totals"].copy()
+        lines = [
             "# HELP opencode_session_status_up Whether the most recent OpenCode session-status poll succeeded.",
             "# TYPE opencode_session_status_up gauge",
             f"opencode_session_status_up {snapshot['up']}",
@@ -76,8 +175,35 @@ data:
             "# HELP opencode_session_status_poll_errors_total Failed OpenCode session-status polls.",
             "# TYPE opencode_session_status_poll_errors_total counter",
             f"opencode_session_status_poll_errors_total {snapshot['poll_errors']}",
+            "# HELP opencode_llm_tokens_total Aggregate token deltas observed after the exporter initial baseline.",
+            "# TYPE opencode_llm_tokens_total counter",
+        ]
+        lines.extend(
+            f"opencode_llm_tokens_total{{kind=\"{kind}\"}} {snapshot['usage_totals'][kind]}"
+            for kind in TOKEN_KINDS
+        )
+        lines.extend([
+            "# HELP opencode_session_usage_scan_up Whether the most recent complete OpenCode session-usage scan succeeded.",
+            "# TYPE opencode_session_usage_scan_up gauge",
+            f"opencode_session_usage_scan_up {snapshot['usage_up']}",
+            "# HELP opencode_session_usage_scan_last_success_timestamp_seconds Unix timestamp of the last complete OpenCode session-usage scan.",
+            "# TYPE opencode_session_usage_scan_last_success_timestamp_seconds gauge",
+            f"opencode_session_usage_scan_last_success_timestamp_seconds {snapshot['usage_last_success']}",
+            "# HELP opencode_session_usage_scan_errors_total Failed OpenCode session-usage scans.",
+            "# TYPE opencode_session_usage_scan_errors_total counter",
+            f"opencode_session_usage_scan_errors_total {snapshot['usage_scan_errors']}",
+            "# HELP opencode_session_usage_scan_truncated Whether a session-usage scan reached its configured per-project limit.",
+            "# TYPE opencode_session_usage_scan_truncated gauge",
+            f"opencode_session_usage_scan_truncated {snapshot['usage_scan_truncated']}",
+            "# HELP opencode_session_usage_projects Number of projects in the last complete session-usage scan.",
+            "# TYPE opencode_session_usage_projects gauge",
+            f"opencode_session_usage_projects {snapshot['usage_projects']}",
+            "# HELP opencode_session_usage_sessions Number of sessions in the last complete session-usage scan.",
+            "# TYPE opencode_session_usage_sessions gauge",
+            f"opencode_session_usage_sessions {snapshot['usage_sessions']}",
             "",
-        ]).encode()
+        ])
+        return "\n".join(lines).encode()
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -92,7 +218,6 @@ data:
             else:
                 body = b"not found\n"
                 self.send_response(404)
-                self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -101,7 +226,8 @@ data:
             return
 
     if __name__ == "__main__":
-        threading.Thread(target=poll_forever, daemon=True).start()
+        threading.Thread(target=poll_status_forever, daemon=True).start()
+        threading.Thread(target=poll_usage_forever, daemon=True).start()
         ThreadingHTTPServer(("0.0.0.0", 9108), Handler).serve_forever()
 ---
 apiVersion: apps/v1
@@ -137,6 +263,8 @@ spec:
           env:
             - name: OPENCODE_STATUS_URL
               value: http://opencode.opencode.svc:4096/session/status
+            - name: OPENCODE_API_BASE_URL
+              value: http://opencode.opencode.svc:4096
             - name: OPENCODE_STATUS_USERNAME
               value: opencode
             - name: OPENCODE_STATUS_PASSWORD
@@ -146,8 +274,12 @@ spec:
                   key: password
             - name: POLL_INTERVAL_SECONDS
               value: "5"
+            - name: USAGE_POLL_INTERVAL_SECONDS
+              value: "30"
             - name: REQUEST_TIMEOUT_SECONDS
               value: "5"
+            - name: SESSION_LIST_LIMIT
+              value: "1000"
             - name: PYTHONDONTWRITEBYTECODE
               value: "1"
           ports:
