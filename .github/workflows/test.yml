@@ -20,9 +20,50 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        # setup-python main 2026-09-09. The previous pin (5fda3b95, v7.0.0)
+        # became unresolvable to runners on 2026-09-09 across regions and
+        # retries while the API tag cache still served it; upstream rewrote
+        # the tagged commit. Re-pinned to a branch-reachable commit.
+        uses: actions/setup-python@337b0725b8770380d7cde73cfef696f1295727eb
         with:
           python-version: "3.12"
+
+      # A full `kustomize build` is not possible in CI: kustomizations such as
+      # workloads/mcp-gateway use KSOPS generators whose SOPS decryption keys
+      # are not available to pull-request runners. This check proves every
+      # kustomization resource, patch, configuration, and generator reference
+      # resolves to a tracked file, which is the failure class reference typos
+      # introduce.
+      - name: Verify kustomization references
+        run: |
+          python -m pip install --quiet --require-hashes -r .github/requirements-ci.txt
+          python - <<'EOF'
+          import subprocess, sys, yaml
+          from pathlib import Path
+
+          files = subprocess.run(
+              ["git", "ls-files", "*/kustomization.yaml"],
+              capture_output=True, text=True, check=True,
+          ).stdout.split()
+          missing = []
+          for f in files:
+              doc = yaml.safe_load(Path(f).read_text()) or {}
+              base = Path(f).parent
+              for key in ("resources", "patches", "configurations", "generators"):
+                  for entry in doc.get(key) or []:
+                      ref = entry.get("path") if isinstance(entry, dict) else entry
+                      if not ref or not isinstance(ref, str):
+                          continue
+                      if ref.startswith(("./", "https://", "git::")):
+                          continue
+                      if not (base / ref).exists():
+                          missing.append(f"{key} entry '{ref}' in {f}")
+          if missing:
+              for m in missing:
+                  print(f"MISSING: {m}")
+              sys.exit(1)
+          print(f"OK: all kustomization references resolve across {len(files)} kustomizations")
+          EOF
 
       - name: pre-commit tests
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
