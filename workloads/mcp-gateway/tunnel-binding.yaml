@@ -29,6 +29,8 @@ subjects:
     spec:
       fqdn: mcp-makeitwork-aws-docs.makeitwork.cloud
       target: http://mcp-makeitwork-aws-docs-proxy.mcp.svc:8080
+  # Cloudflare API credentials remain proxy-owned; external callers use the
+  # shared MCP Gateway Access service token instead of the Cloudflare API token.
   - name: mcp-makeitwork-cloudflare-read-remote-proxy
     spec:
       fqdn: mcp-makeitwork-cloudflare.makeitwork.cloud
