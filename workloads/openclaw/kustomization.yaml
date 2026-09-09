@@ -1,0 +1,87 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: openclaw
+resources:
+  - https://github.com/openclaw/openclaw//scripts/k8s/manifests?ref=1391f7cd2d40ab5bbcf2f5f831d3a64f520e72d7
+  - tunnel-binding.yaml
+generators:
+  - ksops-openclaw-secrets.yaml
+patches:
+  - target:
+      version: v1
+      kind: ConfigMap
+      name: openclaw-config
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: openclaw-config
+      data:
+        openclaw.json: |
+          {
+            "gateway": {
+              "mode": "local",
+              "bind": "lan",
+              "port": 18789,
+              "publicOrigin": "https://openclaw.makeitwork.cloud",
+              "auth": {
+                "mode": "token"
+              },
+              "controlUi": {
+                "enabled": true,
+                "allowedOrigins": [
+                  "https://openclaw.makeitwork.cloud"
+                ]
+              },
+              "terminal": {
+                "enabled": false
+              }
+            },
+            "agents": {
+              "defaults": {
+                "workspace": "~/.openclaw/workspace"
+              },
+              "list": [
+                {
+                  "id": "default",
+                  "name": "OpenClaw Assistant",
+                  "workspace": "~/.openclaw/workspace"
+                }
+              ]
+            },
+            "cron": {
+              "enabled": false
+            }
+          }
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: openclaw
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: openclaw
+      spec:
+        template:
+          spec:
+            containers:
+              - name: gateway
+                image: ghcr.io/openclaw/openclaw:2026.9.3-slim@sha256:6cb72e1599b3b76e2ea3dcc2f4dd7f112247367fbecadfcdee8caa7423f4989b
+                env:
+                  - name: OPENAI_API_KEY
+                    valueFrom:
+                      secretKeyRef:
+                        name: openclaw-secrets
+                        key: OPENAI_API_KEY
+                        optional: false
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: openclaw
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/0/resources

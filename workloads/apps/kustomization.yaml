@@ -11,6 +11,7 @@ resources:
   - kubectl-tunnel-app.yaml
   - mcp-gateway-app.yaml
   - gotenberg-app.yaml
+  - openclaw-app.yaml
   - opencode-app.yaml
   - opencode-sms-bridge-app.yaml
   - ../argocd

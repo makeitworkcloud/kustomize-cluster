@@ -1,0 +1,16 @@
+---
+apiVersion: networking.cfargotunnel.com/v1alpha1
+kind: TunnelBinding
+metadata:
+  name: openclaw
+  namespace: openclaw
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+subjects:
+  - name: openclaw
+    spec:
+      fqdn: openclaw.makeitwork.cloud
+      target: http://openclaw.openclaw.svc:18789
+tunnelRef:
+  kind: ClusterTunnel
+  name: cluster-apps
