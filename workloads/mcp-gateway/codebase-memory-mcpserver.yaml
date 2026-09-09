@@ -39,10 +39,14 @@
 # private-directory parent"). emptyDir mount roots are root-owned mode 0777,
 # which fails that check and which the non-root workload uid cannot chmod.
 # The init container therefore runs as root (container-level override of the
-# pod's runAsNonRoot; capabilities dropped, read-only rootfs, touching only
-# these two emptyDir mounts) to hand /cache to uid 1000 mode 0770, create the
-# cbm/runtime subdirectories, and make /tmp root-owned sticky 1777 — the
-# ancestor shape upstream's own /tmp default accepts.
+# pod's runAsNonRoot; read-only rootfs, touching only these two emptyDir
+# mounts) to hand /cache to uid 1000 mode 0770, create the cbm/runtime
+# subdirectories, and make /tmp root-owned sticky 1777 — the ancestor shape
+# upstream's own /tmp default accepts. It carries exactly one capability,
+# CHOWN, because ownership transfer requires CAP_CHOWN even as uid 0 when all
+# other capabilities are dropped (observed: "chown: changing ownership of
+# '/cache': Operation not permitted"); chmod on root-owned paths needs no
+# capability.
 #
 # The backend needs no Kubernetes API access; the pod opts out of the
 # service-account token (repo-cache-sync precedent).
@@ -140,6 +144,8 @@ spec:
             capabilities:
               drop:
                 - ALL
+              add:
+                - CHOWN
             readOnlyRootFilesystem: true
           volumeMounts:
             - name: cache
