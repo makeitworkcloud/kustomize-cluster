@@ -40,8 +40,5 @@ spec:
   # https://github.com/cloudflare/mcp documents this Streamable HTTP endpoint.
   remoteUrl: https://mcp.cloudflare.com/mcp
   transport: streamable-http
-  podTemplateSpec:
-    spec:
-      automountServiceAccountToken: false
   externalAuthConfigRef:
     name: makeitwork-cloudflare-read-auth
