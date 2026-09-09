@@ -30,10 +30,19 @@
 # The background git watcher is left at upstream defaults for the
 # verification pass: against the symlink-flipped read-only cache its worst
 # case is wasted re-index work, and observing its actual behavior is one of
-# the gates. The init container prepares cache/runtime directories with
-# non-world-writable modes because upstream's daemon rendezvous enforces
-# strict ancestor ownership/permission checks and hard-fails otherwise
-# ("secure daemon endpoint could not be created").
+# the gates.
+#
+# Upstream admission checks require every ancestor of CBM_CACHE_DIR and of the
+# daemon rendezvous dir to be owned by the runtime uid and not world-writable
+# (observed 2026-09-09: "exact executable identity could not be verified
+# (cache-private) ... the directory CONTAINING 'cbm' is not a usable
+# private-directory parent"). emptyDir mount roots are root-owned mode 0777,
+# which fails that check and which the non-root workload uid cannot chmod.
+# The init container therefore runs as root (container-level override of the
+# pod's runAsNonRoot; capabilities dropped, read-only rootfs, touching only
+# these two emptyDir mounts) to hand /cache to uid 1000 mode 0770, create the
+# cbm/runtime subdirectories, and make /tmp root-owned sticky 1777 — the
+# ancestor shape upstream's own /tmp default accepts.
 #
 # The backend needs no Kubernetes API access; the pod opts out of the
 # service-account token (repo-cache-sync precedent).
@@ -116,9 +125,17 @@ spec:
             - -ec
           args:
             - |
-              mkdir -p /cache/cbm /cache/runtime /tmp/npm-cache
+              chown 1000:1000 /cache
+              chmod 0770 /cache
+              mkdir -p /cache/cbm /cache/runtime
+              chown 1000:1000 /cache/cbm /cache/runtime
               chmod 0770 /cache/cbm /cache/runtime
+              chmod 1777 /tmp
+              mkdir -p /tmp/npm-cache
+              chown 1000:1000 /tmp/npm-cache
           securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
             allowPrivilegeEscalation: false
             capabilities:
               drop:
