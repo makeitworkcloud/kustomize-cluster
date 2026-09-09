@@ -13,6 +13,7 @@ resources:
   - playwright-config.yaml
   - playwright-mcpserver.yaml
   - makeitwork-github-remote-proxy.yaml
+  - cloudflare-remote-proxy.yaml
   - repo-cache-pvc.yaml
   - repo-cache-sync.yaml
   - repo-search-toolconfig.yaml
