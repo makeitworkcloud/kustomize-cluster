@@ -10,13 +10,14 @@ spec:
   sources:
     - chart: opencode-sms-bridge
       repoURL: ghcr.io/makeitworkcloud/charts
-      targetRevision: 0.1.2
+      targetRevision: 0.1.3
       helm:
         values: |
           image:
-            tag: "35572992f220a0b378bb76283befd1000a0751d6"
+            tag: "9ae1ead0f55c7040cdc7bdd3611718bc6b56cf62"
           config:
             canonicalWebhookUrl: https://sms.makeitwork.cloud/twilio/inbound
+            messagingServiceSid: "MG6d0d09f5cc56feb808d435c8a5aade13"
     - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
       path: workloads/opencode-sms-bridge
       targetRevision: main
