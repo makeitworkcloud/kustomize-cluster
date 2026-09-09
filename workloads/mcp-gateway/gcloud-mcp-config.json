@@ -1,0 +1,20 @@
+{
+  "allow": [
+    "asset analyze-iam-policy",
+    "asset list",
+    "asset search-all-iam-policies",
+    "asset search-all-resources",
+    "iam roles describe",
+    "iam roles list",
+    "iam service-accounts get",
+    "iam service-accounts get-iam-policy",
+    "iam service-accounts list",
+    "kms keyrings describe",
+    "kms keyrings list",
+    "kms keys describe",
+    "kms keys list",
+    "projects describe",
+    "projects get-iam-policy",
+    "services list"
+  ]
+}
