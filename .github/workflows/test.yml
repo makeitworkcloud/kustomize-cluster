@@ -36,7 +36,7 @@ jobs:
       # introduce.
       - name: Verify kustomization references
         run: |
-          pip install --quiet pyyaml
+          python -m pip install --quiet --require-hashes -r .github/requirements-ci.txt
           python - <<'EOF'
           import subprocess, sys, yaml
           from pathlib import Path
