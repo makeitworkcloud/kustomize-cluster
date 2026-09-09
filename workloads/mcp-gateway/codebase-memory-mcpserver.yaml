@@ -50,6 +50,15 @@ spec:
   transport: stdio
   proxyMode: streamable-http
   permissionProfile:
+    # Owner-approved egress exemption (2026-09-09, PR #224): the npm-exec
+    # startup path requires the persistent network profile while this
+    # backend reads the private org repo cache (including agent-knowledge
+    # and channel-project mirrors), and flannel enforces no NetworkPolicy,
+    # so a compromised dependency could exfiltrate source. Waived with
+    # in-repo precedent (makeitwork-hero-ssh runs the same pattern with more
+    # sensitive cargo) under the owner third-party-images policy. Retire
+    # this exemption when an official upstream container image allows a
+    # no-network profile (upstream discussion #299).
     type: builtin
     name: network
   toolConfigRef:
