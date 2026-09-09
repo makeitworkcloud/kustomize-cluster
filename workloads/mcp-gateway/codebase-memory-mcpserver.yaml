@@ -42,11 +42,15 @@
 # pod's runAsNonRoot; read-only rootfs, touching only these two emptyDir
 # mounts) to hand /cache to uid 1000 mode 0770, create the cbm/runtime
 # subdirectories, and make /tmp root-owned sticky 1777 — the ancestor shape
-# upstream's own /tmp default accepts. It carries exactly one capability,
-# CHOWN, because ownership transfer requires CAP_CHOWN even as uid 0 when all
-# other capabilities are dropped (observed: "chown: changing ownership of
-# '/cache': Operation not permitted"); chmod on root-owned paths needs no
-# capability.
+# upstream's own /tmp default accepts.
+#
+# Capability notes (both iterations observed live): chown needs CAP_CHOWN
+# even as uid 0 with everything else dropped ("chown: changing ownership of
+# '/cache': Operation not permitted"); and after chown transfers ownership,
+# chmod on the now-unowned directory needs CAP_FOWNER ("chmod: changing
+# permissions of '/cache': Operation not permitted"). The script also orders
+# every chmod before its chown; CHOWN+FOWNER together keep it correct
+# regardless of ordering. These are the only two capabilities granted.
 #
 # The backend needs no Kubernetes API access; the pod opts out of the
 # service-account token (repo-cache-sync precedent).
@@ -128,12 +132,16 @@ spec:
             - /bin/sh
             - -ec
           args:
+            # Order matters: each chmod runs while root still owns the path;
+            # the chown that follows transfers ownership to the runtime uid.
+            # CHOWN+FOWNER capabilities make the sequence robust even if the
+            # order regresses.
             - |
-              chown 1000:1000 /cache
               chmod 0770 /cache
+              chown 1000:1000 /cache
               mkdir -p /cache/cbm /cache/runtime
-              chown 1000:1000 /cache/cbm /cache/runtime
               chmod 0770 /cache/cbm /cache/runtime
+              chown 1000:1000 /cache/cbm /cache/runtime
               chmod 1777 /tmp
               mkdir -p /tmp/npm-cache
               chown 1000:1000 /tmp/npm-cache
@@ -146,6 +154,7 @@ spec:
                 - ALL
               add:
                 - CHOWN
+                - FOWNER
             readOnlyRootFilesystem: true
           volumeMounts:
             - name: cache
