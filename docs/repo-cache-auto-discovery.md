@@ -4,7 +4,7 @@ status: draft
 owners:
   - makeitworkcloud
 created: 2026-09-04
-last_reviewed: 2026-09-05
+last_reviewed: 2026-09-09
 source_repositories:
   - makeitworkcloud/kustomize-cluster
   - makeitworkcloud/tfroot-github
@@ -24,7 +24,7 @@ This design replaces the manually enumerated Make IT Work Cloud public source se
 
 ## Observed baseline
 
-**Verified fact (2026-09-04):** `workloads/mcp-gateway/repo-cache-sync.yaml` starts one `git-sync` container per repository because `git-sync` synchronizes one repository per process. The `repo-search` MCP server mounts the shared PVC read-only at `/repos` and reads arbitrary repository roots under that path. Its stable consumer contract is `/repos/<repository>/current`, with the synced commit visible in the adjacent git-sync worktree.
+**Verified fact (2026-09-04):** `workloads/mcp-gateway/repo-cache-sync.yaml` starts one `git-sync` container per repository because `git-sync` synchronizes one repository per process. The `codebase-memory` MCP backend mounts the shared PVC read-only at `/repos` and indexes repository roots under that path; project identity resolves through each `/repos/<repository>/current` symlink to the synced worktree, embedding the synced commit SHA in the project name. Its stable consumer contract is `/repos/<repository>/current`, with the synced commit visible in the adjacent git-sync worktree.
 
 **Verified fact (2026-09-04):** `tfroot-github/main.tf` is the canonical organization repository-policy inventory. At revision `aca473b319f52fd5a562effe71b4516cdbd89009`, `tfroot-twilio` is active and public; `agent-knowledge` and `channel-project` are private; and the three historical Ansible repositories are archived. The current `kustomize-cluster` cache revision `f1085c64a75719c6d4f316e0f0c1862f18568466` lacked a `tfroot-twilio` source, so this change adds it as a static bridge.
 
@@ -45,7 +45,7 @@ The controller applies this fixed policy before cloning:
 
 ### Cache writer
 
-The proposed `repo-cache-controller` is a small, pinned image owned by `makeitworkcloud/images` and selected by `kustomize-cluster`. It replaces only the static public `repo-cache-sync` writers; the credentialed private-allowlist containers in `repo-cache-sync-private.yaml` remain static desired state, and the filesystem MCP backend, its ToolHive policy, and the OpenCode `repo-search` endpoint remain unchanged.
+The proposed `repo-cache-controller` is a small, pinned image owned by `makeitworkcloud/images` and selected by `kustomize-cluster`. It replaces only the static public `repo-cache-sync` writers; the credentialed private-allowlist containers in `repo-cache-sync-private.yaml` remain static desired state, and the codebase-memory backend, its ToolHive policy, and the OpenCode `codebase-memory` endpoint remain unchanged.
 
 For every eligible repository, the controller fetches the default branch at the existing 120-second cadence. It stages a complete immutable checkout below that repository's cache root, then atomically publishes the new checkout and flips `current` only after the checkout is complete. The published layout must retain the existing agent-facing form:
 
@@ -65,13 +65,13 @@ Repository-content staleness remains bounded by one 120-second fetch cycle after
 - eligible, synchronized, stale, and denied repository counts; and
 - a per-repository current commit SHA and last-success time.
 
-The MCP read path remains intentionally non-authoritative for remote `HEAD`, branch protection, visibility, or freshly pushed source. Agents continue to record the visible cache SHA and use GitHub MCP for writes and freshness-critical reads; the two allowlisted private repositories are additionally readable through the credentialed cache path.
+The MCP read path remains intentionally non-authoritative for remote `HEAD`, branch protection, visibility, or freshly pushed source. Agents verify freshness against GitHub through the GitHub MCP for writes and freshness-critical reads; indexed projects record the worktree SHA they were built from, and agents re-index when it has moved. The two allowlisted private repositories are additionally readable through the credentialed cache path.
 
 ## Delivery plan and acceptance criteria
 
 1. **Author and validate a controller image:** add source and unit tests in `images`; publish an immutable digest only after its pull-request checks pass. Tests must cover pagination, ETag reuse, archived/private/deny-list filtering, path validation, failed-fetch retention, successful-source-only pruning, and atomic publication.
-2. **Shadow the writer:** deploy the controller against a separate PVC and non-advertised filesystem MCP server. Do not allow static and dynamic writers to share one PVC. Verify every existing eligible root, `current` symlink, and source SHA against the static cache within its documented staleness bound.
-3. **Cut over desired state:** switch the existing read-only backend to the validated PVC/controller after cluster CI passes. Verify the `mcp-gateway` Application, cache writer, filesystem backend/proxy, and an MCP listing of `/repos/tfroot-twilio/current` separately.
+2. **Shadow the writer:** deploy the controller against a separate PVC and a non-advertised cache reader. Do not allow static and dynamic writers to share one PVC. Verify every existing eligible root, `current` symlink, and source SHA against the static cache within its documented staleness bound.
+3. **Cut over desired state:** switch the cache consumer to the validated PVC/controller after cluster CI passes. Verify the `mcp-gateway` Application, cache writer, backend/proxy health, and an indexed project for `/repos/tfroot-twilio/current` separately.
 4. **Exercise lifecycle behavior:** create or use an approved temporary public test repository, observe automatic inclusion without a manifest edit, then archive it and observe pruning only after a successful inventory. This is a confirmation-gated organization mutation and is not part of the current change.
 5. **Retire static writers:** remove the per-repository public `git-sync` containers only after the cutover and lifecycle checks succeed. Keep the existing static `tfroot-twilio` bridge until then; the credentialed private-allowlist containers in `repo-cache-sync-private.yaml` are outside this design and are not retired by it.
 
@@ -79,4 +79,4 @@ The MCP read path remains intentionally non-authoritative for remote `HEAD`, bra
 
 Implementation must select a Git checkout library or bundled Git implementation that can preserve the immutable-worktree and atomic-`current` contract above. It must not rely on undocumented `git-sync` internals or dynamically mutate a Kubernetes Deployment to add containers.
 
-Revisit this design if the organization exceeds one GitHub API page, the cache must support another organization, repository visibility policy changes, a repository needs explicit opt-in instead of all-public inclusion, or the filesystem MCP narrows its `/repos` access model.
+Revisit this design if the organization exceeds one GitHub API page, the cache must support another organization, repository visibility policy changes, a repository needs explicit opt-in instead of all-public inclusion, or the codebase-memory backend narrows its `/repos` access model.
