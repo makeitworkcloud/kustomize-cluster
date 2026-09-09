@@ -20,9 +20,38 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e89458c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
+
+      # Full `kustomize build` is not possible in CI: workloads such as
+      # mcp-gateway use KSOPS generators whose SOPS decryption keys are not
+      # available to pull-request runners. This check proves every kustomization
+      # resource, patch, configuration, and generator reference resolves to a
+      # tracked file, which is the failure class reference typos introduce.
+      - name: Verify kustomization references
+        run: |
+          set -eu
+          failed=0
+          for k in $(git ls-files '*/kustomization.yaml'); do
+            dir=$(dirname "$k")
+            for key in resources patches configurations generators; do
+              while IFS= read -r ref; do
+                [ -z "$ref" ] && continue
+                case "$ref" in
+                  ./*|https://*|git::*) continue ;;
+                esac
+                if [ ! -e "$dir/$ref" ]; then
+                  echo "MISSING: $key entry '$ref' in $k"
+                  failed=1
+                fi
+              done <<EOF
+          $(yq ".${key}[] | select(type == \"!\") | .path? // ." "$k" 2>/dev/null || true)
+          $(yq ".${key}[]? | select(tag != \"!\")" "$k" 2>/dev/null || true)
+          EOF
+            done
+          done
+          exit $failed
 
       - name: pre-commit tests
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
