@@ -9,6 +9,8 @@ resources:
   - aws-docs-mcpserver.yaml
   - mcp-aws-config.yaml
   - makeitwork-aws-mcpserver.yaml
+  - makeitwork-gcp-mcpserver.yaml
+  - gcloud-mcp-serviceaccount.yaml
   - terraform-docs-mcpserver.yaml
   - playwright-config.yaml
   - playwright-mcpserver.yaml
@@ -34,8 +36,25 @@ configMapGenerator:
     options:
       annotations:
         argocd.argoproj.io/sync-wave: "1"
+  # These files are non-secret WIF and command-policy configuration. Their
+  # generated names roll the backend when either contract changes.
+  - name: gcloud-mcp-credentials
+    namespace: mcp
+    files:
+      - credential-configuration.json=gcloud-mcp-credential-configuration.json
+    options:
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
+  - name: gcloud-mcp-config
+    namespace: mcp
+    files:
+      - config.json=gcloud-mcp-config.json
+    options:
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
 configurations:
   - hero-ssh-namereference.yaml
+  - gcloud-mcp-namereference.yaml
 patches:
   - path: repo-cache-sync-xnoto.yaml
     target:
@@ -120,8 +139,6 @@ patches:
               - name: sync-xnoto-herofand
                 resources: null
               - name: sync-xnoto-homebrew-opencode-agent-hub
-                resources: null
-              - name: sync-xnoto-llama-hero
                 resources: null
               - name: sync-xnoto-mcp-gateway
                 resources: null
