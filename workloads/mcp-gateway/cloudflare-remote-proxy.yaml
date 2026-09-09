@@ -4,6 +4,17 @@
 # in OpenCode. No groupRef intentionally keeps it out of the externally
 # exposed VirtualMCPServer aggregation; this is the same boundary used for the
 # credentialed GitHub proxy.
+#
+# Required credential contract: a separate, account-wide token scoped only to
+# Cloudflare API read permission groups for the account containing xnoto.dev,
+# makeitwork.cloud, and orthodox.channel, including Account Resources: Read for
+# account-token discovery. The upstream exposes generic execute capability, so
+# token permissions—not this proxy name or agent instructions—must block writes.
+# Cloudflare's hosted MCP does not support client-IP-filtered API tokens.
+#
+# ToolHive v0.46.0 reads this token through an environment variable. Rotate it
+# through the encrypted Secret, then perform a separately approved rollout of
+# the generated proxy Deployment; changing the Secret alone does not restart it.
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPExternalAuthConfig
 metadata:
