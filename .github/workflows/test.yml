@@ -24,34 +24,42 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Full `kustomize build` is not possible in CI: workloads such as
-      # mcp-gateway use KSOPS generators whose SOPS decryption keys are not
-      # available to pull-request runners. This check proves every kustomization
-      # resource, patch, configuration, and generator reference resolves to a
-      # tracked file, which is the failure class reference typos introduce.
+      # A full `kustomize build` is not possible in CI: kustomizations such as
+      # workloads/mcp-gateway use KSOPS generators whose SOPS decryption keys
+      # are not available to pull-request runners. This check proves every
+      # kustomization resource, patch, configuration, and generator reference
+      # resolves to a tracked file, which is the failure class reference typos
+      # introduce.
       - name: Verify kustomization references
         run: |
-          set -eu
-          failed=0
-          for k in $(git ls-files '*/kustomization.yaml'); do
-            dir=$(dirname "$k")
-            for key in resources patches configurations generators; do
-              while IFS= read -r ref; do
-                [ -z "$ref" ] && continue
-                case "$ref" in
-                  ./*|https://*|git::*) continue ;;
-                esac
-                if [ ! -e "$dir/$ref" ]; then
-                  echo "MISSING: $key entry '$ref' in $k"
-                  failed=1
-                fi
-              done <<EOF
-          $(yq ".${key}[] | select(type == \"!\") | .path? // ." "$k" 2>/dev/null || true)
-          $(yq ".${key}[]? | select(tag != \"!\")" "$k" 2>/dev/null || true)
+          pip install --quiet pyyaml
+          python - <<'EOF'
+          import subprocess, sys, yaml
+          from pathlib import Path
+
+          files = subprocess.run(
+              ["git", "ls-files", "*/kustomization.yaml"],
+              capture_output=True, text=True, check=True,
+          ).stdout.split()
+          missing = []
+          for f in files:
+              doc = yaml.safe_load(Path(f).read_text()) or {}
+              base = Path(f).parent
+              for key in ("resources", "patches", "configurations", "generators"):
+                  for entry in doc.get(key) or []:
+                      ref = entry.get("path") if isinstance(entry, dict) else entry
+                      if not ref or not isinstance(ref, str):
+                          continue
+                      if ref.startswith(("./", "https://", "git::")):
+                          continue
+                      if not (base / ref).exists():
+                          missing.append(f"{key} entry '{ref}' in {f}")
+          if missing:
+              for m in missing:
+                  print(f"MISSING: {m}")
+              sys.exit(1)
+          print(f"OK: all kustomization references resolve across {len(files)} kustomizations")
           EOF
-            done
-          done
-          exit $failed
 
       - name: pre-commit tests
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1

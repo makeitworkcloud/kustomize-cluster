@@ -34,6 +34,9 @@
 # non-world-writable modes because upstream's daemon rendezvous enforces
 # strict ancestor ownership/permission checks and hard-fails otherwise
 # ("secure daemon endpoint could not be created").
+#
+# The backend needs no Kubernetes API access; the pod opts out of the
+# service-account token (repo-cache-sync precedent).
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
@@ -76,6 +79,7 @@ spec:
       value: "768"
   podTemplateSpec:
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
