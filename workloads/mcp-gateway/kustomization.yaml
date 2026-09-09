@@ -14,6 +14,7 @@ resources:
   - playwright-config.yaml
   - playwright-mcpserver.yaml
   - makeitwork-github-remote-proxy.yaml
+  - cloudflare-remote-proxy.yaml
   - repo-cache-pvc.yaml
   - repo-cache-sync.yaml
   - repo-search-toolconfig.yaml
@@ -91,8 +92,6 @@ patches:
                 resources: null
               - name: sync-tfroot-aws
                 resources: null
-              - name: sync-tfroot-cloudflare
-                resources: null
               - name: sync-tfroot-gcp
                 resources: null
               - name: sync-tfroot-github
@@ -123,6 +122,8 @@ patches:
                 resources: null
               - name: sync-xnoto-llama-hero
                 resources: null
+              - name: sync-xnoto-xbox-media-utils
+                resources: null
               - name: sync-xnoto-mcp-gateway
                 resources: null
               - name: sync-xnoto-messaging-service
@@ -130,6 +131,8 @@ patches:
               - name: sync-xnoto-opencode-agent-hub
                 resources: null
               - name: sync-xnoto-opencode-config
+                resources: null
+              - name: sync-xnoto-opencode-llama-config
                 resources: null
               - name: sync-xnoto-opencode-llama-config
                 resources: null

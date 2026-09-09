@@ -1,0 +1,33 @@
+---
+# Cloudflare's hosted API MCP server remains the upstream. This in-cluster
+# ToolHive proxy keeps the dedicated API token in the mcp namespace instead of
+# in OpenCode. No groupRef intentionally keeps it out of the externally
+# exposed VirtualMCPServer aggregation; this is the same boundary used for the
+# credentialed GitHub proxy.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPExternalAuthConfig
+metadata:
+  name: makeitwork-cloudflare-read-auth
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  type: bearerToken
+  bearerToken:
+    tokenSecretRef:
+      name: mcp-cloudflare-api-token
+      key: token
+---
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPRemoteProxy
+metadata:
+  name: makeitwork-cloudflare-read
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  # https://github.com/cloudflare/mcp documents this Streamable HTTP endpoint.
+  remoteUrl: https://mcp.cloudflare.com/mcp
+  transport: streamable-http
+  externalAuthConfigRef:
+    name: makeitwork-cloudflare-read-auth
