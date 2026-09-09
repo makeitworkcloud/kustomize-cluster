@@ -20,7 +20,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e89458c3862153e4b97 # v7.0.0
+        # setup-python main 2026-09-09. The previous pin (5fda3b95, v7.0.0)
+        # became unresolvable to runners on 2026-09-09 across regions and
+        # retries while the API tag cache still served it; upstream rewrote
+        # the tagged commit. Re-pinned to a branch-reachable commit.
+        uses: actions/setup-python@337b0725b8770380d7cde73cfef696f1295727eb
         with:
           python-version: "3.12"
 
