@@ -140,6 +140,8 @@ patches:
                 resources: null
               - name: sync-xnoto-homebrew-opencode-agent-hub
                 resources: null
+              - name: sync-xnoto-llama-hero
+                resources: null
               - name: sync-xnoto-mcp-gateway
                 resources: null
               - name: sync-xnoto-messaging-service
