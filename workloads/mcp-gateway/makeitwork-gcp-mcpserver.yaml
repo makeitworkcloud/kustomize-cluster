@@ -1,6 +1,8 @@
 ---
 # Cluster-internal backend aggregated by the existing Access-protected gateway;
-# no dedicated TunnelBinding or public hostname is created.
+# no dedicated TunnelBinding or public hostname is created. Owner waived the
+# anonymous in-cluster aggregate path on 2026-09-09: the single developer
+# consumer holds the Cloudflare Access pre-shared key for external access.
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
