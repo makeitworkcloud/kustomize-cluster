@@ -1,0 +1,170 @@
+# Codebase knowledge-graph backend over the repository cache maintained by
+# repo-cache-sync (mcp-repo-cache PVC). Runs upstream's official npm package
+# on the same digest-pinned Docker Official Node image as makeitwork-hero-ssh
+# (owner third-party-images policy, 2026-09-09); the package's postinstall
+# fetches and checksum-verifies the static native binary at container start,
+# so the pod needs the network permission profile and npm+GitHub egress on
+# every start. npm is pinned to the exact published version because the
+# registry's `latest` dist-tag lags upstream releases (0.8.1 vs 0.10.8 on
+# 2026-09-09).
+#
+# --ui=false is mandatory: upstream auto-enables the embedded graph-UI HTTP
+# listener (loopback :9749) on first run when the cache dir has no UI config,
+# which is every start on emptyDir storage (infra-security review 2026-09-09;
+# upstream docs/CONFIGURATION.md §3).
+#
+# Index storage is a disk-backed emptyDir, not a PVC: query performance is
+# RAM-served, a local-path PVC would sit on the same node disk, and rebuilding
+# from the cache after pod restarts is expected to take seconds per project
+# on this corpus. Indexes are derived state; the repo cache remains the source
+# of truth.
+#
+# Trust boundary matches makeitwork-repo-search: no groupRef keeps this
+# backend out of the externally exposed VirtualMCPServer aggregation, and no
+# TunnelBinding subject keeps it ClusterIP-only. Intended consumer is OpenCode
+# per-backend at http://mcp-makeitwork-codebase-memory-proxy.mcp.svc:8080/mcp
+# once the stage-3 chart change lands. repo-search stays deployed until this
+# backend passes its verification gates (symlink indexing, read-only artifact
+# write behavior, index timing, query correctness).
+#
+# The background git watcher is left at upstream defaults for the
+# verification pass: against the symlink-flipped read-only cache its worst
+# case is wasted re-index work, and observing its actual behavior is one of
+# the gates.
+#
+# Upstream admission checks require every ancestor of CBM_CACHE_DIR and of the
+# daemon rendezvous dir to be owned by the runtime uid and not world-writable
+# (observed 2026-09-09: "exact executable identity could not be verified
+# (cache-private) ... the directory CONTAINING 'cbm' is not a usable
+# private-directory parent"). emptyDir mount roots are root-owned mode 0777,
+# which fails that check and which the non-root workload uid cannot chmod.
+# The init container therefore runs as root (container-level override of the
+# pod's runAsNonRoot; capabilities dropped, read-only rootfs, touching only
+# these two emptyDir mounts) to hand /cache to uid 1000 mode 0770, create the
+# cbm/runtime subdirectories, and make /tmp root-owned sticky 1777 — the
+# ancestor shape upstream's own /tmp default accepts.
+#
+# The backend needs no Kubernetes API access; the pod opts out of the
+# service-account token (repo-cache-sync precedent).
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: makeitwork-codebase-memory
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  # Same immutable image index digest already vetted for makeitwork-hero-ssh.
+  image: docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+  transport: stdio
+  proxyMode: streamable-http
+  permissionProfile:
+    # Owner-approved egress exemption (2026-09-09, PR #224): the npm-exec
+    # startup path requires the persistent network profile while this
+    # backend reads the private org repo cache (including agent-knowledge
+    # and channel-project mirrors), and flannel enforces no NetworkPolicy,
+    # so a compromised dependency could exfiltrate source. Waived with
+    # in-repo precedent (makeitwork-hero-ssh runs the same pattern with more
+    # sensitive cargo) under the owner third-party-images policy. Retire
+    # this exemption when an official upstream container image allows a
+    # no-network profile (upstream discussion #299).
+    type: builtin
+    name: network
+  toolConfigRef:
+    name: codebase-memory-tools
+  args:
+    - npm
+    - exec
+    - --yes
+    - --package=codebase-memory-mcp@0.10.8
+    - --
+    - codebase-memory-mcp
+    - --ui=false
+  env:
+    - name: HOME
+      value: /tmp
+    - name: NPM_CONFIG_CACHE
+      value: /tmp/npm-cache
+    - name: CBM_ALLOWED_ROOT
+      value: /repos
+    - name: CBM_CACHE_DIR
+      value: /cache/cbm
+    - name: CBM_RUNTIME_DIR
+      value: /cache/runtime
+    - name: CBM_WORKERS
+      value: "2"
+    - name: CBM_MEM_BUDGET_MB
+      value: "768"
+  podTemplateSpec:
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: mcp-repo-cache
+            readOnly: true
+        - name: cache
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+      initContainers:
+        - name: prepare-cbm-dirs
+          image: docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              chown 1000:1000 /cache
+              chmod 0770 /cache
+              mkdir -p /cache/cbm /cache/runtime
+              chown 1000:1000 /cache/cbm /cache/runtime
+              chmod 0770 /cache/cbm /cache/runtime
+              chmod 1777 /tmp
+              mkdir -p /tmp/npm-cache
+              chown 1000:1000 /tmp/npm-cache
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: cache
+              mountPath: /cache
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: mcp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: repos
+              mountPath: /repos
+              readOnly: true
+            - name: cache
+              mountPath: /cache
+            - name: tmp
+              mountPath: /tmp
