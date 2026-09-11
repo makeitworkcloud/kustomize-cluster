@@ -1,0 +1,57 @@
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: aws
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  # Pinned to the upstream AWS MCP Proxy v1.6.4 release.
+  image: public.ecr.aws/mcp-proxy-for-aws/mcp-proxy-for-aws:1.6.4
+  transport: stdio
+  proxyMode: streamable-http
+  args:
+    - https://aws-mcp.us-east-1.api.aws/mcp
+    - --profile
+    - opencode-mcp
+    - --metadata
+    - AWS_REGION=us-west-2
+    # The assumed IAM role is the read boundary. --read-only hides aws___call_aws,
+    # including legitimate resource-discovery requests.
+    - --disable-telemetry
+  env:
+    - name: HOME
+      value: /tmp
+    - name: AWS_CONFIG_FILE
+      value: /app/.aws/config
+    - name: AWS_SDK_LOAD_CONFIG
+      value: "1"
+  podTemplateSpec:
+    spec:
+      volumes:
+        - name: aws-config
+          configMap:
+            name: mcp-aws-config
+        - name: aws-workdir
+          emptyDir: {}
+      containers:
+        - name: mcp
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-aws
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mcp-aws
+                  key: AWS_SECRET_ACCESS_KEY
+          volumeMounts:
+            - name: aws-config
+              mountPath: /app/.aws
+              readOnly: true
+            - name: aws-workdir
+              mountPath: /tmp

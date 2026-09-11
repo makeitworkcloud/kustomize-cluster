@@ -8,53 +8,16 @@ metadata:
     argocd.argoproj.io/sync-wave: "2"
     makeitwork.cloud/dns-reconcile: "2026-09-02"
 subjects:
+  # Single aggregate route: every integration is addressed through the
+  # vmcp-gateway aggregate (in-cluster http://vmcp-gateway.mcp.svc:4483/mcp,
+  # external mcp.makeitwork.cloud) with member-name-prefixed tools. The former
+  # per-integration subjects were retired when OpenCode moved to the internal
+  # aggregate endpoint; reintroduce per-backend routes only with a new owner
+  # decision, and retire their DNS through this binding when doing so.
   - name: vmcp-gateway
     spec:
       fqdn: mcp.makeitwork.cloud
       target: http://vmcp-gateway.mcp.svc:4483
-  # Per-backend endpoints so MCP clients can address one integration per
-  # config entry instead of the aggregated, name-prefixed vmcp view. These
-  # terminate on the same anonymous proxyrunners behind the same Access
-  # service token; the trust boundary is unchanged. First-level hostnames
-  # because Cloudflare Universal SSL covers only *.makeitwork.cloud.
-  - name: mcp-makeitwork-apify-remote-proxy
-    spec:
-      fqdn: mcp-makeitwork-apify.makeitwork.cloud
-      target: http://mcp-makeitwork-apify-remote-proxy.mcp.svc:8080
-  - name: mcp-makeitwork-argocd-proxy
-    spec:
-      fqdn: mcp-makeitwork-argocd.makeitwork.cloud
-      target: http://mcp-makeitwork-argocd-proxy.mcp.svc:8080
-  - name: mcp-makeitwork-aws-docs-proxy
-    spec:
-      fqdn: mcp-makeitwork-aws-docs.makeitwork.cloud
-      target: http://mcp-makeitwork-aws-docs-proxy.mcp.svc:8080
-  # Cloudflare API credentials remain proxy-owned; external callers use the
-  # shared MCP Gateway Access service token instead of the Cloudflare API token.
-  - name: mcp-makeitwork-cloudflare-read-remote-proxy
-    spec:
-      fqdn: mcp-makeitwork-cloudflare.makeitwork.cloud
-      target: http://mcp-makeitwork-cloudflare-read-remote-proxy.mcp.svc:8080
-  - name: mcp-makeitwork-context7-remote-proxy
-    spec:
-      fqdn: mcp-makeitwork-context7.makeitwork.cloud
-      target: http://mcp-makeitwork-context7-remote-proxy.mcp.svc:8080
-  - name: mcp-makeitwork-grafana-remote-proxy
-    spec:
-      fqdn: mcp-makeitwork-grafana.makeitwork.cloud
-      target: http://mcp-makeitwork-grafana-remote-proxy.mcp.svc:8080
-  - name: mcp-makeitwork-kubernetes-proxy
-    spec:
-      fqdn: mcp-makeitwork-kubernetes.makeitwork.cloud
-      target: http://mcp-makeitwork-kubernetes-proxy.mcp.svc:8080
-  - name: mcp-makeitwork-parallel-search-remote-proxy
-    spec:
-      fqdn: mcp-makeitwork-parallel-search.makeitwork.cloud
-      target: http://mcp-makeitwork-parallel-search-remote-proxy.mcp.svc:8080
-  - name: mcp-makeitwork-terraform-docs-proxy
-    spec:
-      fqdn: mcp-makeitwork-terraform-docs.makeitwork.cloud
-      target: http://mcp-makeitwork-terraform-docs-proxy.mcp.svc:8080
 tunnelRef:
   kind: ClusterTunnel
   name: cluster-apps

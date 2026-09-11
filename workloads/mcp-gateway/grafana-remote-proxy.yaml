@@ -3,7 +3,7 @@
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: makeitwork-grafana
+  name: grafana
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"

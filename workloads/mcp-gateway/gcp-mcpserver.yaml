@@ -1,0 +1,70 @@
+---
+# Cluster-internal backend aggregated by the existing Access-protected gateway;
+# no dedicated TunnelBinding or public hostname is created. Owner waived the
+# anonymous in-cluster aggregate path on 2026-09-09: the single developer
+# consumer holds the Cloudflare Access pre-shared key for external access.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: gcp
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  image: ghcr.io/makeitworkcloud/gcloud-mcp@sha256:1a2e38cf1f1855f445b17a1fe6669045b5a3fa794ca54ccf9a22c0aee68dd1d2
+  transport: stdio
+  proxyMode: streamable-http
+  serviceAccount: gcloud-mcp
+  args:
+    - --config
+    - /etc/gcloud-mcp/config.json
+  env:
+    - name: CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE
+      value: /etc/workload-identity/credential-configuration.json
+    - name: CLOUDSDK_CONFIG
+      value: /tmp/gcloud
+    - name: CLOUDSDK_CORE_PROJECT
+      value: makeitworkcloud
+    - name: GOOGLE_APPLICATION_CREDENTIALS
+      value: /etc/workload-identity/credential-configuration.json
+    - name: GOOGLE_CLOUD_PROJECT
+      value: makeitworkcloud
+    - name: HOME
+      value: /tmp
+    - name: TMPDIR
+      value: /tmp
+  podTemplateSpec:
+    spec:
+      automountServiceAccountToken: false
+      volumes:
+        - name: gcloud-mcp-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: https://iam.googleapis.com/projects/920734942788/locations/global/workloadIdentityPools/kubernetes/providers/gcloud-mcp
+                  expirationSeconds: 3600
+                  path: token
+        - name: gcloud-mcp-credentials
+          configMap:
+            name: gcloud-mcp-credentials
+        - name: gcloud-mcp-config
+          configMap:
+            name: gcloud-mcp-config
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: mcp
+          volumeMounts:
+            - name: gcloud-mcp-token
+              mountPath: /var/run/secrets/gcloud-mcp
+              readOnly: true
+            - name: gcloud-mcp-credentials
+              mountPath: /etc/workload-identity
+              readOnly: true
+            - name: gcloud-mcp-config
+              mountPath: /etc/gcloud-mcp
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp

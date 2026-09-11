@@ -1,0 +1,20 @@
+---
+# Public-docs-only Twilio member: proxies Twilio's hosted documentation MCP
+# (https://www.twilio.com/docs/ai/mcp) with no MCPExternalAuthConfig, no
+# forwarded Authorization header, and no secret references, so it cannot
+# reach Twilio account state even if upstream adds account-capable endpoints.
+# The charts/opencode-server twilio-docs-troubleshooting skill keeps the usage
+# boundary; account-aware troubleshooting would need a separately approved,
+# isolated proxy design.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPRemoteProxy
+metadata:
+  name: twilio-docs
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  groupRef:
+    name: gateway
+  remoteUrl: https://mcp.twilio.com/docs
+  transport: streamable-http

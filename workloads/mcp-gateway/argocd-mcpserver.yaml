@@ -1,7 +1,7 @@
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
-  name: makeitwork-argocd
+  name: argocd
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
@@ -16,7 +16,7 @@ spec:
     - --port
     - "3000"
     # The proxyrunner runs in a separate pod, so the server must leave
-    # loopback. Unauthenticated + skipped Host check (no --allowed-host-header)
+    # loopback. Unauthenticated + skipped Host check (no --allowed-hostheaders)
     # is acceptable: the backend svc is ClusterIP-only behind the gateway, the
     # same trust boundary as the vmcp anonymous decision in vmcp.yaml, and the
     # real credential (the ArgoCD mcp account token) stays server-side.

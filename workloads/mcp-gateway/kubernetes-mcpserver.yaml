@@ -85,7 +85,7 @@ subjects:
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
-  name: makeitwork-kubernetes
+  name: kubernetes
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
