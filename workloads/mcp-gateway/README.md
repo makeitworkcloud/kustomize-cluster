@@ -1,6 +1,13 @@
-# MCP Gateway — `makeitwork-gcp` ToolHive Backend
+# MCP Gateway — `gcp` ToolHive Backend
 
-This directory deploys the local `makeitwork-gcp` backend for the MCP gateway.
+This directory deploys the local `gcp` backend for the MCP gateway. MCPGroup
+members carry clean integration keys (`gcp`, `kubernetes`, `argocd`, `apify`,
+`aws`, `aws-docs`, `cloudflare-read`, `context7`, `grafana`, `parallel-search`,
+`playwright`, `slidespeak`, `terraform-docs`, `twilio-docs`); the `vmcp-gateway`
+aggregate exposes their tools name-prefixed with those keys, in-cluster at
+`http://vmcp-gateway.mcp.svc:4483/mcp` and externally at `mcp.makeitwork.cloud`
+behind Cloudflare Access. `github`, `hero-ssh`, and `codebase-memory` remain
+intentionally non-aggregated per-backend Services.
 
 ## Workload
 
@@ -14,8 +21,9 @@ This directory deploys the local `makeitwork-gcp` backend for the MCP gateway.
 - `tfroot-gcp` owns and applies the Google Cloud WIF provider; this repository consumes it.
 - The provider accepts only `system:serviceaccount:mcp:gcloud-mcp` and impersonates `gcloud-mcp@makeitworkcloud.iam.gserviceaccount.com`.
 - The command allowlist and GCP IAM roles are independent read boundaries. No credentials or token values are committed.
-- `groupRef: gateway` exposes the backend through the existing `mcp.makeitwork.cloud` Cloudflare Access path; this workload creates no dedicated TunnelBinding or DNS record.
+- `groupRef: gateway` exposes the backend through the existing `mcp.makeitwork.cloud` Cloudflare Access path under the `gcp` integration key; this workload creates no dedicated TunnelBinding or DNS record. The per-integration TunnelBinding subjects were retired when OpenCode moved to the single internal aggregate endpoint; only the aggregate root route remains.
 - Owner waiver, 2026-09-09: the aggregate is anonymous to in-cluster callers. The single developer consumer holds the external Cloudflare Access pre-shared key.
+- Owner approval, 2026-09-11: the browser-capable `playwright` member is exposed through the external aggregate; the shared MCP Gateway Cloudflare Access service token remains the edge authentication boundary.
 
 ## Delivery and Verification
 

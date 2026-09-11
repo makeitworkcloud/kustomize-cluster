@@ -1,8 +1,11 @@
+# Aggregate members use clean integration keys; the vmcp aggregate exposes
+# member tools name-prefixed with those keys. Credential-bearing members keep
+# their cluster-owned Secrets, referenced by unchanged field names.
 ---
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: makeitwork-context7
+  name: context7
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
@@ -15,7 +18,7 @@ spec:
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: makeitwork-parallel-search
+  name: parallel-search
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
@@ -35,7 +38,7 @@ spec:
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: makeitwork-apify
+  name: apify
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"

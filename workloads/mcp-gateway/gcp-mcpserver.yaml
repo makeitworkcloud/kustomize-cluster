@@ -6,7 +6,7 @@
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
-  name: makeitwork-gcp
+  name: gcp
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"

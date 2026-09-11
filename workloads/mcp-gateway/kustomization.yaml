@@ -8,8 +8,8 @@ resources:
   - grafana-remote-proxy.yaml
   - aws-docs-mcpserver.yaml
   - mcp-aws-config.yaml
-  - makeitwork-aws-mcpserver.yaml
-  - makeitwork-gcp-mcpserver.yaml
+  - aws-mcpserver.yaml
+  - gcp-mcpserver.yaml
   - gcloud-mcp-serviceaccount.yaml
   - terraform-docs-mcpserver.yaml
   - playwright-config.yaml
@@ -24,6 +24,7 @@ resources:
   - hero-ssh-mcpserver.yaml
   - remote-proxies.yaml
   - slidespeak-remote-proxy.yaml
+  - twilio-remote-proxy.yaml
   - vmcp.yaml
   - tunnel-binding.yaml
 configMapGenerator:

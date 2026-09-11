@@ -1,9 +1,10 @@
 ---
 # Cloudflare's hosted API MCP server remains the upstream. This in-cluster
 # ToolHive proxy keeps the dedicated API token in the mcp namespace instead of
-# in OpenCode. No groupRef intentionally keeps it out of the externally
-# exposed VirtualMCPServer aggregation; this is the same boundary used for the
-# credentialed GitHub proxy.
+# in OpenCode. groupRef adds it to the externally exposed VirtualMCPServer
+# aggregate: external callers still authenticate through the shared MCP
+# Gateway Cloudflare Access service token, never with the Cloudflare API
+# token, which the proxy injects only on outbound upstream requests.
 #
 # Required credential contract: a separate, account-wide token scoped only to
 # Cloudflare API read permission groups for the account containing xnoto.dev,
@@ -18,7 +19,7 @@
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPExternalAuthConfig
 metadata:
-  name: makeitwork-cloudflare-read-auth
+  name: cloudflare-read-auth
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "0"
@@ -32,13 +33,15 @@ spec:
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: makeitwork-cloudflare-read
+  name: cloudflare-read
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
+  groupRef:
+    name: gateway
   # https://github.com/cloudflare/mcp documents this Streamable HTTP endpoint.
   remoteUrl: https://mcp.cloudflare.com/mcp
   transport: streamable-http
   externalAuthConfigRef:
-    name: makeitwork-cloudflare-read-auth
+    name: cloudflare-read-auth

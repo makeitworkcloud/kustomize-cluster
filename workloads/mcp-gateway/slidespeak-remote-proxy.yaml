@@ -4,7 +4,7 @@
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: makeitwork-slidespeak
+  name: slidespeak
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
