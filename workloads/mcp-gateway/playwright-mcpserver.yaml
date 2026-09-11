@@ -7,7 +7,9 @@
 # Aggregated gateway member: groupRef exposes this backend through the
 # VirtualMCPServer aggregate under the `playwright` integration key. The
 # credentialed GitHub proxy (makeitwork-github-remote-proxy.yaml) remains
-# intentionally non-aggregated.
+# intentionally non-aggregated. Owner approved the external aggregate exposure
+# of this browser-capable member on 2026-09-11; the shared MCP Gateway
+# Cloudflare Access service token remains the edge authentication boundary.
 #
 # Image digest resolved against the registry manifest API (OCI image index,
 # amd64/linux present): sha256 of the v0.0.80 index.

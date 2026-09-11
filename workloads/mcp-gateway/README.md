@@ -23,6 +23,7 @@ intentionally non-aggregated per-backend Services.
 - The command allowlist and GCP IAM roles are independent read boundaries. No credentials or token values are committed.
 - `groupRef: gateway` exposes the backend through the existing `mcp.makeitwork.cloud` Cloudflare Access path under the `gcp` integration key; this workload creates no dedicated TunnelBinding or DNS record. The per-integration TunnelBinding subjects were retired when OpenCode moved to the single internal aggregate endpoint; only the aggregate root route remains.
 - Owner waiver, 2026-09-09: the aggregate is anonymous to in-cluster callers. The single developer consumer holds the external Cloudflare Access pre-shared key.
+- Owner approval, 2026-09-11: the browser-capable `playwright` member is exposed through the external aggregate; the shared MCP Gateway Cloudflare Access service token remains the edge authentication boundary.
 
 ## Delivery and Verification
 
