@@ -39,6 +39,12 @@ than treating an existing workload's names as defaults.
      -o jsonpath='{range .spec.sources[*]}{.chart}{"\t"}{.targetRevision}{"\n"}{end}'
    ```
 
+   A pinned `targetRevision` selects only the chart version; it does not by
+   itself prove which application image the workload runs. When the child
+   Application sets Helm values that override the image, such as `image.tag`
+   or `image.digest`, note the expected override here and verify the rendered
+   image on the live workload in step 4.
+
 2. Confirm both the root and child have reconciled, and inspect any reported
    conditions or failed operation:
 
@@ -59,15 +65,20 @@ than treating an existing workload's names as defaults.
    expected resources are present, no unexpected resources are being pruned,
    and no resource remains Progressing, Degraded, Missing, or OutOfSync.
 
-4. Verify the controller rollout and resulting pods:
+4. Verify the controller rollout, the rendered image, and the resulting pods:
 
    ```bash
    kubectl -n <namespace> rollout status deployment/<deployment> --timeout=5m
+   kubectl -n <namespace> get deployment <deployment> \
+     -o jsonpath='{.spec.template.spec.containers[*].image}{"\n"}'
    kubectl -n <namespace> get pods
    ```
 
-   Use the applicable rollout command for a StatefulSet, DaemonSet, or other
-   controller instead of assuming every chart creates a Deployment.
+   Confirm every container image matches the expected tag or digest, including
+   any `image.tag` or `image.digest` override set on the child Application; the
+   verified chart revision alone does not prove the running application image.
+   Use the applicable rollout and image commands for a StatefulSet, DaemonSet,
+   or other controller instead of assuming every chart creates a Deployment.
 
 5. If reconciliation or startup is not clean, inspect events and bounded logs
    without printing credentials:
