@@ -8,12 +8,67 @@ metadata:
     argocd.argoproj.io/sync-wave: "2"
     makeitwork.cloud/dns-reconcile: "2026-09-02"
 subjects:
-  # Single aggregate route: every integration is addressed through the
-  # vmcp-gateway aggregate (in-cluster http://vmcp-gateway.mcp.svc:4483/mcp,
-  # external mcp.makeitwork.cloud) with member-name-prefixed tools. The former
-  # per-integration subjects were retired when OpenCode moved to the internal
-  # aggregate endpoint; reintroduce per-backend routes only with a new owner
-  # decision, and retire their DNS through this binding when doing so.
+  # Each ToolHive proxy is externally reachable only through its dedicated
+  # Cloudflare Access application. The direct routes preserve backend-specific
+  # tool discovery for clients while proxy Services remain ClusterIP-only.
+  - name: apify
+    spec:
+      fqdn: mcp-apify.makeitwork.cloud
+      target: http://mcp-apify-remote-proxy.mcp.svc:8080
+  - name: argocd
+    spec:
+      fqdn: mcp-argocd.makeitwork.cloud
+      target: http://mcp-argocd-proxy.mcp.svc:8080
+  - name: aws
+    spec:
+      fqdn: mcp-aws.makeitwork.cloud
+      target: http://mcp-aws-proxy.mcp.svc:8080
+  - name: aws-docs
+    spec:
+      fqdn: mcp-aws-docs.makeitwork.cloud
+      target: http://mcp-aws-docs-proxy.mcp.svc:8080
+  - name: cloudflare
+    spec:
+      fqdn: mcp-cloudflare.makeitwork.cloud
+      target: http://mcp-cloudflare-read-remote-proxy.mcp.svc:8080
+  - name: context7
+    spec:
+      fqdn: mcp-context7.makeitwork.cloud
+      target: http://mcp-context7-remote-proxy.mcp.svc:8080
+  - name: gcp
+    spec:
+      fqdn: mcp-gcp.makeitwork.cloud
+      target: http://mcp-gcp-proxy.mcp.svc:8080
+  - name: grafana
+    spec:
+      fqdn: mcp-grafana.makeitwork.cloud
+      target: http://mcp-grafana-remote-proxy.mcp.svc:8080
+  - name: kubernetes
+    spec:
+      fqdn: mcp-kubernetes.makeitwork.cloud
+      target: http://mcp-kubernetes-proxy.mcp.svc:8080
+  - name: parallel-search
+    spec:
+      fqdn: mcp-parallel-search.makeitwork.cloud
+      target: http://mcp-parallel-search-remote-proxy.mcp.svc:8080
+  - name: playwright
+    spec:
+      fqdn: mcp-playwright.makeitwork.cloud
+      target: http://mcp-playwright-proxy.mcp.svc:8080
+  - name: slidespeak
+    spec:
+      fqdn: mcp-slidespeak.makeitwork.cloud
+      target: http://mcp-slidespeak-remote-proxy.mcp.svc:8080
+  - name: terraform-docs
+    spec:
+      fqdn: mcp-terraform-docs.makeitwork.cloud
+      target: http://mcp-terraform-docs-proxy.mcp.svc:8080
+  - name: twilio-docs
+    spec:
+      fqdn: mcp-twilio-docs.makeitwork.cloud
+      target: http://mcp-twilio-docs-remote-proxy.mcp.svc:8080
+  # Retain the aggregate during client migration. Remove this subject with the
+  # VirtualMCPServer only after every external client uses direct endpoints.
   - name: vmcp-gateway
     spec:
       fqdn: mcp.makeitwork.cloud
