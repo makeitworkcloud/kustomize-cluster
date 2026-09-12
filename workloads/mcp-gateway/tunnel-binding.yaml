@@ -12,67 +12,33 @@ subjects:
   # Cloudflare Access application. The direct routes preserve backend-specific
   # tool discovery for clients while proxy Services remain ClusterIP-only.
   - name: mcp-apify-remote-proxy
-    spec:
-      fqdn: mcp-apify.makeitwork.cloud
-      target: http://mcp-apify-remote-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-apify.makeitwork.cloud, target: http://mcp-apify-remote-proxy.mcp.svc:8080}
   - name: mcp-argocd-proxy
-    spec:
-      fqdn: mcp-argocd.makeitwork.cloud
-      target: http://mcp-argocd-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-argocd.makeitwork.cloud, target: http://mcp-argocd-proxy.mcp.svc:8080}
   - name: mcp-aws-proxy
-    spec:
-      fqdn: mcp-aws.makeitwork.cloud
-      target: http://mcp-aws-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-aws.makeitwork.cloud, target: http://mcp-aws-proxy.mcp.svc:8080}
   - name: mcp-aws-docs-proxy
-    spec:
-      fqdn: mcp-aws-docs.makeitwork.cloud
-      target: http://mcp-aws-docs-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-aws-docs.makeitwork.cloud, target: http://mcp-aws-docs-proxy.mcp.svc:8080}
   - name: mcp-cloudflare-read-remote-proxy
-    spec:
-      fqdn: mcp-cloudflare.makeitwork.cloud
-      target: http://mcp-cloudflare-read-remote-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-cloudflare.makeitwork.cloud, target: http://mcp-cloudflare-read-remote-proxy.mcp.svc:8080}
   - name: mcp-context7-remote-proxy
-    spec:
-      fqdn: mcp-context7.makeitwork.cloud
-      target: http://mcp-context7-remote-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-context7.makeitwork.cloud, target: http://mcp-context7-remote-proxy.mcp.svc:8080}
   - name: mcp-gcp-proxy
-    spec:
-      fqdn: mcp-gcp.makeitwork.cloud
-      target: http://mcp-gcp-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-gcp.makeitwork.cloud, target: http://mcp-gcp-proxy.mcp.svc:8080}
   - name: mcp-grafana-remote-proxy
-    spec:
-      fqdn: mcp-grafana.makeitwork.cloud
-      target: http://mcp-grafana-remote-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-grafana.makeitwork.cloud, target: http://mcp-grafana-remote-proxy.mcp.svc:8080}
   - name: mcp-kubernetes-proxy
-    spec:
-      fqdn: mcp-kubernetes.makeitwork.cloud
-      target: http://mcp-kubernetes-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-kubernetes.makeitwork.cloud, target: http://mcp-kubernetes-proxy.mcp.svc:8080}
   - name: mcp-parallel-search-remote-proxy
-    spec:
-      fqdn: mcp-parallel-search.makeitwork.cloud
-      target: http://mcp-parallel-search-remote-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-parallel-search.makeitwork.cloud, target: http://mcp-parallel-search-remote-proxy.mcp.svc:8080}
   - name: mcp-playwright-proxy
-    spec:
-      fqdn: mcp-playwright.makeitwork.cloud
-      target: http://mcp-playwright-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-playwright.makeitwork.cloud, target: http://mcp-playwright-proxy.mcp.svc:8080}
   - name: mcp-slidespeak-remote-proxy
-    spec:
-      fqdn: mcp-slidespeak.makeitwork.cloud
-      target: http://mcp-slidespeak-remote-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-slidespeak.makeitwork.cloud, target: http://mcp-slidespeak-remote-proxy.mcp.svc:8080}
   - name: mcp-terraform-docs-proxy
-    spec:
-      fqdn: mcp-terraform-docs.makeitwork.cloud
-      target: http://mcp-terraform-docs-proxy.mcp.svc:8080
+    spec: {fqdn: mcp-terraform-docs.makeitwork.cloud, target: http://mcp-terraform-docs-proxy.mcp.svc:8080}
   - name: mcp-twilio-docs-remote-proxy
-    spec:
-      fqdn: mcp-twilio-docs.makeitwork.cloud
-      target: http://mcp-twilio-docs-remote-proxy.mcp.svc:8080
-  # Retain the aggregate during client migration. Remove this subject with the
-  # VirtualMCPServer only after every external client uses direct endpoints.
-  - name: vmcp-gateway
-    spec:
-      fqdn: mcp.makeitwork.cloud
-      target: http://vmcp-gateway.mcp.svc:4483
+    spec: {fqdn: mcp-twilio-docs.makeitwork.cloud, target: http://mcp-twilio-docs-remote-proxy.mcp.svc:8080}
 tunnelRef:
   kind: ClusterTunnel
   name: cluster-apps
