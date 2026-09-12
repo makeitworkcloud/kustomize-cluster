@@ -2,9 +2,7 @@
 
 This directory deploys the ToolHive backends used by OpenCode and external MCP
 clients. OpenCode connects directly to the ClusterIP proxy Services. External
-clients use one Cloudflare Access-protected endpoint per selected backend; the
-`vmcp-gateway` aggregate remains available only during external-client
-migration.
+clients use one Cloudflare Access-protected endpoint per selected backend.
 
 ## External endpoints
 
@@ -57,7 +55,6 @@ After the Access apply, merge the GitOps route change and separately verify:
 4. each direct endpoint accepts an authenticated MCP `tools/list` request; and
 5. no mutating MCP tool is used as a rollout probe.
 
-Retain `mcp.makeitwork.cloud` and `vmcp-gateway` until every external client
-uses direct endpoints. Roll back in reverse order: first remove the direct
-TunnelBinding subjects and verify their operator-owned DNS cleanup, then revert
-the Cloudflare Access application change through its environment-gated apply.
+Roll back in reverse order: first remove the direct TunnelBinding subjects and
+verify their operator-owned DNS cleanup, then revert the Cloudflare Access
+application change through its environment-gated apply.

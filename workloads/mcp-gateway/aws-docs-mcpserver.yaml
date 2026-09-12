@@ -6,8 +6,6 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   # Upstream publishes sha-* tags only; the digest pins the current latest.
   image: public.ecr.aws/awslabs-mcp/awslabs/aws-documentation-mcp-server:latest@sha256:1e6bcdbe2a9085f304f9f6f8c39765883df2d900cf03970a81959f62db755ce1
   transport: stdio

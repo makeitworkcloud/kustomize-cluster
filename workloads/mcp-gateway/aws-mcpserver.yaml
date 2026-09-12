@@ -6,8 +6,6 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   # Pinned to the upstream AWS MCP Proxy v1.6.4 release.
   image: public.ecr.aws/mcp-proxy-for-aws/mcp-proxy-for-aws:1.6.4
   transport: stdio
