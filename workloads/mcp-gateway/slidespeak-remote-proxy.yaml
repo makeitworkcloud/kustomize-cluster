@@ -9,8 +9,6 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   remoteUrl: https://mcp.slidespeak.co/mcp
   transport: streamable-http
   headerForward:

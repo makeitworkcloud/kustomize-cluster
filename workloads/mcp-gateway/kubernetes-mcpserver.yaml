@@ -11,8 +11,8 @@ metadata:
 automountServiceAccountToken: true
 ---
 # Operator access across the cluster. Secrets stay excluded: KSOPS-decrypted
-# secrets live in-cluster and the gateway must not become a read or write path
-# to them. The Kubernetes MCP server's generic resource operations use
+# secrets live in-cluster and this MCP backend must not become a read or write
+# path to them. The Kubernetes MCP server's generic resource operations use
 # server-side apply, which requires patch in addition to create/update/delete.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -90,8 +90,6 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   image: ghcr.io/containers/kubernetes-mcp-server:v0.0.66@sha256:6d650f4bd6ac303ad82713c997e73a2d001602f9bf17392c9b9a0e30e29c6423
   transport: streamable-http
   mcpPort: 8080

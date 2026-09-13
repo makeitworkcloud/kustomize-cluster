@@ -6,8 +6,6 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   image: ghcr.io/argoproj-labs/mcp-for-argocd:v0.9.0@sha256:dffc6c719d8635be2d5f2c8ad1c0178540325da4b40da0b373307e12b4c48f86
   transport: streamable-http
   mcpPort: 3000
@@ -17,9 +15,10 @@ spec:
     - "3000"
     # The proxyrunner runs in a separate pod, so the server must leave
     # loopback. Unauthenticated + skipped Host check (no --allowed-host-header)
-    # is acceptable: the backend svc is ClusterIP-only behind the gateway, the
-    # same trust boundary as the vmcp anonymous decision in vmcp.yaml, and the
-    # real credential (the ArgoCD mcp account token) stays server-side.
+    # is acceptable: the backend svc is ClusterIP-only behind the ToolHive
+    # proxy, external callers must pass the direct endpoint's Cloudflare
+    # Access application, and the real credential (the ArgoCD mcp account
+    # token) stays server-side.
     - --bind-address
     - 0.0.0.0
     - --allow-unauthenticated

@@ -1,6 +1,6 @@
-# Aggregate members use clean integration keys; the vmcp aggregate exposes
-# member tools name-prefixed with those keys. Credential-bearing members keep
-# their cluster-owned Secrets, referenced by unchanged field names.
+# Hosted remote MCP backends, each externally reachable through its dedicated
+# direct route in tunnel-binding.yaml. Credential-bearing backends keep their
+# cluster-owned Secrets, referenced by unchanged field names.
 ---
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
@@ -10,8 +10,6 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   remoteUrl: https://mcp.context7.com/mcp
   transport: streamable-http
 ---
@@ -23,8 +21,6 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   remoteUrl: https://search.parallel.ai/mcp
   transport: streamable-http
   headerForward:
@@ -43,8 +39,6 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   remoteUrl: "https://mcp.apify.com/?tools=actors,apify/facebook-marketplace-scraper,apify/google-maps-scraper&telemetry-enabled=false"
   transport: streamable-http
   headerForward:

@@ -1,7 +1,8 @@
 ---
-# Cluster-internal backend aggregated by the existing Access-protected gateway;
-# no dedicated TunnelBinding or public hostname is created. Owner waived the
-# anonymous in-cluster aggregate path on 2026-09-09: the single developer
+# Externally reachable only through the dedicated direct route
+# (mcp-gcp.makeitwork.cloud, tunnel-binding.yaml) behind that endpoint's
+# Cloudflare Access application; no anonymous in-cluster path exists. Owner
+# waived the in-cluster aggregate path on 2026-09-09: the single developer
 # consumer holds the Cloudflare Access pre-shared key for external access.
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
@@ -11,8 +12,6 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   image: ghcr.io/makeitworkcloud/gcloud-mcp@sha256:1a2e38cf1f1855f445b17a1fe6669045b5a3fa794ca54ccf9a22c0aee68dd1d2
   transport: stdio
   proxyMode: streamable-http
