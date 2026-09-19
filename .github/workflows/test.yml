@@ -67,3 +67,59 @@ jobs:
 
       - name: pre-commit tests
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+
+      # Validates the DisCode init-container bootstrap before any pod runs
+      # it: fetch + upstream build + payload staging, inside the same
+      # digest-pinned Node image the Deployment uses. The extraction is
+      # path-limited to workloads/discode/deployment.yaml and reuses the
+      # hash-pinned PyYAML installed above. The container action runs as
+      # root in an ephemeral runner container (the pod runs uid 1000); it
+      # validates the build path, not the pod security context.
+      - name: Extract DisCode init script
+        env:
+          EXPECTED_INIT_IMAGE: docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+        run: |
+          python - <<'EOF'
+          import os, sys, yaml
+          from pathlib import Path
+
+          path = Path("workloads/discode/deployment.yaml")
+          docs = list(yaml.safe_load_all(path.read_text()))
+          deployment = next((d for d in docs if d and d.get("kind") == "Deployment"), None)
+          if deployment is None:
+              sys.exit(f"{path}: no Deployment document")
+
+          expected = os.environ["EXPECTED_INIT_IMAGE"]
+          inits = deployment["spec"]["template"]["spec"]["initContainers"]
+          build = [c for c in inits if c["name"] == "build-discode"]
+          if len(build) != 1:
+              sys.exit(f"{path}: expected exactly one build-discode init container")
+          build = build[0]
+          if build["image"] != expected:
+              sys.exit(f"{path}: init image {build['image']} != CI image {expected}")
+          if build.get("command") != ["/bin/sh", "-ec"]:
+              sys.exit(f"{path}: unexpected init command {build.get('command')}")
+
+          script = build["args"][0] if build.get("args") else ""
+          if "npm ci --ignore-scripts --no-audit --no-fund" not in script:
+              sys.exit(f"{path}: init script lacks the expected npm ci invocation")
+
+          out = Path(".discode-ci/init.sh")
+          out.parent.mkdir(exist_ok=True)
+          out.write_text(script)
+          print(f"extracted {len(script)} bytes of init script to {out}")
+          EOF
+      - name: Validate DisCode bootstrap in pinned Node image
+        uses: docker://docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+        with:
+          entrypoint: /bin/sh
+          args:
+            - -ec
+            - |
+              mkdir -p /app
+              export HOME=/tmp NPM_CONFIG_CACHE=/tmp/npm-cache
+              sh /github/workspace/.discode-ci/init.sh
+              test -f /app/dist/index.js
+              test -f /app/package.json
+              test -d /app/node_modules/discord.js
+              test ! -d /app/node_modules/.bin/vitest
