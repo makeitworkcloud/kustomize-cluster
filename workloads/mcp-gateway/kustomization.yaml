@@ -23,7 +23,6 @@ resources:
   - hero-ssh-mcpserver.yaml
   - remote-proxies.yaml
   - slidespeak-remote-proxy.yaml
-  - twilio-remote-proxy.yaml
   - tunnel-binding.yaml
 configMapGenerator:
   # A content-addressed ConfigMap name changes the MCPServer pod template,
