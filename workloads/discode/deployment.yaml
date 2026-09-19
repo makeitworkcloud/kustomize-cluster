@@ -1,38 +1,4 @@
 ---
-# DisCode (upiscium/DisCode, legacy name opencode-discord-bridge): a Discord
-# control surface for OpenCode sessions. The owner approved building the
-# pinned upstream source on the Docker Official Node base image with the
-# upstream build commands instead of packaging a custom image or chart.
-#
-# ACTIVATION GATES (all required before this workload runs):
-#   1. Replace the REPLACE_WITH_* sentinel identifiers in
-#      discode-config.toml (rendered as ConfigMap discode-config).
-#   2. Create the SOPS-encrypted Secret discode-bot-auth (key DISCORD_TOKEN)
-#      and register it in a KSOPS generator in this overlay.
-#   3. Scale spec.replicas to 1 and register workloads/apps/discode-app.yaml
-#      in workloads/apps/kustomization.yaml (owner deploy authorization).
-# Until then the Deployment stays at replicas 0: no pod starts, the
-# referenced Secrets are never resolved by the kubelet, and the config
-# placeholders never reach a running process.
-#
-# Source pin: every pod start fetches the immutable commit archive from
-# codeload.github.com (upiscium/DisCode at 6b936f6c7c6cfbb5995a44cbff9361b9d72e4bc2)
-# and rebuilds deterministically: npm ci --ignore-scripts, tsc build, npm
-# prune --omit=dev. The init container is credentialless (uid 1000, no
-# Secret mounts) and needs egress to codeload.github.com and
-# registry.npmjs.org; the cluster enforces no NetworkPolicy (see
-# codebase-memory-mcpserver.yaml for the owner-approved network-egress
-# waiver discussion for the same class of startup fetch).
-#
-# Image pin provenance: the same immutable node:22-slim index digest already
-# vetted for makeitwork-hero-ssh and makeitwork-codebase-memory (owner
-# third-party-images policy, 2026-09-09). Docker Hub checked 2026-09-19: the
-# 22-slim tag has since moved to a newer index digest; the pinned digest
-# remains immutable and is pulled by those workloads on every start.
-#
-# State is one JSON file on the discode-state PVC (single writer). Recreate
-# prevents a rolling replacement from ever running two writers against the
-# RWO claim. The runtime container mounts the built application read-only.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -43,7 +9,6 @@ metadata:
     ignore-check.kube-linter.io/unset-cpu-requirements: "single-node policy"
     ignore-check.kube-linter.io/unset-memory-requirements: "single-node policy"
 spec:
-  # Activation gate: stays 0 until gates 1-3 above are complete.
   replicas: 0
   strategy:
     type: Recreate
@@ -87,42 +52,55 @@ spec:
             - |
               set -eu
               umask 022
+              # emptyDir contents survive init retries in the same pod.
+              rm -rf /app/dist /app/node_modules /app/package.json \
+                /tmp/src /tmp/src.tar.gz /tmp/fetch.mjs /tmp/npm-cache
 
-              # Fail-closed source fetch: HTTP 200 only, redirects rejected,
-              # 60s timeout, 64 MiB ceiling. Any deviation aborts the pod
-              # before a build step runs.
+              # Fail-closed fetch: HTTP 200 only, redirects rejected, 60s
+              # deadline, streaming with a 64 MiB ceiling.
               cat >/tmp/fetch.mjs <<'EOF'
               import fs from "node:fs";
               const archiveUrl =
                 "https://codeload.github.com/upiscium/DisCode/tar.gz/6b936f6c7c6cfbb5995a44cbff9361b9d72e4bc2";
               const maxBytes = 64 * 1024 * 1024;
-              const res = await fetch(archiveUrl, {
-                redirect: "error",
-                signal: AbortSignal.timeout(60_000),
-                headers: { "user-agent": "makeitworkcloud-gitops-discode-init" },
-              });
-              if (res.status !== 200) {
-                throw new Error(`unexpected HTTP status ${res.status}`);
+              const controller = new AbortController();
+              const timer = setTimeout(() => controller.abort(), 60_000);
+              try {
+                const res = await fetch(archiveUrl, {
+                  redirect: "error",
+                  signal: controller.signal,
+                  headers: { "user-agent": "makeitworkcloud-gitops-discode-init" },
+                });
+                if (res.status !== 200) {
+                  throw new Error(`unexpected HTTP status ${res.status}`);
+                }
+                const reader = res.body.getReader();
+                const chunks = [];
+                let total = 0;
+                for (;;) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  total += value.byteLength;
+                  if (total > maxBytes) {
+                    controller.abort();
+                    throw new Error(`archive exceeds ${maxBytes} bytes`);
+                  }
+                  chunks.push(value);
+                }
+                if (total === 0) throw new Error("archive is empty");
+                fs.writeFileSync("/tmp/src.tar.gz", Buffer.concat(chunks.map(Buffer.from)));
+              } finally {
+                clearTimeout(timer);
               }
-              const bytes = Buffer.from(await res.arrayBuffer());
-              if (bytes.byteLength === 0) throw new Error("archive is empty");
-              if (bytes.byteLength > maxBytes) {
-                throw new Error(`archive exceeds ${maxBytes} bytes`);
-              }
-              fs.writeFileSync("/tmp/src.tar.gz", bytes);
               EOF
               node /tmp/fetch.mjs
 
-              # Optional archive-byte pin. GitHub publishes no checksum for
-              # codeload archives, so preparation left this empty rather
-              # than inventing a value; integrity currently rests on the
-              # immutable commit SHA. The owner may pin the sha256 observed
-              # at activation to freeze archive bytes as well.
-              EXPECTED_SHA256=''
-              if [ -n "$EXPECTED_SHA256" ]; then
-                printf '%s  %s\n' "$EXPECTED_SHA256" /tmp/src.tar.gz \
-                  | sha256sum -c -
-              fi
+              # Archive sha256 computed from a read-only public fetch of the
+              # pinned commit on 2026-09-19; GitHub publishes no checksums.
+              # If GitHub's generated bytes change, this fails closed and
+              # the digest must be recomputed.
+              echo "4da1ecb7d1b5f4313189c2cfd130dc9ac515d7988e98c1f040eaf0de8c39adeb  /tmp/src.tar.gz" \
+                | sha256sum -c -
 
               mkdir -p /tmp/src
               tar -xzf /tmp/src.tar.gz -C /tmp/src --strip-components=1
@@ -134,12 +112,8 @@ spec:
               test -f dist/index.js
               npm prune --omit=dev --ignore-scripts
 
-              # Stage only the runtime payload for the read-only /app mount.
-              mkdir -p /app
               cp -a dist package.json /app/
               cp -a node_modules /app/node_modules
-
-              # Reclaim the shared tmp emptyDir for the runtime container.
               rm -rf /tmp/src /tmp/src.tar.gz /tmp/fetch.mjs /tmp/npm-cache
           env:
             - name: HOME
@@ -167,32 +141,21 @@ spec:
           env:
             - name: HOME
               value: /tmp
-            # TOML mode: config.toml is the complete non-secret configuration
-            # authority; upstream never merges it with legacy env settings.
             - name: OCB_CONFIG_FILE
               value: /config/config.toml
             - name: STATE_FILE
               value: /state/state.json
-            # Discord bot token from the not-yet-created Secret (gate 2).
-            # Referenced only; no plaintext exists in this repository.
             - name: DISCORD_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: discode-bot-auth
                   key: DISCORD_TOKEN
-            # OpenCode server password referenced in place from the Secret
-            # owned by workloads/opencode (key name verified against the
-            # opencode-server chart Deployment consumer; the Secret itself
-            # was never read).
             - name: OPENCODE_HOST_CLUSTER_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: opencode-server-auth
                   key: password
           ports:
-            # /metrics listener (see [metrics] in the config). tcpSocket
-            # probes prove only that the process bound the port, not
-            # Discord or OpenCode readiness.
             - name: metrics
               containerPort: 9464
           readinessProbe:

@@ -1,14 +1,7 @@
 ---
-# ACTIVATION GATE — deliberately NOT registered.
-#
-# This child Application is complete but intentionally absent from
-# workloads/apps/kustomization.yaml. Register it (add `discode-app.yaml`
-# under resources) only together with the workload activation steps in
-# workloads/discode/README.md: real Discord identifiers in
-# discode-config.toml, the SOPS-encrypted discode-bot-auth Secret, and owner
-# deploy authorization. SkipDryRunOnMissingResource is omitted because this
-# Application manages no custom resources. CreateNamespace is a no-op: the
-# opencode namespace is owned by workloads/opencode.
+# Staged but deliberately NOT registered: see workloads/discode/README.md
+# activation gates. Manages no custom resources, so no
+# SkipDryRunOnMissingResource.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

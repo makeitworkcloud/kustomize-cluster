@@ -5,8 +5,7 @@ resources:
   - persistent-volume-claim.yaml
   - deployment.yaml
 configMapGenerator:
-  # Content-addressed: the generated name hash rolls the Deployment pod
-  # template whenever discode-config.toml changes.
+  # The generated name hash rolls the Deployment when config.toml changes.
   - name: discode-config
     namespace: opencode
     files:

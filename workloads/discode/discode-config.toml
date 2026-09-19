@@ -1,16 +1,5 @@
-# DisCode runtime configuration, TOML mode (OCB_CONFIG_FILE). Schema
-# verified against upiscium/DisCode src/config.ts at commit
-# 6b936f6c7c6cfbb5995a44cbff9361b9d72e4bc2: the parser rejects any unknown
-# key, so this file is exactly the strict schema.
-#
-# ACTIVATION GATE: the REPLACE_WITH_* values are documented sentinels for
-# the missing Discord identifiers. They are inert while the Deployment is
-# at replicas 0 and the child Application is unregistered, and they are
-# identifiers, not credentials. Replace them before scaling up (see
-# ../discode/README.md activation checklist).
-#
-# allowed_user_ids is a non-empty ARRAY of user-ID strings per the upstream
-# schema (not a CSV string).
+# Sentinels and activation gates: see README.md in this directory.
+# allowed_user_ids is an array of user-ID strings (upstream schema).
 
 [discord]
 client_id = "REPLACE_WITH_DISCORD_APPLICATION_CLIENT_ID"
@@ -24,15 +13,6 @@ show_tool_summaries = false
 [routing]
 default_host = "cluster"
 
-# Host id "cluster" requires password_env to be exactly
-# OPENCODE_HOST_CLUSTER_PASSWORD (upstream derives and validates the name
-# from the host id). The password itself is injected from the existing
-# opencode-server-auth Secret via the Deployment env.
-#
-# Paths are host-side (the OpenCode server's filesystem), not pod mounts:
-# home_directory matches the opencode server pod HOME on its home PVC, and
-# allowed_roots confines /oc directory authorization. No directory from
-# this cluster's filesystem is mounted into the DisCode pod.
 [host.cluster]
 base_url = "http://opencode.opencode.svc.cluster.local:4096"
 username = "opencode"
@@ -44,11 +24,6 @@ allowed_roots = ["/home/opencode"]
 level = "info"
 format = "json"
 
-# Listener exists only for shallow process probes (tcpSocket). No Service,
-# Ingress, or TunnelBinding exposes it; the cluster runs no NetworkPolicy,
-# so 0.0.0.0 binds are reachable pod-network only. opencode_discord_bridge_
-# ready gauges OpenCode host HTTP+SSE health only; they do not prove the
-# Discord gateway connection.
 [metrics]
 enabled = true
 address = "0.0.0.0"
