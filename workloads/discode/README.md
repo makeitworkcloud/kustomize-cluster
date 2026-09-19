@@ -169,20 +169,34 @@ separate owner decision.
 
 ## CI coverage and gaps
 
-`test.yml` covers YAML/hygiene hooks, gitleaks, kube-linter, and
-kustomization reference resolution, plus a DisCode bootstrap validation
-(added by this change, **not yet executed**): a path-limited Python step
-extracts the `build-discode` init script from
-`workloads/discode/deployment.yaml` using the hash-pinned PyYAML already
-required by CI, cross-checks the init image reference, and asserts the
-pinned source archive URL and sha256 literals are present in the script;
-then a docker:// container action runs the extracted script inside the
-same digest-pinned `node:22-slim` image and asserts the built payload
-(`dist/index.js`, pruned `node_modules`) exists. Remaining gaps: that
-validation runs as root in an ephemeral action container rather than uid
-1000 with the pod's mounts and probes; DisCode's runtime TOML parse and
-Discord/OpenCode behavior (including the HTTPS host path) remain
-unexercised; Secret existence and Argo rendering of the child Application
-are unvalidated (CI cannot run KSOPS decryption, and the Application is
-unregistered); and the workflow itself first runs on the pull request for
-this branch.
+`test.yml` runs on pull requests with three relevant jobs: the existing
+`test` job (YAML/hygiene hooks, gitleaks, kube-linter, kustomization
+reference resolution), `discode-static`, and `discode-build`.
+
+`discode-static` asserts the standby posture on every PR: `replicas: 0`,
+`Recreate`, no service-account token, exactly one `build-discode` init
+container with the pinned image and `/bin/sh -ec` command, the pinned
+archive URL and sha256 literals present in the init script, the required
+runtime env names, `discode-app.yaml` absent from
+`workloads/apps/kustomization.yaml`, and the full TOML shape via the
+Python stdlib `tomllib` (sentinels, booleans, routing, `[host.cluster]`
+including the HTTPS `base_url`, logging, metrics). It then uploads the
+extracted init script as an artifact.
+
+`discode-build` downloads that artifact and runs the script inside the same
+digest-pinned `node:22-slim` image via a job container, asserting the
+built payload (`dist/index.js`, pruned `node_modules`, no devDependency
+binaries). History: an earlier single-job variant using a `docker://`
+step was rejected by GitHub workflow-file validation (`with:` inputs must
+be scalars — "A sequence was not expected"), producing instant no-job
+failures on runs 35463117193 and 35463977241; the job-container design
+replaced it.
+
+Remaining gaps: `discode-build` runs as root in an ephemeral runner
+container rather than uid 1000 with the pod's mounts and probes; DisCode's
+runtime behavior (TOML parse in-process, Discord/OpenCode interactions
+including the HTTPS host path) remains unexercised — no CI step runs the
+runtime with real credentials, by design; Secret existence and Argo
+rendering of the child Application are unvalidated (CI cannot run KSOPS
+decryption, and the Application is unregistered); and branch protection
+may need the owner to mark the new jobs required.
