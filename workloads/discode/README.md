@@ -18,7 +18,8 @@ until the owner completes the activation gates.
   supplied.
 - No SOPS/KSOPS files are committed: the `discode-bot-auth` Secret does not
   exist yet and is only referenced.
-- No Service, Ingress, or TunnelBinding: the workload is pod-internal.
+- No Service, Ingress, or TunnelBinding is added: the workload is
+  pod-internal.
 
 ## Source and image pins
 
@@ -67,18 +68,37 @@ need egress to `codeload.github.com` and `registry.npmjs.org`. No
 NetworkPolicy resource exists for this workload in this repository, and
 live cluster network enforcement was not verified.
 
+The runtime's OpenCode host traffic goes through the existing external
+edge endpoint `opencode.makeitwork.cloud:443` (see Configuration). That
+makes every authenticated request — including the Basic-auth password
+exchange — dependent on Cloudflare tunnel and public DNS availability,
+an external dependency that stays even though the pod itself is internal.
+No proxy sits in between, and TLS certificate validation stays at
+defaults (system CA, enabled). Not verified live in this preparation.
+
 ## Configuration
 
 - TOML mode via `OCB_CONFIG_FILE=/config/config.toml` (ConfigMap
   `discode-config`, generated with a content hash so edits roll the pod).
   Schema verified against `src/config.ts` at the pinned commit; unknown
   keys fail startup. `allowed_user_ids` is an **array** of ID strings.
-- `[host.cluster]` targets `http://opencode.opencode.svc.cluster.local:4096`
-  (the `opencode` Service owned by `workloads/opencode`), username
-  `opencode` (DisCode's own default and upstream documentation form; the
-  chart consumes only the password), `home_directory=/home/opencode` and
-  `allowed_roots=["/home/opencode"]` — the OpenCode server's own filesystem
-  view. No cluster filesystem path is mounted into this pod.
+- `[host.cluster].base_url` is `https://opencode.makeitwork.cloud`, the
+  canonical public HTTPS endpoint for the OpenCode server documented in
+  this repository's README ("OpenCode access"). The route is owned by the
+  existing `opencode` `TunnelBinding`
+  (`workloads/opencode/tunnel-binding.yaml`); this overlay creates no new
+  route. OpenCode enforces native HTTP Basic authentication backed by the
+  `opencode-server-auth` Secret and is reachable without Cloudflare
+  Access; `username = "opencode"` matches that documentation. TLS
+  certificate validation is left at defaults (system CA; nothing disables
+  or pins it). TLS terminates at the Cloudflare edge — the binding's
+  backend leg (`http://opencode.opencode.svc:4096`) is plain HTTP inside
+  the cluster — so end-to-end pod TLS is neither provided nor claimed.
+  In-cluster TLS was the reviewed preference but is unavailable for this
+  Service; the established HTTPS endpoint was chosen instead.
+- `[host.cluster]` also sets `home_directory=/home/opencode` and
+  `allowed_roots=["/home/opencode"]` — the OpenCode server's own
+  filesystem view. No cluster filesystem path is mounted into this pod.
 - `STATE_FILE=/state/state.json` on the `discode-state` PVC (128Mi, RWO).
   Intended single writer: one replica with the `Recreate` strategy, so
   updates replace rather than overlap the pod. This does not by itself
@@ -90,7 +110,7 @@ live cluster network enforcement was not verified.
 
 | Env | Secret | Key | Status |
 |-----|--------|-----|--------|
-| `OPENCODE_HOST_CLUSTER_PASSWORD` | `opencode-server-auth` | `password` | exists; owned by `workloads/opencode`; same-namespace reference; key name verified from the `charts/opencode-server` Deployment consumer |
+| `OPENCODE_HOST_CLUSTER_PASSWORD` | `opencode-server-auth` | `password` | exists; owned by `workloads/opencode`; same-namespace reference; key name verified from the `charts/opencode-server` Deployment consumer; the same Basic-auth credential the canonical endpoint documents |
 | `DISCORD_TOKEN` | `discode-bot-auth` | `DISCORD_TOKEN` | activation gate: to be SOPS-created by the owner |
 
 ## Security record (source-verified at the pinned commit)
@@ -112,6 +132,10 @@ Trusted-household surface, **not a restricted sandbox**:
 - Discord-side authorization is exactly `allowed_user_ids` within the one
   configured guild; `allow_permission_always=false` keeps the persistent
   "Allow always" permission button hidden.
+- Host credentials travel as HTTP Basic authentication to
+  `https://opencode.makeitwork.cloud`, protected by TLS on the public
+  Cloudflare edge leg; the tunnel's backend leg to the in-cluster Service
+  is plain HTTP and is not claimed as protected.
 - These manifests constrain directories, roots, and identity. They do
   **not** constrain what OpenCode sessions or selected agents may do on the
   server host.
@@ -150,13 +174,15 @@ kustomization reference resolution, plus a DisCode bootstrap validation
 (added by this change, **not yet executed**): a path-limited Python step
 extracts the `build-discode` init script from
 `workloads/discode/deployment.yaml` using the hash-pinned PyYAML already
-required by CI and cross-checks the init image reference, then a
-docker:// container action runs the extracted script inside the same
-digest-pinned `node:22-slim` image and asserts the built payload
+required by CI, cross-checks the init image reference, and asserts the
+pinned source archive URL and sha256 literals are present in the script;
+then a docker:// container action runs the extracted script inside the
+same digest-pinned `node:22-slim` image and asserts the built payload
 (`dist/index.js`, pruned `node_modules`) exists. Remaining gaps: that
 validation runs as root in an ephemeral action container rather than uid
 1000 with the pod's mounts and probes; DisCode's runtime TOML parse and
-Discord/OpenCode behavior remain unexercised; Secret existence and Argo
-rendering of the child Application are unvalidated (CI cannot run KSOPS
-decryption, and the Application is unregistered); and the workflow itself
-first runs on the pull request for this branch.
+Discord/OpenCode behavior (including the HTTPS host path) remain
+unexercised; Secret existence and Argo rendering of the child Application
+are unvalidated (CI cannot run KSOPS decryption, and the Application is
+unregistered); and the workflow itself first runs on the pull request for
+this branch.

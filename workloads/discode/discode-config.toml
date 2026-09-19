@@ -14,7 +14,7 @@ show_tool_summaries = false
 default_host = "cluster"
 
 [host.cluster]
-base_url = "http://opencode.opencode.svc.cluster.local:4096"
+base_url = "https://opencode.makeitwork.cloud"
 username = "opencode"
 password_env = "OPENCODE_HOST_CLUSTER_PASSWORD"
 home_directory = "/home/opencode"

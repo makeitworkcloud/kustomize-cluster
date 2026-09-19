@@ -72,8 +72,10 @@ jobs:
       # it: fetch + upstream build + payload staging, inside the same
       # digest-pinned Node image the Deployment uses. The extraction is
       # path-limited to workloads/discode/deployment.yaml and reuses the
-      # hash-pinned PyYAML installed above. The container action runs as
-      # root in an ephemeral runner container (the pod runs uid 1000); it
+      # hash-pinned PyYAML installed above; it also cross-checks the init
+      # image reference and asserts the pinned source archive URL and
+      # sha256 literals are present in the script. The container action runs
+      # as root in an ephemeral runner container (the pod runs uid 1000); it
       # validates the build path, not the pod security context.
       - name: Extract DisCode init script
         env:
@@ -103,6 +105,15 @@ jobs:
           script = build["args"][0] if build.get("args") else ""
           if "npm ci --ignore-scripts --no-audit --no-fund" not in script:
               sys.exit(f"{path}: init script lacks the expected npm ci invocation")
+          expected_url = (
+              "https://codeload.github.com/upiscium/DisCode/tar.gz/"
+              "6b936f6c7c6cfbb5995a44cbff9361b9d72e4bc2"
+          )
+          expected_digest = "4da1ecb7d1b5f4313189c2cfd130dc9ac515d7988e98c1f040eaf0de8c39adeb"
+          if expected_url not in script:
+              sys.exit(f"{path}: init script lacks the pinned source archive URL")
+          if expected_digest not in script:
+              sys.exit(f"{path}: init script lacks the pinned archive sha256")
 
           out = Path(".discode-ci/init.sh")
           out.parent.mkdir(exist_ok=True)
