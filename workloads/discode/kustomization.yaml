@@ -1,0 +1,16 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - persistent-volume-claim.yaml
+  - deployment.yaml
+configMapGenerator:
+  # Content-addressed: the generated name hash rolls the Deployment pod
+  # template whenever discode-config.toml changes.
+  - name: discode-config
+    namespace: opencode
+    files:
+      - config.toml=discode-config.toml
+    options:
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
