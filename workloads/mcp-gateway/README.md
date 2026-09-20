@@ -37,7 +37,7 @@ to other ToolHive proxies remain separate backend authorization boundaries.
 - **Kustomize:** `gcloud-mcp-namereference.yaml` is required because ToolHive stores `podTemplateSpec` as a `RawExtension`, outside Kustomize's default name-reference rules.
 
 `tfroot-gcp` owns and applies the Google Cloud WIF provider. The provider
-accepts only `system:serviceaccount:mcp/gcloud-mcp` and impersonates
+accepts only `system:serviceaccount:mcp:gcloud-mcp` and impersonates
 `gcloud-mcp@makeitworkcloud.iam.gserviceaccount.com`.
 
 ## Delivery and verification
