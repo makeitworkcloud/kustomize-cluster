@@ -141,8 +141,8 @@ jobs:
           git_src = next((s for s in sources if "path" in s), None)
           check(chart_src is not None and chart_src["chart"] == "opencode-server"
                 and chart_src["repoURL"] == "ghcr.io/makeitworkcloud/charts"
-                and chart_src["targetRevision"] == "0.3.2",
-                "chart source must pin opencode-server 0.3.2 from ghcr.io/makeitworkcloud/charts")
+                and chart_src["targetRevision"] == "0.4.1",
+                "chart source must pin opencode-server 0.4.1 from ghcr.io/makeitworkcloud/charts")
           check(git_src is not None
                 and git_src["repoURL"] == "https://github.com/makeitworkcloud/kustomize-cluster.git"
                 and git_src["path"] == "workloads/opencode-memory-pilot"
