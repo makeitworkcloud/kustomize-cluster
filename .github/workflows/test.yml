@@ -212,5 +212,141 @@ jobs:
           print("OK: opencode-memory-pilot staged contract and inactivity verified")
           EOF
 
+      # The tfroot-twilio repository-cache retirement is a fixed-target
+      # deletion: the retire Job may reference only /repos/tfroot-twilio on
+      # mcp-repo-cache. Statically parse the manifest and its inline script
+      # (no cluster access, no real deletion), permanently forbid any new
+      # tfroot-twilio cache-writer reference, and exercise the exact script
+      # against a temp fixture re-rooted away from /repos so nothing outside
+      # RUNNER_TEMP is touched.
+      - name: Validate repo-cache tfroot-twilio retirement contract
+        run: |
+          python - <<'EOF'
+          import re, subprocess, sys, yaml
+          from pathlib import Path
+
+          errors = []
+          def check(cond, msg):
+              if not cond:
+                  errors.append(msg)
+
+          job_path = Path("workloads/mcp-gateway/repo-cache-retire-tfroot-twilio.yaml")
+
+          # Permanent writer ban: tfroot-twilio may appear only in the retire
+          # Job itself, this workflow, and the README retirement note.
+          allowed = {
+              str(job_path),
+              ".github/workflows/test.yml",
+              "workloads/mcp-gateway/README.md",
+          }
+          grep = subprocess.run(["git", "grep", "-l", "tfroot-twilio"],
+                                capture_output=True, text=True)
+          check(grep.returncode in (0, 1), "git grep failed")
+          stray = sorted((set(grep.stdout.split()) if grep.returncode == 0
+                          else set()) - allowed)
+          check(not stray, "unexpected tfroot-twilio references: %s" % stray)
+
+          if not job_path.exists():
+              check(not stray,
+                    "retire Job removed but tfroot-twilio references remain")
+              if errors:
+                  for e in errors:
+                      print("RETIRE-INVALID: %s" % e)
+                  sys.exit(1)
+              print("OK: tfroot-twilio retirement disarmed, no references remain")
+              sys.exit(0)
+
+          docs = list(yaml.safe_load_all(job_path.read_text()))
+          check(len(docs) == 1, "exactly one YAML document")
+          job = docs[0]
+          check(job.get("kind") == "Job", "Job kind")
+          meta = job["metadata"]
+          check(meta["name"] == "repo-cache-retire-tfroot-twilio", "Job name")
+          check(meta["namespace"] == "mcp", "Job namespace")
+          ann = meta.get("annotations") or {}
+          check(ann.get("argocd.argoproj.io/hook") == "PostSync", "PostSync hook")
+          check(ann.get("argocd.argoproj.io/hook-delete-policy")
+                == "BeforeHookCreation,HooksSucceeded", "hook delete policy")
+          spec = job["spec"]
+          check(spec.get("activeDeadlineSeconds") == 300, "activeDeadlineSeconds 300")
+          check(spec.get("backoffLimit") == 2, "backoffLimit 2")
+          pod = spec["template"]["spec"]
+          check(pod.get("automountServiceAccountToken") is False, "no SA token mount")
+          check(pod.get("restartPolicy") == "Never", "restartPolicy Never")
+          psc = pod.get("securityContext") or {}
+          check(psc.get("fsGroup") == 65533, "fsGroup 65533")
+          vols = pod.get("volumes") or []
+          check(vols == [{"name": "repos",
+                          "persistentVolumeClaim": {"claimName": "mcp-repo-cache"}}],
+                "exactly one volume: the mcp-repo-cache claim")
+
+          ctrs = pod.get("containers") or []
+          check(len(ctrs) == 1, "exactly one container")
+          c = ctrs[0]
+          check(c["name"] == "retire-tfroot-twilio", "container name")
+          check(re.fullmatch(r"\S+@sha256:[0-9a-f]{64}", c.get("image", "")),
+                "image must be digest-pinned")
+          check(c.get("imagePullPolicy") == "IfNotPresent", "imagePullPolicy IfNotPresent")
+          check(not c.get("env") and not c.get("envFrom"), "no env or envFrom inputs")
+          check("secretName" not in job_path.read_text(), "no Secret references")
+          check(c.get("command") == ["/bin/sh", "-c"], "sh -c invocation")
+          args = c.get("args") or []
+          check(len(args) == 1, "exactly one script argument")
+          script = args[0]
+          sc = c.get("securityContext") or {}
+          check(sc.get("runAsNonRoot") is True, "runAsNonRoot")
+          check(sc.get("runAsUser") == 65533 and sc.get("runAsGroup") == 65533,
+                "cache writer uid/gid 65533")
+          check(sc.get("allowPrivilegeEscalation") is False, "no privilege escalation")
+          check(sc.get("readOnlyRootFilesystem") is True, "read-only root filesystem")
+          check(sc.get("capabilities", {}).get("drop") == ["ALL"], "drop ALL capabilities")
+          check(sc.get("seccompProfile", {}).get("type") == "RuntimeDefault", "seccomp")
+          check(c.get("volumeMounts") == [{"name": "repos", "mountPath": "/repos"}],
+                "single exact volumeMount at /repos")
+
+          check("TARGET='/repos/tfroot-twilio'" in script, "fixed target constant")
+          check(len(re.findall(r"(?m)^\s*rm\s", script)) == 1,
+                "exactly one rm command")
+          check('rm -rf --one-file-system -- "${TARGET}"' in script,
+                "rm must be the single fixed-target invocation")
+          paths = sorted(set(re.findall(r"/repos/[A-Za-z0-9._/-]+", script)))
+          check(paths == ["/repos/tfroot-twilio"],
+                "script may reference only /repos/tfroot-twilio: %s" % paths)
+          check("[ -L \"${TARGET}\" ]" in script, "top-level symlink refusal")
+          check("readlink -f" in script, "canonical resolution check")
+          check("/proc/mounts" in script, "mountpoint gate")
+
+          if errors:
+              for e in errors:
+                  print("RETIRE-INVALID: %s" % e)
+              sys.exit(1)
+          Path("/tmp/retire-tfroot-twilio.sh").write_text(script)
+          print("OK: retire Job contract verified statically")
+          EOF
+          sh -n /tmp/retire-tfroot-twilio.sh
+          # Honest fixture run of the exact embedded script, re-rooted into a
+          # sandbox directory (the /proc/mounts gate is the only edit: CI has
+          # no /repos mount). Verifies confined deletion, sibling survival,
+          # symlink refusal, and idempotency; nothing outside RUNNER_TEMP is
+          # touched and no cluster path is read.
+          FIXTURE="$RUNNER_TEMP/retire-fixture"
+          rm -rf "$FIXTURE"
+          mkdir -p "$FIXTURE/repos/tfroot-twilio/.worktrees/deadbeef" "$FIXTURE/repos/keep-me"
+          touch "$FIXTURE/repos/tfroot-twilio/inside" "$FIXTURE/repos/tfroot-twilio/.worktrees/deadbeef/object"
+          ln -s .worktrees/deadbeef "$FIXTURE/repos/tfroot-twilio/current"
+          sed -e "s|TARGET='/repos/tfroot-twilio'|TARGET='$FIXTURE/repos/tfroot-twilio'|" \
+              -e "/proc\\/mounts/d" /tmp/retire-tfroot-twilio.sh > /tmp/retire-fixture.sh
+          sh /tmp/retire-fixture.sh
+          test ! -e "$FIXTURE/repos/tfroot-twilio"
+          test -f "$FIXTURE/repos/keep-me"
+          ln -s /elsewhere "$FIXTURE/repos/tfroot-twilio"
+          if sh /tmp/retire-fixture.sh; then
+            echo "RETIRE-INVALID: symlinked target must be refused"
+            exit 1
+          fi
+          rm "$FIXTURE/repos/tfroot-twilio"
+          sh /tmp/retire-fixture.sh
+          echo "OK: fixture verified confinement, refusal, and idempotency"
+
       - name: pre-commit tests
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
