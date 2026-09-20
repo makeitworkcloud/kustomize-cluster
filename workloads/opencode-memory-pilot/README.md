@@ -11,7 +11,7 @@ procedure in [Activation gates](#activation-gates-owner-confirmed-separate-pr).
 ## What this is
 
 - Opt-in evaluation of the `memoryPilot` mode introduced by the
-  `opencode-server` chart 0.3.2. In pilot mode the chart renders only an
+  `opencode-server` chart 0.4.1. In pilot mode the chart renders only an
   isolated ConfigMap and Deployment; it does not touch the production
   OpenCode server, its agents, MCP credentials, or artifacts.
 - Embeddings run in-process through the plugin's default local engine
@@ -35,11 +35,11 @@ procedure in [Activation gates](#activation-gates-owner-confirmed-separate-pr).
 |---|---|
 | `kustomization.yaml` | Overlay entry: PVC + Service only. Deliberately does not include `application.yaml`. |
 | `persistent-volume-claim.yaml` | `opencode-memory-pilot-home`, 10Gi, ReadWriteOnce, cluster-default storage class (k3s `local-path`), matching the existing claim convention (`opencode-home`). |
-| `service.yaml` | ClusterIP `opencode-memory-pilot`, port 4096 only, selector `app: opencode-memory-pilot` following the chart's `app: <fullname>` label convention; re-verify against the published 0.3.2 templates at activation. |
+| `service.yaml` | ClusterIP `opencode-memory-pilot`, port 4096 only, selector `app: opencode-memory-pilot` following the chart's `app: <fullname>` label convention; re-verify against the published 0.4.1 templates at activation. |
 | `application.yaml` | Staged child Application, intentionally excluded from `workloads/apps` and from this overlay's kustomization. |
 | `README.md` | This document. |
 
-The Application pins chart `opencode-server` **0.3.2** (unpublished at staging
+The Application pins chart `opencode-server` **0.4.1** (unpublished at staging
 time; publication is an activation gate), sources this directory from `main`,
 targets namespace `opencode`, and deliberately declares **no `automated`
 sync policy** — activation remains a manual, owner-confirmed sync.
@@ -67,7 +67,7 @@ sync policy** — activation remains a manual, owner-confirmed sync.
 - The `memoryPilot` options used by `application.yaml` are name selectors
   only (`providerSecretName`, `serverSecretName`); the data keys
   (`ZHIPU_API_KEY`, `password`) are fixed by the chart. Verifying the
-  published 0.3.2 schema is an activation gate, and CI
+  published 0.4.1 schema is an activation gate, and CI
   (`.github/workflows/test.yml`) pins the staged contract.
 
 ## Backup and hardening (deferred)
@@ -95,7 +95,7 @@ and accepted; nothing here is a complete-persistence guarantee.
 This staging merge deploys nothing. Activation happens only when all of the
 following hold:
 
-1. `opencode-server` chart 0.3.2 is published to
+1. `opencode-server` chart 0.4.1 is published to
    `ghcr.io/makeitworkcloud/charts` and its `memoryPilot` schema matches the
    contract asserted by `.github/workflows/test.yml`.
 2. Local embeddings runtime gate: the plugin's native local embedding path
@@ -112,7 +112,7 @@ following hold:
 5. Validations pass: repository CI on the activation PR plus the review
    checks from `docs/adding-a-workload.md` (single ownership, storage
    behavior). Published-chart/Service linkage is verified against the
-   published 0.3.2 templates at activation — not claimed tested now: the
+   published 0.4.1 templates at activation — not claimed tested now: the
    chart's pilot Deployment pod labels must include the staged Service
    selector (`app: opencode-memory-pilot`) and expose a named `http`
    container port 4096 that the Service targets.

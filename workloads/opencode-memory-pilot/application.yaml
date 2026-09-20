@@ -14,7 +14,7 @@ spec:
   sources:
     - chart: opencode-server
       repoURL: ghcr.io/makeitworkcloud/charts
-      targetRevision: 0.3.2
+      targetRevision: 0.4.1
       helm:
         valuesObject:
           fullnameOverride: opencode-memory-pilot
