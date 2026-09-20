@@ -50,15 +50,20 @@ retirement step in `.github/workflows/test.yml`:
   `codebase-memory-mcpserver.yaml` (no separate vetting claimed for this
   Job); Debian coreutils `rm` supplies `--one-file-system`, which busybox
   `rm` lacks — the reason a smaller image was not used.
-- Identity matches the repo-cache writer (uid/gid 65533, fsGroup 65533).
-  The writer already mounts this volume with the same fsGroup 65533 and
-  `OnRootMismatch` policy, so attaching it here cannot trigger a recursive
-  fsGroup re-chown over the other cache roots. Read-only rootfs, dropped
-  capabilities, seccomp RuntimeDefault, and no service-account token: the
-  pod has no Kubernetes API access, so the no-remaining-writer rule is
-  enforced by static CI, not runtime — the step checks the three
-  repo-cache-sync manifests and the Kustomization for any `tfroot-twilio`
-  writer line.
+- Identity matches the repo-cache writer's configured values (uid/gid
+  65533, fsGroup 65533, fsGroupChangePolicy OnRootMismatch — the same
+  group and policy the writer pod declares; CI asserts both fields).
+  This is manifest equality only: no actual ownership stat of the volume
+  root was performed. The matching policy means this mount does not ask
+  the kubelet for an ownership re-walk it would not already do for the
+  writer; if an ownership change were ever actually required, the
+  unprivileged 65533 pod cannot perform it — the mount and the run fail
+  closed, with no automatic root escalation by this Job. Read-only
+  rootfs, dropped capabilities, seccomp RuntimeDefault, and no
+  service-account token: the pod has no Kubernetes API access, so the
+  no-remaining-writer rule is enforced by static CI, not runtime — the
+  step checks the three repo-cache-sync manifests and the Kustomization
+  for any `tfroot-twilio` writer line.
 - CI also replays the exact embedded script against a temp fixture
   re-rooted away from `/repos` (only the mountpoint gate is dropped; no
   fake full-pod environment): confinement, sibling survival with sentinel

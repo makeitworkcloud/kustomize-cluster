@@ -270,6 +270,8 @@ jobs:
           check(pod.get("restartPolicy") == "Never", "restartPolicy Never")
           psc = pod.get("securityContext") or {}
           check(psc.get("fsGroup") == 65533, "fsGroup 65533")
+          check(psc.get("fsGroupChangePolicy") == "OnRootMismatch",
+                "fsGroupChangePolicy must be OnRootMismatch")
           vols = pod.get("volumes") or []
           check(vols == [{"name": "repos",
                           "persistentVolumeClaim": {"claimName": "mcp-repo-cache"}}],
