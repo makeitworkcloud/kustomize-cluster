@@ -22,10 +22,20 @@ direct route were removed by owner decision. Retirement, 2026-09-20: the
 OpenCode SMS bridge was fully retired by owner decision (no active
 integrations, no archive retained); the `sync-tfroot-twilio`
 repository-cache sync container is removed with it. The already-cached
-`/repos/tfroot-twilio` root on `mcp-repo-cache` is retained until the
+`/repos/tfroot-twilio` root on `mcp-repo-cache` was retained until the
 `tfroot-twilio` provider teardown. The matching Cloudflare Access application
 remains in `tfroot-cloudflare` and is removed separately through its
 environment-gated apply, in the documented reverse delivery order.
+
+With the provider teardown complete (upstream repository deleted, provider
+resources gone), the PostSync `repo-cache-retire-tfroot-twilio` Job removes
+that retained cache root: it deletes only the `/repos/tfroot-twilio`
+directory on `mcp-repo-cache` — never the claim itself or any other cache
+root — refuses a symlinked target, is idempotent, and has no Kubernetes API
+access. Disarm it by removing the Job, its Kustomization entry, and its
+`test.yml` contract step in one follow-up change after the successful run.
+The codebase-memory project index stub for `tfroot-twilio` is derived state
+that outlives the deletion and is not claimed removed.
 
 ## Authentication and security boundary
 

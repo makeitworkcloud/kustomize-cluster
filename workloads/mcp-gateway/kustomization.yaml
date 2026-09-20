@@ -17,12 +17,13 @@ resources:
   - cloudflare-remote-proxy.yaml
   - repo-cache-pvc.yaml
   - repo-cache-sync.yaml
+  - repo-cache-retire-tfroot-twilio.yaml
   - codebase-memory-toolconfig.yaml
   - codebase-memory-mcpserver.yaml
   - hero-ssh-toolconfig.yaml
   - hero-ssh-mcpserver.yaml
   - remote-proxies.yaml
-  - slidespeak-remote-proxy.yaml
+  - slideshare-remote-proxy.yaml
   - tunnel-binding.yaml
 configMapGenerator:
   # A content-addressed ConfigMap name changes the MCPServer pod template,
