@@ -61,13 +61,6 @@ patches:
       kind: Deployment
       name: repo-cache-sync
       namespace: mcp
-  - path: repo-cache-sync-twilio.yaml
-    target:
-      group: apps
-      version: v1
-      kind: Deployment
-      name: repo-cache-sync
-      namespace: mcp
   - path: repo-cache-sync-private.yaml
     target:
       group: apps
@@ -117,8 +110,6 @@ patches:
               - name: sync-tfroot-libvirt
                 resources: null
               - name: sync-tfroot-namecheap
-                resources: null
-              - name: sync-tfroot-twilio
                 resources: null
               - name: sync-www
                 resources: null
