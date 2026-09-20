@@ -233,22 +233,37 @@ jobs:
           job_path = Path("workloads/mcp-gateway/repo-cache-retire-tfroot-twilio.yaml")
 
           # Permanent writer ban: tfroot-twilio may appear only in the retire
-          # Job itself, this workflow, and the README retirement note.
+          # Job itself, this workflow, the README retirement note, and the
+          # Kustomization resource entry that registers the retire Job.
+          grep = subprocess.run(["git", "grep", "-l", "tfroot-twilio"],
+                                capture_output=True, text=True)
+          check(grep.returncode in (0, 1), "git grep failed")
+          found = set(grep.stdout.split()) if grep.returncode == 0 else set()
           allowed = {
               str(job_path),
               ".github/workflows/test.yml",
               "workloads/mcp-gateway/README.md",
+              "workloads/mcp-gateway/kustomization.yaml",
           }
-          grep = subprocess.run(["git", "grep", "-l", "tfroot-twilio"],
-                                capture_output=True, text=True)
-          check(grep.returncode in (0, 1), "git grep failed")
-          stray = sorted((set(grep.stdout.split()) if grep.returncode == 0
-                          else set()) - allowed)
+          stray = sorted(found - allowed)
           check(not stray, "unexpected tfroot-twilio references: %s" % stray)
+          # The Kustomization may name tfroot-twilio only as the retire Job
+          # resource entry, never as a repo-cache-sync writer or patch line.
+          kust_path = Path("workloads/mcp-gateway/kustomization.yaml")
+          if kust_path.exists():
+              bad = [line for line in kust_path.read_text().splitlines()
+                     if "tfroot-twilio" in line
+                     and line.strip() != "- repo-cache-retire-tfroot-twilio.yaml"]
+              check(not bad,
+                    "kustomization tfroot-twilio lines must be only the retire "
+                    "resource entry: %s" % bad)
 
           if not job_path.exists():
               check(not stray,
                     "retire Job removed but tfroot-twilio references remain")
+              check(not (kust_path.exists()
+                         and "tfroot-twilio" in kust_path.read_text()),
+                    "retire Job removed but Kustomization still references it")
               if errors:
                   for e in errors:
                       print("RETIRE-INVALID: %s" % e)
