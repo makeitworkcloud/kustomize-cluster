@@ -54,7 +54,14 @@ spec:
 
               token = os.environ["CF_API_TOKEN"]
               domain = os.environ["CF_DOMAIN"]
-              hosts = ["argocd", "grafana", "status"]
+
+              # Adoption-phase hosts already cleaned once; never replay their deletion.
+              completed_hosts = ["argocd", "grafana", "status"]
+
+              targets = [
+                  {"fqdn": f"mcp-twilio-docs.{domain}", "type": "CNAME", "content_suffix": ".cfargotunnel.com"},
+                  {"fqdn": f"_managed.mcp-twilio-docs.{domain}", "type": "TXT"},
+              ]
 
               def cf_request(method, path, params=None):
                   url = "https://api.cloudflare.com/client/v4" + path
@@ -69,7 +76,10 @@ spec:
                       },
                   )
                   with urllib.request.urlopen(req, timeout=30) as resp:
-                      return json.loads(resp.read().decode("utf-8"))
+                      body = json.loads(resp.read().decode("utf-8"))
+                  if not body.get("success", False):
+                      raise SystemExit(f"cloudflare api request failed: {method} {path}")
+                  return body
 
               zone_resp = cf_request("GET", "/zones", {"name": domain, "per_page": 1})
               zone = zone_resp.get("result", [])
@@ -77,26 +87,37 @@ spec:
                   raise SystemExit(f"zone not found: {domain}")
               zone_id = zone[0]["id"]
 
-              for host in hosts:
-                  fqdn = f"{host}.{domain}"
+              for target in targets:
+                  fqdn = target["fqdn"]
+                  host = fqdn[: -len(domain) - 1]
+                  if host in completed_hosts:
+                      raise SystemExit(f"refusing replay of completed adoption host: {fqdn}")
                   recs = cf_request(
                       "GET",
                       f"/zones/{zone_id}/dns_records",
-                      {"name": fqdn, "per_page": 100},
+                      {"name": fqdn, "type": target["type"], "per_page": 100},
                   ).get("result", [])
 
                   if not recs:
-                      print(f"no records to adopt for {fqdn}")
+                      print(f"no {target['type']} records to clean for {fqdn}")
                       continue
 
                   for rec in recs:
                       rec_id = rec["id"]
                       rec_type = rec.get("type", "")
                       rec_content = rec.get("content", "")
-                      print(f"deleting {rec_type} {fqdn} -> {rec_content}")
+                      if rec_type != target["type"]:
+                          raise SystemExit(f"unexpected record type for {fqdn}: {rec_type}")
+                      suffix = target.get("content_suffix")
+                      if suffix and not rec_content.endswith(suffix):
+                          raise SystemExit(f"unexpected content for {fqdn}; refusing deletion")
+                      if target["type"] == "CNAME":
+                          print(f"deleting {rec_type} {fqdn} -> {rec_content}")
+                      else:
+                          print(f"deleting {rec_type} {fqdn}")
                       cf_request("DELETE", f"/zones/{zone_id}/dns_records/{rec_id}")
 
-              print("cloudflare dns adoption complete")
+              print("cloudflare dns residual cleanup complete")
               PY
       volumes:
         - name: tmp
