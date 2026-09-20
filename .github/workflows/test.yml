@@ -65,14 +65,13 @@ jobs:
           print(f"OK: all kustomization references resolve across {len(files)} kustomizations")
           EOF
 
-      # Guard the staged opencode-memory-pilot evaluation until its
-      # owner-confirmed activation PR: the overlay stays minimal, the staged
-      # Application keeps its fixed contract (chart pin, values, manual sync),
-      # and nothing registers the pilot into an active kustomization.
+      # Guard the staged opencode-memory-pilot evaluation: minimal overlay,
+      # fixed Application/values contract, and inactivity until the
+      # owner-confirmed activation PR.
       - name: Validate staged opencode-memory-pilot contract and inactivity
         run: |
           python - <<'EOF'
-          import subprocess, sys, yaml
+          import os, subprocess, sys, yaml
           from pathlib import Path
 
           errors = []
@@ -87,9 +86,9 @@ jobs:
           }
           actual_files = {p.name for p in base.iterdir() if p.is_file()}
           check(actual_files == expected_files,
-                f"pilot directory files {sorted(actual_files)} != expected "
-                f"{sorted(expected_files)}; additions (secrets, tunnel "
-                "bindings, ingresses) require design review")
+                "pilot directory files %s != expected %s; additions (secrets, "
+                "tunnel bindings, ingresses) require design review"
+                % (sorted(actual_files), sorted(expected_files)))
 
           kust = yaml.safe_load((base / "kustomization.yaml").read_text()) or {}
           check(kust.get("resources") == ["persistent-volume-claim.yaml", "service.yaml"],
@@ -109,24 +108,35 @@ jobs:
           check(svc.get("kind") == "Service", "Service kind")
           check(svc["metadata"]["name"] == "opencode-memory-pilot", "Service name")
           check(svc["metadata"]["namespace"] == "opencode", "Service namespace")
-          check(svc["spec"].get("type", "ClusterIP") == "ClusterIP",
+          spec = svc["spec"]
+          check(spec.get("type", "ClusterIP") == "ClusterIP",
                 "Service must be ClusterIP only")
-          check(svc["spec"].get("selector") == {"app": "opencode-memory-pilot"},
+          check("externalIPs" not in spec, "Service must not set externalIPs")
+          check("externalName" not in spec, "Service must not be ExternalName")
+          check("loadBalancerSourceRanges" not in spec,
+                "Service must not set loadBalancerSourceRanges")
+          check(spec.get("selector") == {"app": "opencode-memory-pilot"},
                 "Service selector")
-          ports = svc["spec"].get("ports", [])
-          check(len(ports) == 1 and ports[0].get("port") == 4096,
-                "Service must expose only port 4096")
+          ports = spec.get("ports", [])
+          check(len(ports) == 1, "Service must expose exactly one port")
+          if ports:
+              check(ports[0].get("port") == 4096, "Service port must be 4096")
+              check(ports[0].get("targetPort") == "http",
+                    "Service targetPort must be the http named port")
+              check(ports[0].get("protocol", "TCP") == "TCP",
+                    "Service port protocol must be the default TCP")
 
           app = yaml.safe_load((base / "application.yaml").read_text())
           check(app.get("kind") == "Application", "Application kind")
           check(app["metadata"]["name"] == "opencode-memory-pilot", "Application name")
           check(app["metadata"]["namespace"] == "argocd", "Application namespace")
           check(app["spec"]["project"] == "default", "Application project")
-          dest = app["spec"]["destination"]
-          check(dest == {"server": "https://kubernetes.default.svc", "namespace": "opencode"},
+          check(app["spec"]["destination"]
+                == {"server": "https://kubernetes.default.svc", "namespace": "opencode"},
                 "Application destination must be the in-cluster server and the opencode namespace")
 
           sources = app["spec"].get("sources", [])
+          check(len(sources) == 2, "Application must declare exactly two sources")
           chart_src = next((s for s in sources if "chart" in s), None)
           git_src = next((s for s in sources if "path" in s), None)
           check(chart_src is not None and chart_src["chart"] == "opencode-server"
@@ -140,18 +150,22 @@ jobs:
                 "git source must point at workloads/opencode-memory-pilot on main")
 
           values = (chart_src or {}).get("helm", {}).get("valuesObject", {})
+          check(set(values) == {"fullnameOverride", "persistence", "memoryPilot"},
+                "valuesObject keys must be exactly fullnameOverride, persistence, memoryPilot")
           check(values.get("fullnameOverride") == "opencode-memory-pilot",
                 "values fullnameOverride")
-          check(values.get("persistence", {}).get("existingClaim") == "opencode-memory-pilot-home",
-                "values existingClaim")
+          check(set(values.get("persistence", {})) == {"existingClaim"},
+                "persistence keys must be exactly existingClaim")
+          check(values.get("persistence", {}).get("existingClaim")
+                == "opencode-memory-pilot-home", "values existingClaim")
           mp = values.get("memoryPilot", {})
+          check(set(mp) == {"enabled", "providerSecretName", "serverSecretName"},
+                "memoryPilot keys must be exactly enabled, providerSecretName, serverSecretName")
           check(mp.get("enabled") is True, "memoryPilot.enabled must be true")
-          check(mp.get("providerSecretName") == "opencode-memory-pilot-provider"
-                and mp.get("providerSecretKey") == "ZHIPU_API_KEY",
-                "memoryPilot provider secret name/key contract")
-          check(mp.get("serverSecretName") == "opencode-memory-pilot-server-auth"
-                and mp.get("serverSecretKey") == "password",
-                "memoryPilot server secret name/key contract")
+          check(mp.get("providerSecretName") == "opencode-memory-pilot-provider",
+                "memoryPilot providerSecretName contract")
+          check(mp.get("serverSecretName") == "opencode-memory-pilot-server-auth",
+                "memoryPilot serverSecretName contract")
 
           sync = app["spec"].get("syncPolicy", {})
           check("automated" not in sync,
@@ -159,28 +173,40 @@ jobs:
           check("retry" in sync and "syncOptions" in sync,
                 "staged Application keeps retry and syncOptions")
 
-          # Inactivity: nothing outside the staged directory may reference the pilot.
-          kust_files = subprocess.run(
+          # Inactivity: no kustomization outside the staged directory may
+          # reference it, comparing resolved ref paths (handles ./, ../,
+          # nested components, and legacy keys), not just name matching.
+          kust_files = ["kustomization.yaml"] + subprocess.run(
               ["git", "ls-files", "*/kustomization.yaml"],
               capture_output=True, text=True, check=True,
           ).stdout.split()
+          ref_keys = ("resources", "patches", "configurations", "generators",
+                      "components", "bases", "patchesStrategicMerge",
+                      "patchesJson6902")
           for f in kust_files:
+              if Path(f).parent == base:
+                  continue
               doc = yaml.safe_load(Path(f).read_text()) or {}
-              for key in ("resources", "patches", "configurations", "generators"):
-                  for entry in doc.get(key) or []:
+              for key in ref_keys:
+                  entries = doc.get(key) or []
+                  if isinstance(entries, (str, dict)):
+                      entries = [entries]
+                  for entry in entries:
                       ref = entry.get("path") if isinstance(entry, dict) else entry
-                      if isinstance(ref, str) and "opencode-memory-pilot" in ref \
-                              and Path(f).parent != base:
-                          errors.append(f"active reference to pilot in {f}: {key}[{ref}]")
+                      if not isinstance(ref, str) or ref.startswith(("https://", "git::")):
+                          continue
+                      resolved = Path(os.path.normpath(Path(f).parent / ref))
+                      if resolved == base or base in resolved.parents:
+                          errors.append("active reference to pilot in %s: %s[%s]" % (f, key, ref))
           apps = yaml.safe_load(Path("workloads/apps/kustomization.yaml").read_text()) or {}
           refs = [r for r in apps.get("resources") or [] if "opencode-memory-pilot" in str(r)]
-          check(not refs, f"workloads/apps must not register the pilot yet: {refs}")
+          check(not refs, "workloads/apps must not register the pilot yet: %s" % refs)
           check(not list(Path("workloads/apps").glob("*opencode-memory-pilot*")),
                 "no pilot app manifest may exist in workloads/apps before activation")
 
           if errors:
               for e in errors:
-                  print(f"PILOT-INVALID: {e}")
+                  print("PILOT-INVALID: %s" % e)
               sys.exit(1)
           print("OK: opencode-memory-pilot staged contract and inactivity verified")
           EOF

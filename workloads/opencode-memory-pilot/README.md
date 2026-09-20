@@ -15,18 +15,19 @@ procedure in [Activation gates](#activation-gates-owner-confirmed-separate-pr).
   isolated ConfigMap and Deployment; it does not touch the production
   OpenCode server, its agents, MCP credentials, or artifacts.
 - The chart runs the text-embeddings inference (TEI) container in the same
-  pod on loopback only (CPU image `cpu1.9.4`, `nomic-embed-text` model at a
-  pinned revision). There is no TEI Service, no TunnelBinding, no ingress,
-  and no NodePort; the only Service is the ClusterIP
-  `opencode-memory-pilot` on port 4096.
+  pod on loopback only (CPU image `cpu-1.9.4`, model
+  `nomic-ai/nomic-embed-text-v1` at a pinned revision). There is no TEI
+  Service, no TunnelBinding, no ingress, and no NodePort; the only Service
+  is the ClusterIP `opencode-memory-pilot` on port 4096.
 - The provider model is `zai-coding-plan/glm-5.3`, seeded by chart
   configuration. The pilot does not reuse production OpenAI OAuth or any
   production provider credential.
 - **Synthetic data only.** The pilot is driven with synthetic prompts; raw
   prompt content is persisted to pilot storage as part of normal plugin
-  operation. Production agents have no access to the pilot's resources,
-  MCP credentials, secrets, or artifacts, and the pilot mounts none of the
-  existing production `opencode-home` or artifacts claims.
+  operation. Isolation is structural: the pilot mounts none of the existing
+  production `opencode-home` or artifacts claims and has no MCP wiring to
+  production agents. This is not an RBAC or network-isolation proof, and no
+  NetworkPolicy enforcement is claimed.
 
 ## Files
 
@@ -45,15 +46,17 @@ sync policy** — activation remains a manual, owner-confirmed sync.
 
 ## Storage and state model
 
-- The PVC holds the plugin's entire `.opencode-mem` directory. That directory
-  is the **primary and complete** pilot state.
+- The PVC holds the plugin's `.opencode-mem` directory: the pilot's primary
+  plugin state. It is **not** the complete pilot runtime state — OpenCode
+  session data lives separately and is outside this claim's scope.
 - The TEI container's model cache is disposable derived data; it may be
-  deleted or rebuilt at any time without pilot-state loss.
-- The chart Deployment uses `Recreate` with a single replica, which is what
-  makes the ReadWriteOnce claim safe.
+  deleted or rebuilt at any time without plugin-state loss.
+- The chart Deployment uses `Recreate` with a single replica. This merely
+  minimizes overlap during Deployment-managed updates; it provides no
+  crash-consistency or lock-safety guarantee for the ReadWriteOnce volume.
 - All plugin configuration is chart-seeded; this repository adds no
   ConfigMap, no secret stubs, and no plaintext or encrypted secret material.
-  The pilot secrets are provisioned by the owner before activation and are
+  The pilot secrets are provisioned before activation (see gates) and are
   distinct from every production secret:
 
   | Secret | Key | Purpose |
@@ -61,30 +64,41 @@ sync policy** — activation remains a manual, owner-confirmed sync.
   | `opencode-memory-pilot-provider` | `ZHIPU_API_KEY` | Isolated provider key for `zai-coding-plan/glm-5.3`. |
   | `opencode-memory-pilot-server-auth` | `password` | Isolated HTTP Basic auth password for the pilot server. |
 
-- The `memoryPilot` values keys used by `application.yaml`
-  (`providerSecretName`, `providerSecretKey`, `serverSecretName`,
-  `serverSecretKey`) must match the published 0.3.2 chart schema; verifying
-  them is an activation gate, and CI (`.github/workflows/test.yml`) pins the
-  staged contract.
+- The `memoryPilot` options used by `application.yaml` are name selectors
+  only (`providerSecretName`, `serverSecretName`); the data keys
+  (`ZHIPU_API_KEY`, `password`) are fixed by the chart. Verifying the
+  published 0.3.2 schema is an activation gate, and CI
+  (`.github/workflows/test.yml`) pins the staged contract.
 
 ## Backup and recovery (unresolved — acceptance procedure only)
 
-The backup destination and encryption scheme for pilot state are
-**unresolved**; no destination is configured and this repository deliberately
-makes no blind S3 (or other) guess. Until resolved, the following conceptual
-acceptance procedure defines what a backup/restore solution must demonstrate.
-This document executes no live commands and implies no whole-home or
-credential backup.
+The backup backend and destination are **unresolved**; no destination is
+configured and this repository deliberately makes no blind S3 (or other)
+guess. Disaster recovery is not claimed as done until a backend is chosen
+and the restore acceptance below passes. This section is conceptual: it
+executes no live commands and provisions nothing.
+
+Backup scope is the plugin state and raw prompt history — not the whole pod
+home, not `auth.json`, and never a whole-home or credential backup. Before
+any copy, inventory `.opencode-mem`: it may contain credential-bearing files
+such as `.auth-token`; if present, the encrypted backup must be classified
+credential-bearing. Prefer capturing the memory-state inventory data over
+auth tokens, keep backups operator-secured with no agent retrieval path, and
+resolve the full-directory-versus-tokens conflict in favor of excluding
+credentials.
+
+Acceptance procedure a backup/restore solution must demonstrate:
 
 1. Quiesce: stop pilot writes by scaling the pilot Deployment to zero
-   replicas (or otherwise pausing the plugin) so `.opencode-mem` is at rest.
-2. Copy the **full plugin state** (the entire `.opencode-mem` directory) off
-   node in encrypted form only; never copy the whole pod home, tokens,
-   credentials, or any secret material.
-3. Restore into a fresh claim and confirm the plugin resumes with complete
-   history: session index, memories, and embeddings intact.
-4. Record the decided encryption mechanism and destination here once
-   resolved.
+   replicas (or otherwise pausing the plugin) so plugin state is at rest.
+2. Copy the scoped plugin state and raw prompt history off node in encrypted
+   form only, per the classification above; never the whole home, tokens, or
+   `auth.json`.
+3. Restore into a fresh claim and confirm the plugin resumes with its
+   memory inventory and prompt history intact; an OpenCode session that was
+   the source of an interrupted capture may not recover.
+4. Record the decided backend, destination, encryption, and classification
+   here once resolved.
 
 Lock-file handling: if the plugin lock references a stale PID after an
 unclean stop, inspect the lock and the process table and remove it only as a
@@ -99,12 +113,12 @@ This staging merge deploys nothing. Activation happens only when all of the
 following hold:
 
 1. `opencode-server` chart 0.3.2 is published to
-   `ghcr.io/makeitworkcloud/charts` and its `memoryPilot` values schema
-   matches the contract asserted by `.github/workflows/test.yml`.
-2. The owner provisions the two isolated pilot secrets in the `opencode`
-   namespace (`opencode-memory-pilot-provider`/`ZHIPU_API_KEY` and
-   `opencode-memory-pilot-server-auth`/`password`). They are not created,
-   stubbed, or encrypted in this repository.
+   `ghcr.io/makeitworkcloud/charts` and its `memoryPilot` schema matches the
+   contract asserted by `.github/workflows/test.yml`.
+2. The owner provisions the two isolated pilot secrets through the canonical
+   GitOps path — separately approved SOPS-encrypted Secret manifests merged
+   via the repository's KSOPS process — not by manual cluster console
+   changes. No plaintext stub is committed here.
 3. Validations pass: repository CI on the activation PR plus the review
    checks from `docs/adding-a-workload.md` (single ownership, Service
    selector against published templates, storage behavior).
@@ -130,7 +144,9 @@ automation-generated PRs never register or activate this pilot Application.
 - Storage: pilot state lives only on `opencode-memory-pilot-home`; the
   existing production `opencode-home` and artifacts claims are never
   mounted.
-- Network: ClusterIP Service only, port 4096, namespace-internal; TEI on
-  pod loopback.
+- Network: a ClusterIP Service only, port 4096 — reachable from within the
+  cluster, with no TunnelBinding, ingress, or NodePort, so not externally
+  reachable. The boundary is the pilot's dedicated HTTP Basic auth; no
+  NetworkPolicy enforcement is claimed.
 - Data: synthetic prompts only, with raw prompt content persisted to pilot
-  storage; production agents have no access to any of it.
+  storage; no mounts or MCP wiring expose it to production agents.

@@ -1,10 +1,7 @@
 ---
-# Staged and intentionally inactive: not registered in
-# workloads/apps/kustomization.yaml and not rendered by this directory's
-# kustomization.yaml. Activation requires the owner-confirmed gates in
-# README.md (chart 0.3.2 published, isolated pilot secrets provisioned,
-# validations passed); sync stays manual, so nothing deploys itself even
-# after registration.
+# Staged and intentionally inactive: excluded from workloads/apps and from
+# this directory's kustomization; no automated sync. Activation gates in
+# README.md.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -26,9 +23,7 @@ spec:
           memoryPilot:
             enabled: true
             providerSecretName: opencode-memory-pilot-provider
-            providerSecretKey: ZHIPU_API_KEY
             serverSecretName: opencode-memory-pilot-server-auth
-            serverSecretKey: password
     - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
       path: workloads/opencode-memory-pilot
       targetRevision: main

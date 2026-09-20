@@ -1,8 +1,6 @@
 ---
-# Staged pilot overlay: renders only cluster-owned storage and the stable
-# Service. application.yaml is deliberately NOT a resource here, and this
-# directory is not referenced by workloads/apps or any active kustomization.
-# See README.md for the activation gates.
+# Staged, inactive overlay; see README.md. application.yaml is
+# intentionally not a resource here.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
