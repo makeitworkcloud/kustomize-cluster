@@ -213,14 +213,16 @@ jobs:
           EOF
 
       # The tfroot-twilio cache retirement is a fixed-target deletion:
-      # statically parse the retire Job and its inline script, permanently
-      # ban any new tfroot-twilio cache-writer reference, and replay the
-      # exact script against a temp fixture re-rooted away from /repos (only
-      # the mountpoint gate is dropped; no fake full-pod environment).
+      # statically parse the retire Job and its inline script, check the
+      # repo-cache-sync writer surfaces for any tfroot-twilio entry, and
+      # replay the exact script against a temp fixture re-rooted away from
+      # /repos (only the mountpoint gate is dropped; no fake full-pod
+      # environment). The whole step is removed together with the Job in
+      # the disarm change.
       - name: Validate repo-cache tfroot-twilio retirement contract
         run: |
           python - <<'EOF'
-          import re, subprocess, sys, yaml
+          import re, sys, yaml
           from pathlib import Path
 
           errors = []
@@ -230,44 +232,24 @@ jobs:
 
           job_path = Path("workloads/mcp-gateway/repo-cache-retire-tfroot-twilio.yaml")
 
-          # Permanent writer ban: tfroot-twilio may appear only in the retire
-          # Job itself, this workflow, the README retirement note, and the
-          # Kustomization resource entry that registers the retire Job.
-          grep = subprocess.run(["git", "grep", "-l", "tfroot-twilio"],
-                                capture_output=True, text=True)
-          check(grep.returncode in (0, 1), "git grep failed")
-          found = set(grep.stdout.split()) if grep.returncode == 0 else set()
-          allowed = {
-              str(job_path),
-              ".github/workflows/test.yml",
-              "workloads/mcp-gateway/README.md",
-              "workloads/mcp-gateway/kustomization.yaml",
-          }
-          stray = sorted(found - allowed)
-          check(not stray, "unexpected tfroot-twilio references: %s" % stray)
-          # The Kustomization may name tfroot-twilio only as the retire Job
-          # resource entry, never as a repo-cache-sync writer or patch line.
+          # Scoped no-remaining-writer rule: the three repo-cache-sync
+          # manifests and the Kustomization may not configure a tfroot-twilio
+          # writer. Unrelated documentation is out of scope. A missing Job
+          # manifest is a failure here, not a disarmed state: this step is
+          # removed together with the Job in the disarm change.
+          for sync in ("workloads/mcp-gateway/repo-cache-sync.yaml",
+                       "workloads/mcp-gateway/repo-cache-sync-private.yaml",
+                       "workloads/mcp-gateway/repo-cache-sync-xnoto.yaml"):
+              p = Path(sync)
+              check(not (p.exists() and "tfroot-twilio" in p.read_text()),
+                    "tfroot-twilio writer present in %s" % sync)
           kust_path = Path("workloads/mcp-gateway/kustomization.yaml")
-          if kust_path.exists():
-              bad = [line for line in kust_path.read_text().splitlines()
-                     if "tfroot-twilio" in line
-                     and line.strip() != "- repo-cache-retire-tfroot-twilio.yaml"]
-              check(not bad,
-                    "kustomization tfroot-twilio lines must be only the retire "
-                    "resource entry: %s" % bad)
-
-          if not job_path.exists():
-              check(not stray,
-                    "retire Job removed but tfroot-twilio references remain")
-              check(not (kust_path.exists()
-                         and "tfroot-twilio" in kust_path.read_text()),
-                    "retire Job removed but Kustomization still references it")
-              if errors:
-                  for e in errors:
-                      print("RETIRE-INVALID: %s" % e)
-                  sys.exit(1)
-              print("OK: tfroot-twilio retirement disarmed, no references remain")
-              sys.exit(0)
+          bad = [line for line in kust_path.read_text().splitlines()
+                 if "tfroot-twilio" in line
+                 and line.strip() != "- repo-cache-retire-tfroot-twilio.yaml"]
+          check(not bad, "kustomization tfroot-twilio lines must be only the "
+                         "retire resource entry: %s" % bad)
+          check(job_path.exists(), "retire Job manifest missing")
 
           docs = list(yaml.safe_load_all(job_path.read_text()))
           check(len(docs) == 1, "exactly one YAML document")
@@ -346,19 +328,20 @@ jobs:
           sh -n /tmp/retire-tfroot-twilio.sh
           # Honest fixture run of the exact embedded script, re-rooted into a
           # sandbox directory (the /proc/mounts gate is the only edit: CI has
-          # no /repos mount). Verifies confined deletion, sibling survival,
-          # symlink refusal, and idempotency; nothing outside RUNNER_TEMP is
-          # touched and no cluster path is read.
+          # no /repos mount). Synthetic sentinel content only; nothing
+          # outside RUNNER_TEMP is touched and no cluster path is read.
           FIXTURE="$RUNNER_TEMP/retire-fixture"
           rm -rf "$FIXTURE"
           mkdir -p "$FIXTURE/repos/tfroot-twilio/.worktrees/deadbeef" "$FIXTURE/repos/keep-me"
           touch "$FIXTURE/repos/tfroot-twilio/inside" "$FIXTURE/repos/tfroot-twilio/.worktrees/deadbeef/object"
+          echo untouched > "$FIXTURE/repos/keep-me/sentinel"
           ln -s .worktrees/deadbeef "$FIXTURE/repos/tfroot-twilio/current"
           sed -e "s|TARGET='/repos/tfroot-twilio'|TARGET='$FIXTURE/repos/tfroot-twilio'|" \
               -e "/proc\\/mounts/d" /tmp/retire-tfroot-twilio.sh > /tmp/retire-fixture.sh
           sh /tmp/retire-fixture.sh
           test ! -e "$FIXTURE/repos/tfroot-twilio"
-          test -f "$FIXTURE/repos/keep-me"
+          test -f "$FIXTURE/repos/keep-me/sentinel"
+          grep -q untouched "$FIXTURE/repos/keep-me/sentinel"
           ln -s /elsewhere "$FIXTURE/repos/tfroot-twilio"
           if sh /tmp/retire-fixture.sh; then
             echo "RETIRE-INVALID: symlinked target must be refused"

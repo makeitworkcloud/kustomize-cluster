@@ -29,7 +29,7 @@ environment-gated apply, in the documented reverse delivery order.
 
 With the provider teardown complete (upstream repository deleted, provider
 resources gone), the PostSync `repo-cache-retire-tfroot-twilio` Job removes
-that retained cache root. Its contract is enforced statically by the
+that retained cache root. Its contract is checked statically by the
 retirement step in `.github/workflows/test.yml`:
 
 - Scope is exactly `/repos/tfroot-twilio` on `mcp-repo-cache`; never the
@@ -50,21 +50,25 @@ retirement step in `.github/workflows/test.yml`:
   `codebase-memory-mcpserver.yaml` (no separate vetting claimed for this
   Job); Debian coreutils `rm` supplies `--one-file-system`, which busybox
   `rm` lacks — the reason a smaller image was not used.
-- Identity matches the repo-cache writer (uid/gid 65533, fsGroup 65533),
-  so deletion needs no privilege; read-only rootfs, dropped capabilities,
-  seccomp RuntimeDefault, and no service-account token: the pod has no
-  Kubernetes API access, so the no-remaining-writer rule is enforced by
-  static CI (the step bans `tfroot-twilio` outside the Job, this README,
-  the workflow, and the exact Kustomization resource entry), not runtime.
+- Identity matches the repo-cache writer (uid/gid 65533, fsGroup 65533).
+  The writer already mounts this volume with the same fsGroup 65533 and
+  `OnRootMismatch` policy, so attaching it here cannot trigger a recursive
+  fsGroup re-chown over the other cache roots. Read-only rootfs, dropped
+  capabilities, seccomp RuntimeDefault, and no service-account token: the
+  pod has no Kubernetes API access, so the no-remaining-writer rule is
+  enforced by static CI, not runtime — the step checks the three
+  repo-cache-sync manifests and the Kustomization for any `tfroot-twilio`
+  writer line.
 - CI also replays the exact embedded script against a temp fixture
   re-rooted away from `/repos` (only the mountpoint gate is dropped; no
-  fake full-pod environment): confinement, sibling survival, symlink
-  refusal, and idempotency.
+  fake full-pod environment): confinement, sibling survival with sentinel
+  content intact, symlink refusal, and idempotency.
 
 Disarm after the first successful run by removing the Job, its
-Kustomization entry, and the `test.yml` step in one follow-up change. The
-codebase-memory project index stub for `tfroot-twilio` is derived state
-that outlives the deletion and is not claimed removed.
+Kustomization entry, and the `test.yml` step (writer checks included) in
+one follow-up change. The codebase-memory project index stub for
+`tfroot-twilio` is derived state that outlives the deletion and is not
+claimed removed.
 
 ## Authentication and security boundary
 
