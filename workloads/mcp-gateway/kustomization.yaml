@@ -17,6 +17,7 @@ resources:
   - cloudflare-remote-proxy.yaml
   - repo-cache-pvc.yaml
   - repo-cache-sync.yaml
+  - repo-cache-retire-tfroot-twilio.yaml
   - codebase-memory-toolconfig.yaml
   - codebase-memory-mcpserver.yaml
   - hero-ssh-toolconfig.yaml
