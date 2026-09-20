@@ -23,7 +23,6 @@ resources:
   - hero-ssh-mcpserver.yaml
   - remote-proxies.yaml
   - slidespeak-remote-proxy.yaml
-  - twilio-remote-proxy.yaml
   - tunnel-binding.yaml
 configMapGenerator:
   # A content-addressed ConfigMap name changes the MCPServer pod template,
@@ -56,13 +55,6 @@ configurations:
   - gcloud-mcp-namereference.yaml
 patches:
   - path: repo-cache-sync-xnoto.yaml
-    target:
-      group: apps
-      version: v1
-      kind: Deployment
-      name: repo-cache-sync
-      namespace: mcp
-  - path: repo-cache-sync-twilio.yaml
     target:
       group: apps
       version: v1
@@ -118,8 +110,6 @@ patches:
               - name: sync-tfroot-libvirt
                 resources: null
               - name: sync-tfroot-namecheap
-                resources: null
-              - name: sync-tfroot-twilio
                 resources: null
               - name: sync-www
                 resources: null

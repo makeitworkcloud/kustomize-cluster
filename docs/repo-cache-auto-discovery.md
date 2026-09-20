@@ -4,7 +4,7 @@ status: draft
 owners:
   - makeitworkcloud
 created: 2026-09-04
-last_reviewed: 2026-09-09
+last_reviewed: 2026-09-20
 source_repositories:
   - makeitworkcloud/kustomize-cluster
   - makeitworkcloud/tfroot-github
@@ -26,7 +26,7 @@ This design replaces the manually enumerated Make IT Work Cloud public source se
 
 **Verified fact (2026-09-04):** `workloads/mcp-gateway/repo-cache-sync.yaml` starts one `git-sync` container per repository because `git-sync` synchronizes one repository per process. The `codebase-memory` MCP backend mounts the shared PVC read-only at `/repos` and indexes repository roots under that path; project identity resolves through each `/repos/<repository>/current` symlink to the synced worktree, embedding the synced commit SHA in the project name. Its stable consumer contract is `/repos/<repository>/current`, with the synced commit visible in the adjacent git-sync worktree.
 
-**Verified fact (2026-09-04):** `tfroot-github/main.tf` is the canonical organization repository-policy inventory. At revision `aca473b319f52fd5a562effe71b4516cdbd89009`, `tfroot-twilio` is active and public; `agent-knowledge` and `channel-project` are private; and the three historical Ansible repositories are archived. The current `kustomize-cluster` cache revision `f1085c64a75719c6d4f316e0f0c1862f18568466` lacked a `tfroot-twilio` source, so this change adds it as a static bridge.
+**Verified fact (2026-09-04):** `tfroot-github/main.tf` is the canonical organization repository-policy inventory. At revision `aca473b319f52fd5a562effe71b4516cdbd89009`, `tfroot-twilio` is active and public; `agent-knowledge` and `channel-project` are private; and the three historical Ansible repositories are archived. The current `kustomize-cluster` cache revision `f1085c64a75719c6d4f316e0f0c1862f18568466` lacked a `tfroot-twilio` source, so this change adds it as a static bridge. Retirement note (2026-09-20): that static bridge was removed with the Twilio retirement; the cached root is retained until the `tfroot-twilio` provider teardown.
 
 ## Intended design
 
@@ -71,9 +71,9 @@ The MCP read path remains intentionally non-authoritative for remote `HEAD`, bra
 
 1. **Author and validate a controller image:** add source and unit tests in `images`; publish an immutable digest only after its pull-request checks pass. Tests must cover pagination, ETag reuse, archived/private/deny-list filtering, path validation, failed-fetch retention, successful-source-only pruning, and atomic publication.
 2. **Shadow the writer:** deploy the controller against a separate PVC and a non-advertised cache reader. Do not allow static and dynamic writers to share one PVC. Verify every existing eligible root, `current` symlink, and source SHA against the static cache within its documented staleness bound.
-3. **Cut over desired state:** switch the cache consumer to the validated PVC/controller after cluster CI passes. Verify the `mcp-gateway` Application, cache writer, backend/proxy health, and an indexed project for `/repos/tfroot-twilio/current` separately.
+3. **Cut over desired state:** switch the cache consumer to the validated PVC/controller after cluster CI passes. Verify the `mcp-gateway` Application, cache writer, backend/proxy health, and an indexed project for `/repos/charts/current` separately.
 4. **Exercise lifecycle behavior:** create or use an approved temporary public test repository, observe automatic inclusion without a manifest edit, then archive it and observe pruning only after a successful inventory. This is a confirmation-gated organization mutation and is not part of the current change.
-5. **Retire static writers:** remove the per-repository public `git-sync` containers only after the cutover and lifecycle checks succeed. Keep the existing static `tfroot-twilio` bridge until then; the credentialed private-allowlist containers in `repo-cache-sync-private.yaml` are outside this design and are not retired by it.
+5. **Retire static writers:** remove the per-repository public `git-sync` containers only after the cutover and lifecycle checks succeed. The static `tfroot-twilio` bridge was already removed on 2026-09-20 with the Twilio retirement; the credentialed private-allowlist containers in `repo-cache-sync-private.yaml` are outside this design and are not retired by it.
 
 ## Open decisions and invalidation conditions
 

@@ -10,12 +10,22 @@ Each direct endpoint is `https://mcp-<integration>.makeitwork.cloud/mcp` for:
 
 `apify`, `argocd`, `aws`, `aws-docs`, `cloudflare`, `context7`, `gcp`,
 `grafana`, `kubernetes`, `parallel-search`, `playwright`, `slidespeak`,
-`terraform-docs`, and `twilio-docs`.
+and `terraform-docs`.
 
 The `TunnelBinding` owns workload DNS and routes each hostname to its
 ToolHive-generated ClusterIP proxy Service. `tfroot-cloudflare` owns the
 matching Cloudflare Access applications. The proxy Services remain internal;
 Cloudflare Access is the only external authentication boundary.
+
+Retirement, 2026-09-19: the `twilio-docs` public-documentation proxy and its
+direct route were removed by owner decision. Retirement, 2026-09-20: the
+OpenCode SMS bridge was fully retired by owner decision (no active
+integrations, no archive retained); the `sync-tfroot-twilio`
+repository-cache sync container is removed with it. The already-cached
+`/repos/tfroot-twilio` root on `mcp-repo-cache` is retained until the
+`tfroot-twilio` provider teardown. The matching Cloudflare Access application
+remains in `tfroot-cloudflare` and is removed separately through its
+environment-gated apply, in the documented reverse delivery order.
 
 ## Authentication and security boundary
 

@@ -8,15 +8,6 @@ metadata:
 spec:
   project: default
   sources:
-    - chart: opencode-sms-bridge
-      repoURL: ghcr.io/makeitworkcloud/charts
-      targetRevision: 0.1.2
-      helm:
-        values: |
-          image:
-            tag: "35572992f220a0b378bb76283befd1000a0751d6"
-          config:
-            canonicalWebhookUrl: https://sms.makeitwork.cloud/twilio/inbound
     - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
       path: workloads/opencode-sms-bridge
       targetRevision: main
@@ -27,6 +18,7 @@ spec:
     automated:
       prune: true
       selfHeal: true
+      allowEmpty: true
     syncOptions:
       - CreateNamespace=true
       - SkipDryRunOnMissingResource=true
