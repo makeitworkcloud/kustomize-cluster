@@ -4,7 +4,6 @@ kind: Kustomization
 resources:
   - https://github.com/adyanth/cloudflare-operator.git/config/default?ref=v0.13.1
   - cluster-tunnel.yaml
-  - dns-adoption-job.yaml
 generators:
   - ksops-cloudflare-secrets.yaml
 images:
