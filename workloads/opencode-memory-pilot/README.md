@@ -110,8 +110,12 @@ following hold:
    operator-run synthetic client connects, using the dedicated pilot Basic
    auth credentials.
 5. Validations pass: repository CI on the activation PR plus the review
-   checks from `docs/adding-a-workload.md` (single ownership, Service
-   selector against published templates, storage behavior).
+   checks from `docs/adding-a-workload.md` (single ownership, storage
+   behavior). Published-chart/Service linkage is verified against the
+   published 0.3.2 templates at activation — not claimed tested now: the
+   chart's pilot Deployment pod labels must include the staged Service
+   selector (`app: opencode-memory-pilot`) and expose a named `http`
+   container port 4096 that the Service targets.
 6. An owner-confirmed activation PR registers the Application in
    `workloads/apps` per repository convention (a
    `workloads/apps/opencode-memory-pilot-app.yaml` entry or an explicit

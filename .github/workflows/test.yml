@@ -170,8 +170,9 @@ jobs:
           sync = app["spec"].get("syncPolicy", {})
           check("automated" not in sync,
                 "staged Application must not declare automated sync")
-          check("retry" in sync and "syncOptions" in sync,
-                "staged Application keeps retry and syncOptions")
+          check(sync.get("syncOptions") == ["CreateNamespace=true"],
+                "staged Application syncOptions must be exactly CreateNamespace=true")
+          check("retry" in sync, "staged Application keeps retry")
 
           # Inactivity: no kustomization outside the staged directory may
           # reference it, comparing resolved ref paths (handles ./, ../,
