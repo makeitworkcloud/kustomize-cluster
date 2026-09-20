@@ -49,18 +49,33 @@ spec:
               python - <<'PY'
               import json
               import os
+              import urllib.error
               import urllib.parse
               import urllib.request
 
+              EXPECTED_DOMAIN = "makeitwork.cloud"
+              EXPECTED_ZONE_ID = "8a33ab52285fec7213ad952bcb75ea7e"
+              EXPECTED_TUNNEL_ID = "d17bee03-8687-46a7-831b-df48aacdea1e"
+
               token = os.environ["CF_API_TOKEN"]
               domain = os.environ["CF_DOMAIN"]
-
-              # Adoption-phase hosts already cleaned once; never replay their deletion.
-              completed_hosts = ["argocd", "grafana", "status"]
+              if domain != EXPECTED_DOMAIN:
+                  raise SystemExit(f"unexpected CF_DOMAIN; refusing: {domain}")
 
               targets = [
-                  {"fqdn": f"mcp-twilio-docs.{domain}", "type": "CNAME", "content_suffix": ".cfargotunnel.com"},
-                  {"fqdn": f"_managed.mcp-twilio-docs.{domain}", "type": "TXT"},
+                  {
+                      "fqdn": f"mcp-twilio-docs.{EXPECTED_DOMAIN}",
+                      "type": "CNAME",
+                      "id": "b7f7e2f72473db09198de1befa52b989",
+                      "content": f"{EXPECTED_TUNNEL_ID}.cfargotunnel.com",
+                  },
+                  {
+                      "fqdn": f"_managed.mcp-twilio-docs.{EXPECTED_DOMAIN}",
+                      "type": "TXT",
+                      "id": "df3ce42a34d839712a73c4c42935a64f",
+                      "dns_id": "b7f7e2f72473db09198de1befa52b989",
+                      "tunnel_id": EXPECTED_TUNNEL_ID,
+                  },
               ]
 
               def cf_request(method, path, params=None):
@@ -75,26 +90,28 @@ spec:
                           "Content-Type": "application/json",
                       },
                   )
-                  with urllib.request.urlopen(req, timeout=30) as resp:
-                      body = json.loads(resp.read().decode("utf-8"))
+                  try:
+                      with urllib.request.urlopen(req, timeout=30) as resp:
+                          body = json.loads(resp.read().decode("utf-8"))
+                  except urllib.error.HTTPError as err:
+                      raise SystemExit(f"cloudflare api error: {err.code} {method} {path}")
+                  except urllib.error.URLError:
+                      raise SystemExit(f"cloudflare api unreachable: {method} {path}")
                   if not body.get("success", False):
                       raise SystemExit(f"cloudflare api request failed: {method} {path}")
                   return body
 
-              zone_resp = cf_request("GET", "/zones", {"name": domain, "per_page": 1})
-              zone = zone_resp.get("result", [])
+              zone = cf_request("GET", "/zones", {"name": EXPECTED_DOMAIN, "per_page": 1}).get("result", [])
               if not zone:
-                  raise SystemExit(f"zone not found: {domain}")
-              zone_id = zone[0]["id"]
+                  raise SystemExit(f"zone not found: {EXPECTED_DOMAIN}")
+              if zone[0].get("id", "") != EXPECTED_ZONE_ID:
+                  raise SystemExit("unexpected zone id; refusing deletion")
 
               for target in targets:
                   fqdn = target["fqdn"]
-                  host = fqdn[: -len(domain) - 1]
-                  if host in completed_hosts:
-                      raise SystemExit(f"refusing replay of completed adoption host: {fqdn}")
                   recs = cf_request(
                       "GET",
-                      f"/zones/{zone_id}/dns_records",
+                      f"/zones/{EXPECTED_ZONE_ID}/dns_records",
                       {"name": fqdn, "type": target["type"], "per_page": 100},
                   ).get("result", [])
 
@@ -103,19 +120,26 @@ spec:
                       continue
 
                   for rec in recs:
-                      rec_id = rec["id"]
-                      rec_type = rec.get("type", "")
-                      rec_content = rec.get("content", "")
-                      if rec_type != target["type"]:
-                          raise SystemExit(f"unexpected record type for {fqdn}: {rec_type}")
-                      suffix = target.get("content_suffix")
-                      if suffix and not rec_content.endswith(suffix):
+                      rec_id = rec.get("id", "")
+                      if rec_id != target["id"]:
+                          raise SystemExit(f"unexpected record id for {fqdn}; refusing deletion")
+                      if rec.get("name", "") != fqdn:
+                          raise SystemExit(f"unexpected record name for {fqdn}; refusing deletion")
+                      if rec.get("type", "") != target["type"]:
+                          raise SystemExit(f"unexpected record type for {fqdn}; refusing deletion")
+                      if "content" in target and rec.get("content", "") != target["content"]:
                           raise SystemExit(f"unexpected content for {fqdn}; refusing deletion")
-                      if target["type"] == "CNAME":
-                          print(f"deleting {rec_type} {fqdn} -> {rec_content}")
-                      else:
-                          print(f"deleting {rec_type} {fqdn}")
-                      cf_request("DELETE", f"/zones/{zone_id}/dns_records/{rec_id}")
+                      if "dns_id" in target:
+                          try:
+                              ownership = json.loads(rec.get("content", ""))
+                          except ValueError:
+                              raise SystemExit(f"unparsable ownership content for {fqdn}; refusing deletion")
+                          if ownership.get("DnsId") != target["dns_id"]:
+                              raise SystemExit(f"ownership DnsId mismatch for {fqdn}; refusing deletion")
+                          if ownership.get("TunnelId") != target["tunnel_id"]:
+                              raise SystemExit(f"ownership TunnelId mismatch for {fqdn}; refusing deletion")
+                      print(f"deleting {target['type']} {fqdn}")
+                      cf_request("DELETE", f"/zones/{EXPECTED_ZONE_ID}/dns_records/{rec_id}")
 
               print("cloudflare dns residual cleanup complete")
               PY
