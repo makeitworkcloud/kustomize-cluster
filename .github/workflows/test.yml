@@ -269,7 +269,7 @@ jobs:
           check(pod.get("automountServiceAccountToken") is False, "no SA token mount")
           check(pod.get("restartPolicy") == "Never", "restartPolicy Never")
           psc = pod.get("securityContext") or {}
-          check(not psc.get("fsGroup") and not psc.get("fsGroupChangePolicy"),
+          check("fsGroup" not in psc and "fsGroupChangePolicy" not in psc,
                 "Job must not request fsGroup normalization of the shared cache PVC")
           vols = pod.get("volumes") or []
           check(vols == [{"name": "repos",
