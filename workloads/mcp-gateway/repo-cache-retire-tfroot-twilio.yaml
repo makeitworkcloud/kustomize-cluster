@@ -20,9 +20,6 @@ spec:
     spec:
       automountServiceAccountToken: false
       restartPolicy: Never
-      securityContext:
-        fsGroup: 65533
-        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: retire-tfroot-twilio
           # Same digest as the canonical pin in codebase-memory-mcpserver.yaml;
