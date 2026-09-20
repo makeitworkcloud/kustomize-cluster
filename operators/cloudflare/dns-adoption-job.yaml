@@ -6,15 +6,17 @@ metadata:
   namespace: cloudflare-operator-system
   annotations:
     argocd.argoproj.io/hook: PostSync
-    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
     argocd.argoproj.io/sync-wave: "1"
     ignore-check.kube-linter.io/unset-memory-requirements: "No limits on single-node cluster"
     ignore-check.kube-linter.io/unset-cpu-requirements: "No requests on single-node cluster"
 spec:
   ttlSecondsAfterFinished: 300
+  activeDeadlineSeconds: 300
   backoffLimit: 2
   template:
     spec:
+      automountServiceAccountToken: false
       restartPolicy: Never
       securityContext:
         runAsNonRoot: true
@@ -23,7 +25,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: adopt-dns
-          image: docker.io/library/python:3.12-alpine
+          image: docker.io/library/python:3.12-alpine@sha256:c4634f578a412db396771b61b064c6e546c9d6414c7fb5b1b05d5871f1885f7b
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
