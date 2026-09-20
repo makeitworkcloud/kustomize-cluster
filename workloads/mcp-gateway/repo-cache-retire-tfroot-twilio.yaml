@@ -1,52 +1,7 @@
-# One-time retirement of the orphaned tfroot-twilio repository-cache root,
-# completing the SMS-bridge retirement recorded in this directory's README.
-# The upstream makeitworkcloud/tfroot-twilio repository is deleted (404) and
-# its provider resources are torn down, and no repo-cache-sync writer for it
-# remains anywhere in this repository, so the cached clone at
-# /repos/tfroot-twilio on mcp-repo-cache is dead state no process will ever
-# legitimately rewrite.
-#
-# Scope is exactly one directory: /repos/tfroot-twilio on the mcp-repo-cache
-# PVC, mounted here at the consumer path /repos (the codebase-memory backend
-# mounts the same claim read-only at /repos). The claim itself and every
-# other cache root are never touched. The script reads no file contents --
-# only mount-table, stat, and readlink metadata -- so anything cached inside
-# the clone is never inspected.
-#
-# Safety design, mirroring the repo-cache-sync writer contract and the
-# owner-approved one-time DNS-cleanup Job precedent (#257):
-#   - fixed hardcoded TARGET; no arguments, no env, no ConfigMap/Secret
-#     inputs, no shell-supplied paths;
-#   - refuses to run unless /repos is an actual mountpoint, so deletion can
-#     never fall through to the container filesystem;
-#   - refuses a symlinked target (readlink -f must resolve to the target
-#     exactly), blocking top-level symlink escape; POSIX rm never follows
-#     the internal current -> .worktrees links, it removes them with the
-#     tree;
-#   - GNU coreutils in this Debian-based image provides rm
-#     --one-file-system, which additionally refuses to cross a nested
-#     mountpoint (busybox rm in an Alpine base has no such flag, which is
-#     why this vetted image was chosen over a smaller one);
-#   - no Kubernetes API access: automountServiceAccountToken false and no
-#     RBAC; the pod holds only filesystem reach over the one mount;
-#   - same identity as the cache writer (uid/gid 65533 + fsGroup 65533) so
-#     deletion succeeds without privilege, and read-only root filesystem,
-#     dropped capabilities, and seccomp RuntimeDefault match the writer
-#     container hardening;
-#   - RWO single-node co-location with the writer and reader pods is the
-#     documented PVC contract (repo-cache-pvc.yaml);
-#   - PostSync hook with BeforeHookCreation,HooksSucceeded: deleted after a
-#     successful run and only recreated (as a no-op) before the next hook.
-#     The remaining-writer rule is enforced statically by CI (test.yml
-#     forbids any tfroot-twilio reference outside this file, its README
-#     note, and the check itself); a runtime writer check is deliberately
-#     impossible because this pod has no API access.
-#
-# Disarm after the first successful run by removing this manifest, its
-# Kustomization entry, and the test.yml contract step in one follow-up
-# change (same shape as #258). The codebase-memory project index stub for
-# tfroot-twilio is derived state that outlives the deleted files; it is not
-# claimed removed by this change.
+# One-time retirement of the orphaned /repos/tfroot-twilio cache root.
+# Rationale, safety contract, and disarm procedure live in this directory's
+# README; the contract is enforced by the retirement step in
+# .github/workflows/test.yml.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -54,7 +9,7 @@ metadata:
   namespace: mcp
   annotations:
     argocd.argoproj.io/hook: PostSync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HooksSucceeded
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
 spec:
   activeDeadlineSeconds: 300
   backoffLimit: 2
@@ -70,9 +25,8 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: retire-tfroot-twilio
-          # Already-vetted immutable digest pin deployed in this Application
-          # (codebase-memory-mcpserver.yaml, owner third-party-images policy
-          # 2026-09-09); Debian coreutils provide rm --one-file-system.
+          # Same digest as the canonical pin in codebase-memory-mcpserver.yaml;
+          # Debian coreutils rm supports --one-file-system, busybox rm does not.
           image: docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
           imagePullPolicy: IfNotPresent
           command:
@@ -87,16 +41,16 @@ spec:
                 echo "refusing: ${TARGET} is a symlink" >&2
                 exit 1
               fi
-              if [ "$(readlink -f -- "${TARGET}")" != "${TARGET}" ]; then
-                echo "refusing: ${TARGET} does not resolve to itself" >&2
-                exit 1
-              fi
               if [ ! -e "${TARGET}" ]; then
                 echo "already retired: ${TARGET} is absent"
                 exit 0
               fi
               if [ ! -d "${TARGET}" ]; then
                 echo "refusing: ${TARGET} is not a directory" >&2
+                exit 1
+              fi
+              if [ "$(readlink -f -- "${TARGET}")" != "${TARGET}" ]; then
+                echo "refusing: ${TARGET} does not resolve to itself" >&2
                 exit 1
               fi
               rm -rf --one-file-system -- "${TARGET}"

@@ -212,13 +212,11 @@ jobs:
           print("OK: opencode-memory-pilot staged contract and inactivity verified")
           EOF
 
-      # The tfroot-twilio repository-cache retirement is a fixed-target
-      # deletion: the retire Job may reference only /repos/tfroot-twilio on
-      # mcp-repo-cache. Statically parse the manifest and its inline script
-      # (no cluster access, no real deletion), permanently forbid any new
-      # tfroot-twilio cache-writer reference, and exercise the exact script
-      # against a temp fixture re-rooted away from /repos so nothing outside
-      # RUNNER_TEMP is touched.
+      # The tfroot-twilio cache retirement is a fixed-target deletion:
+      # statically parse the retire Job and its inline script, permanently
+      # ban any new tfroot-twilio cache-writer reference, and replay the
+      # exact script against a temp fixture re-rooted away from /repos (only
+      # the mountpoint gate is dropped; no fake full-pod environment).
       - name: Validate repo-cache tfroot-twilio retirement contract
         run: |
           python - <<'EOF'
@@ -281,7 +279,7 @@ jobs:
           ann = meta.get("annotations") or {}
           check(ann.get("argocd.argoproj.io/hook") == "PostSync", "PostSync hook")
           check(ann.get("argocd.argoproj.io/hook-delete-policy")
-                == "BeforeHookCreation,HooksSucceeded", "hook delete policy")
+                == "BeforeHookCreation,HookSucceeded", "hook delete policy")
           spec = job["spec"]
           check(spec.get("activeDeadlineSeconds") == 300, "activeDeadlineSeconds 300")
           check(spec.get("backoffLimit") == 2, "backoffLimit 2")
@@ -327,9 +325,16 @@ jobs:
           paths = sorted(set(re.findall(r"/repos/[A-Za-z0-9._/-]+", script)))
           check(paths == ["/repos/tfroot-twilio"],
                 "script may reference only /repos/tfroot-twilio: %s" % paths)
-          check("[ -L \"${TARGET}\" ]" in script, "top-level symlink refusal")
-          check("readlink -f" in script, "canonical resolution check")
-          check("/proc/mounts" in script, "mountpoint gate")
+          check("grep -q ' /repos ' /proc/mounts" in script,
+                "exact mountpoint grep line")
+          i_link = script.find('[ -L "${TARGET}" ]')
+          i_absent = script.find('[ ! -e "${TARGET}" ]')
+          i_readlink = script.find("readlink -f")
+          i_rm = script.find("rm -rf --one-file-system")
+          check(-1 not in (i_link, i_absent, i_readlink, i_rm),
+                "gate markers present")
+          check(i_link < i_absent < i_readlink < i_rm,
+                "gate order: symlink refusal, absence, readlink, rm")
 
           if errors:
               for e in errors:

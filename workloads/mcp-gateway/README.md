@@ -29,12 +29,41 @@ environment-gated apply, in the documented reverse delivery order.
 
 With the provider teardown complete (upstream repository deleted, provider
 resources gone), the PostSync `repo-cache-retire-tfroot-twilio` Job removes
-that retained cache root: it deletes only the `/repos/tfroot-twilio`
-directory on `mcp-repo-cache` — never the claim itself or any other cache
-root — refuses a symlinked target, is idempotent, and has no Kubernetes API
-access. Disarm it by removing the Job, its Kustomization entry, and its
-`test.yml` contract step in one follow-up change after the successful run.
-The codebase-memory project index stub for `tfroot-twilio` is derived state
+that retained cache root. Its contract is enforced statically by the
+retirement step in `.github/workflows/test.yml`:
+
+- Scope is exactly `/repos/tfroot-twilio` on `mcp-repo-cache`; never the
+  claim itself, another cache root, or anything outside the volume. The
+  target is hardcoded; the Job takes no arguments, env, Secret, or
+  ConfigMap inputs, and reads no file contents — only mount-table, stat,
+  and readlink metadata.
+- Gate order is fixed and CI-checked: `/repos` must be a real mountpoint
+  (`grep ' /repos ' /proc/mounts`); a symlinked target is refused first —
+  `[ -L ]` needs no target to exist, so dangling links are caught too; an
+  absent target is already-retired success; only then must the existing
+  directory resolve to itself via `readlink -f`, so nothing depends on
+  absent-leaf resolution semantics; finally the single
+  `rm -rf --one-file-system` runs and removal is verified. POSIX rm never
+  follows the cache's internal `current` -> `.worktrees` links; it removes
+  them with the tree.
+- The image is the same digest as the canonical pin in
+  `codebase-memory-mcpserver.yaml` (no separate vetting claimed for this
+  Job); Debian coreutils `rm` supplies `--one-file-system`, which busybox
+  `rm` lacks — the reason a smaller image was not used.
+- Identity matches the repo-cache writer (uid/gid 65533, fsGroup 65533),
+  so deletion needs no privilege; read-only rootfs, dropped capabilities,
+  seccomp RuntimeDefault, and no service-account token: the pod has no
+  Kubernetes API access, so the no-remaining-writer rule is enforced by
+  static CI (the step bans `tfroot-twilio` outside the Job, this README,
+  the workflow, and the exact Kustomization resource entry), not runtime.
+- CI also replays the exact embedded script against a temp fixture
+  re-rooted away from `/repos` (only the mountpoint gate is dropped; no
+  fake full-pod environment): confinement, sibling survival, symlink
+  refusal, and idempotency.
+
+Disarm after the first successful run by removing the Job, its
+Kustomization entry, and the `test.yml` step in one follow-up change. The
+codebase-memory project index stub for `tfroot-twilio` is derived state
 that outlives the deletion and is not claimed removed.
 
 ## Authentication and security boundary
