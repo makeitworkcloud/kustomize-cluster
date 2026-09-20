@@ -10,7 +10,10 @@ metadata:
   annotations:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    ignore-check.kube-linter.io/unset-memory-requirements: "No limits on single-node cluster"
+    ignore-check.kube-linter.io/unset-cpu-requirements: "No requests on single-node cluster"
 spec:
+  ttlSecondsAfterFinished: 300
   activeDeadlineSeconds: 300
   backoffLimit: 2
   template:

@@ -263,6 +263,7 @@ jobs:
           check(ann.get("argocd.argoproj.io/hook-delete-policy")
                 == "BeforeHookCreation,HookSucceeded", "hook delete policy")
           spec = job["spec"]
+          check(spec.get("ttlSecondsAfterFinished") == 300, "ttlSecondsAfterFinished 300")
           check(spec.get("activeDeadlineSeconds") == 300, "activeDeadlineSeconds 300")
           check(spec.get("backoffLimit") == 2, "backoffLimit 2")
           pod = spec["template"]["spec"]
