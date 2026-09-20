@@ -17,64 +17,6 @@ ToolHive-generated ClusterIP proxy Service. `tfroot-cloudflare` owns the
 matching Cloudflare Access applications. The proxy Services remain internal;
 Cloudflare Access is the only external authentication boundary.
 
-Retirement, 2026-09-19: the `twilio-docs` public-documentation proxy and its
-direct route were removed by owner decision. Retirement, 2026-09-20: the
-OpenCode SMS bridge was fully retired by owner decision (no active
-integrations, no archive retained); the `sync-tfroot-twilio`
-repository-cache sync container is removed with it. The already-cached
-`/repos/tfroot-twilio` root on `mcp-repo-cache` was retained until the
-`tfroot-twilio` provider teardown. The matching Cloudflare Access application
-remains in `tfroot-cloudflare` and is removed separately through its
-environment-gated apply, in the documented reverse delivery order.
-
-With the provider teardown complete (upstream repository deleted, provider
-resources gone), the PostSync `repo-cache-retire-tfroot-twilio` Job removes
-that retained cache root. Its contract is checked statically by the
-retirement step in `.github/workflows/test.yml`:
-
-- Scope is exactly `/repos/tfroot-twilio` on `mcp-repo-cache`; never the
-  claim itself, another cache root, or anything outside the volume. The
-  target is hardcoded; the Job takes no arguments, env, Secret, or
-  ConfigMap inputs, and reads no file contents — only mount-table, stat,
-  and readlink metadata.
-- Gate order is fixed and CI-checked: `/repos` must be a real mountpoint
-  (`grep ' /repos ' /proc/mounts`); a symlinked target is refused first —
-  `[ -L ]` needs no target to exist, so dangling links are caught too; an
-  absent target is already-retired success; only then must the existing
-  directory resolve to itself via `readlink -f`, so nothing depends on
-  absent-leaf resolution semantics; finally the single
-  `rm -rf --one-file-system` runs and removal is verified. POSIX rm never
-  follows the cache's internal `current` -> `.worktrees` links; it removes
-  them with the tree.
-- The image is the same digest as the canonical pin in
-  `codebase-memory-mcpserver.yaml` (no separate vetting claimed for this
-  Job); Debian coreutils `rm` supplies `--one-file-system`, which busybox
-  `rm` lacks — the reason a smaller image was not used.
-- The Job requests no pod fsGroup and no fsGroupChangePolicy, so mounting
-  asks the kubelet for no ownership normalization pass over the shared PVC
-  (any fsGroup pass would run kubelet-side before container start;
-  unprivileged identity is not a mitigation — the request is simply never
-  made, and CI asserts both fields are absent). Container identity matches
-  the writer container identity (uid/gid 65533) on the already-provisioned
-  volume; no actual ownership stat was performed. If permissions prove
-  insufficient, `rm` fails and the Job fails — no chown, no init container,
-  no capability, no escalation path. Read-only rootfs, dropped
-  capabilities, seccomp RuntimeDefault, and no service-account token: the
-  pod has no Kubernetes API access, so the no-remaining-writer rule is
-  enforced by static CI, not runtime — the step checks the three
-  repo-cache-sync manifests and the Kustomization for any `tfroot-twilio`
-  writer line.
-- CI also replays the exact embedded script against a temp fixture
-  re-rooted away from `/repos` (only the mountpoint gate is dropped; no
-  fake full-pod environment): confinement, sibling survival with sentinel
-  content intact, symlink refusal, and idempotency.
-
-Disarm after the first successful run by removing the Job, its
-Kustomization entry, and the `test.yml` step (writer checks included) in
-one follow-up change. The codebase-memory project index stub for
-`tfroot-twilio` is derived state that outlives the deletion and is not
-claimed removed.
-
 ## Authentication and security boundary
 
 Owner decision, 2026-09-12: for the solo-developer external-MCP use case, every
@@ -95,7 +37,7 @@ to other ToolHive proxies remain separate backend authorization boundaries.
 - **Kustomize:** `gcloud-mcp-namereference.yaml` is required because ToolHive stores `podTemplateSpec` as a `RawExtension`, outside Kustomize's default name-reference rules.
 
 `tfroot-gcp` owns and applies the Google Cloud WIF provider. The provider
-accepts only `system:serviceaccount:mcp:gcloud-mcp` and impersonates
+accepts only `system:serviceaccount:mcp/gcloud-mcp` and impersonates
 `gcloud-mcp@makeitworkcloud.iam.gserviceaccount.com`.
 
 ## Delivery and verification
