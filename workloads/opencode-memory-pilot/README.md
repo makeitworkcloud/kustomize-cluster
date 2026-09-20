@@ -46,9 +46,10 @@ sync policy** — activation remains a manual, owner-confirmed sync.
 
 ## Storage and state model
 
-- The PVC holds the plugin's `.opencode-mem` directory: the pilot's primary
-  plugin state. It is **not** the complete pilot runtime state — OpenCode
-  session data lives separately and is outside this claim's scope.
+- The PVC holds the plugin's `.opencode-mem` directory — the pilot's primary
+  plugin state — alongside OpenCode session data: both live on this same
+  home PVC. Sessions are outside the plugin backup scope below, not outside
+  the claim.
 - The TEI container's model cache is disposable derived data; it may be
   deleted or rebuilt at any time without plugin-state loss.
 - The chart Deployment uses `Recreate` with a single replica. This merely
@@ -78,27 +79,30 @@ guess. Disaster recovery is not claimed as done until a backend is chosen
 and the restore acceptance below passes. This section is conceptual: it
 executes no live commands and provisions nothing.
 
-Backup scope is the plugin state and raw prompt history — not the whole pod
-home, not `auth.json`, and never a whole-home or credential backup. Before
-any copy, inventory `.opencode-mem`: it may contain credential-bearing files
-such as `.auth-token`; if present, the encrypted backup must be classified
-credential-bearing. Prefer capturing the memory-state inventory data over
-auth tokens, keep backups operator-secured with no agent retrieval path, and
-resolve the full-directory-versus-tokens conflict in favor of excluding
-credentials.
+Backup scope is the plugin state and raw prompt history — never the whole
+home, and never `.auth-token`, `auth.json`, or any other credentials: those
+are excluded unconditionally and handled operator-only with no agent
+retrieval path. Raw prompt content may be sensitive, so the operator must
+classify the prompt history before any backup. Inventory `.opencode-mem`
+before any copy; if further credential-bearing files are present, the
+encrypted backup must be classified credential-bearing. Prefer capturing
+the memory-state inventory data over auth tokens.
 
 Acceptance procedure a backup/restore solution must demonstrate:
 
 1. Quiesce: stop pilot writes by scaling the pilot Deployment to zero
    replicas (or otherwise pausing the plugin) so plugin state is at rest.
 2. Copy the scoped plugin state and raw prompt history off node in encrypted
-   form only, per the classification above; never the whole home, tokens, or
-   `auth.json`.
+   form only, per the classification above; never the whole home,
+   `.auth-token`, `auth.json`, or any credentials.
 3. Restore into a fresh claim and confirm the plugin resumes with its
    memory inventory and prompt history intact; an OpenCode session that was
    the source of an interrupted capture may not recover.
 4. Record the decided backend, destination, encryption, and classification
    here once resolved.
+
+Runtime restore gaps are deferred and accepted for the pilot; nothing here
+is a complete-persistence guarantee.
 
 Lock-file handling: if the plugin lock references a stale PID after an
 unclean stop, inspect the lock and the process table and remove it only as a
@@ -115,19 +119,26 @@ following hold:
 1. `opencode-server` chart 0.3.2 is published to
    `ghcr.io/makeitworkcloud/charts` and its `memoryPilot` schema matches the
    contract asserted by `.github/workflows/test.yml`.
-2. The owner provisions the two isolated pilot secrets through the canonical
-   GitOps path — separately approved SOPS-encrypted Secret manifests merged
-   via the repository's KSOPS process — not by manual cluster console
-   changes. No plaintext stub is committed here.
-3. Validations pass: repository CI on the activation PR plus the review
+2. Supply-chain integrity: the chart's TEI and init-container images are
+   referenced only by trusted immutable digests, and package-integrity plus
+   runtime smoke validations pass against the published chart before first
+   sync.
+3. Credential provisioning: the two isolated pilot secrets are provisioned
+   through the canonical GitOps path — separately approved SOPS-encrypted
+   Secret manifests merged via the repository's KSOPS process — not by
+   manual cluster console changes. No plaintext stub is committed here.
+4. Controlled synthetic-client access: during the pilot only the
+   operator-run synthetic client connects, using the dedicated pilot Basic
+   auth credentials.
+5. Validations pass: repository CI on the activation PR plus the review
    checks from `docs/adding-a-workload.md` (single ownership, Service
    selector against published templates, storage behavior).
-4. An owner-confirmed activation PR registers the Application in
+6. An owner-confirmed activation PR registers the Application in
    `workloads/apps` per repository convention (a
    `workloads/apps/opencode-memory-pilot-app.yaml` entry or an explicit
    reference to this directory's staged `application.yaml`), updating the CI
    guard accordingly.
-5. The owner manually syncs the `opencode-memory-pilot` Application and
+7. The owner manually syncs the `opencode-memory-pilot` Application and
    confirms health; the Application carries no `automated` sync policy, so
    even once registered nothing syncs itself.
 
