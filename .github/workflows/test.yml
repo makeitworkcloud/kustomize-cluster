@@ -214,3 +214,138 @@ jobs:
 
       - name: pre-commit tests
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+
+  # DisCode preparation gates. discode-static asserts the standby posture
+  # (replicas 0, child Application unregistered, sentinel TOML shape via the
+  # stdlib tomllib) and extracts the build-discode init script path-limited
+  # from workloads/discode/deployment.yaml, cross-checking the init image,
+  # archive URL, and digest literals. discode-build runs that script inside
+  # the same digest-pinned Node image via a job container, as root in an
+  # ephemeral runner (the pod runs uid 1000): it validates the build path,
+  # not the pod security context or any runtime credential behavior.
+  discode-static:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@337b0725b8770380d7cde73cfef696f1295727eb
+        with:
+          python-version: "3.12"
+
+      - name: DisCode standby assertions and init-script extraction
+        env:
+          EXPECTED_INIT_IMAGE: docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+        run: |
+          python -m pip install --quiet --require-hashes -r .github/requirements-ci.txt
+          python - <<'EOF'
+          import os, sys, tomllib, yaml
+          from pathlib import Path
+
+          dep = yaml.safe_load(Path("workloads/discode/deployment.yaml").read_text())
+          spec = dep["spec"]
+          if spec.get("replicas") != 0:
+              sys.exit("deployment replicas must be 0 while activation-gated")
+          if spec.get("strategy", {}).get("type") != "Recreate":
+              sys.exit("deployment strategy must be Recreate")
+          pod = spec["template"]["spec"]
+          if pod.get("automountServiceAccountToken") is not False:
+              sys.exit("automountServiceAccountToken must be false")
+          build = [c for c in pod["initContainers"] if c["name"] == "build-discode"]
+          if len(build) != 1:
+              sys.exit("expected exactly one build-discode init container")
+          build = build[0]
+          expected_image = os.environ["EXPECTED_INIT_IMAGE"]
+          if build["image"] != expected_image:
+              sys.exit(f"init image {build['image']} != build image {expected_image}")
+          if build.get("command") != ["/bin/sh", "-ec"]:
+              sys.exit(f"unexpected init command {build.get('command')}")
+
+          script = build["args"][0] if build.get("args") else ""
+          expected_url = (
+              "https://codeload.github.com/upiscium/DisCode/tar.gz/"
+              "6b936f6c7c6cfbb5995a44cbff9361b9d72e4bc2"
+          )
+          expected_digest = "4da1ecb7d1b5f4313189c2cfd130dc9ac515d7988e98c1f040eaf0de8c39adeb"
+          if "npm ci --ignore-scripts --no-audit --no-fund" not in script:
+              sys.exit("init script lacks the expected npm ci invocation")
+          if expected_url not in script:
+              sys.exit("init script lacks the pinned source archive URL")
+          if expected_digest not in script:
+              sys.exit("init script lacks the pinned archive sha256")
+
+          runtime = [c for c in pod["containers"] if c["name"] == "discode"]
+          if len(runtime) != 1:
+              sys.exit("expected exactly one discode container")
+          env_names = {e["name"] for e in runtime[0].get("env", [])}
+          for name in ("OCB_CONFIG_FILE", "STATE_FILE", "DISCORD_TOKEN", "OPENCODE_HOST_CLUSTER_PASSWORD"):
+              if name not in env_names:
+                  sys.exit(f"runtime container lacks env {name}")
+
+          apps = Path("workloads/apps/kustomization.yaml").read_text()
+          if "discode-app.yaml" in apps:
+              sys.exit("discode-app.yaml must stay unregistered until activation")
+
+          cfg = tomllib.loads(Path("workloads/discode/discode-config.toml").read_text())
+          if set(cfg) != {"discord", "routing", "host", "logging", "metrics"}:
+              sys.exit(f"unexpected TOML top-level keys: {sorted(cfg)}")
+          d = cfg["discord"]
+          for key in ("client_id", "guild_id", "parent_channel_id"):
+              if not d[key].startswith("REPLACE_WITH_"):
+                  sys.exit(f"discord.{key} sentinel missing while activation-gated")
+          if not isinstance(d["allowed_user_ids"], list) or not d["allowed_user_ids"]:
+              sys.exit("discord.allowed_user_ids must be a non-empty array")
+          for key in ("allow_permission_always", "stream_assistant_text", "show_tool_summaries"):
+              if d[key] is not False:
+                  sys.exit(f"discord.{key} must be false")
+          if cfg["routing"] != {"default_host": "cluster"}:
+              sys.exit("routing must be exactly default_host=cluster")
+          host = cfg["host"]["cluster"]
+          for key, value in (
+              ("base_url", "https://opencode.makeitwork.cloud"),
+              ("username", "opencode"),
+              ("password_env", "OPENCODE_HOST_CLUSTER_PASSWORD"),
+              ("home_directory", "/home/opencode"),
+              ("allowed_roots", ["/home/opencode"]),
+          ):
+              if host.get(key) != value:
+                  sys.exit(f"host.cluster.{key} must be {value!r}")
+          if cfg["logging"] != {"level": "info", "format": "json"}:
+              sys.exit("logging must be info/json")
+          if cfg["metrics"] != {"enabled": True, "address": "0.0.0.0", "port": 9464}:
+              sys.exit("metrics must match the documented standby shape")
+
+          out = Path(".discode-ci/init.sh")
+          out.parent.mkdir(exist_ok=True)
+          out.write_text(script)
+          print(f"standby assertions passed; extracted {len(script)} bytes of init script")
+          EOF
+
+      - name: Upload init script
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: discode-init
+          path: .discode-ci/init.sh
+          if-no-files-found: error
+
+  discode-build:
+    runs-on: ubuntu-latest
+    needs: discode-static
+    container:
+      image: docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+    steps:
+      - name: Download init script
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: discode-init
+
+      - name: Validate bootstrap build
+        run: |
+          mkdir -p /app
+          export HOME=/tmp NPM_CONFIG_CACHE=/tmp/npm-cache
+          sh "$GITHUB_WORKSPACE/init.sh"
+          test -f /app/dist/index.js
+          test -f /app/package.json
+          test -d /app/node_modules/discord.js
+          test ! -d /app/node_modules/.bin/vitest

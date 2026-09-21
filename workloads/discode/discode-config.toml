@@ -1,0 +1,30 @@
+# Sentinels and activation gates: see README.md in this directory.
+# allowed_user_ids is an array of user-ID strings (upstream schema).
+
+[discord]
+client_id = "REPLACE_WITH_DISCORD_APPLICATION_CLIENT_ID"
+guild_id = "REPLACE_WITH_DISCORD_GUILD_ID"
+parent_channel_id = "REPLACE_WITH_DISCORD_PARENT_CHANNEL_ID"
+allowed_user_ids = ["REPLACE_WITH_DISCORD_ALLOWED_USER_ID"]
+allow_permission_always = false
+stream_assistant_text = false
+show_tool_summaries = false
+
+[routing]
+default_host = "cluster"
+
+[host.cluster]
+base_url = "https://opencode.makeitwork.cloud"
+username = "opencode"
+password_env = "OPENCODE_HOST_CLUSTER_PASSWORD"
+home_directory = "/home/opencode"
+allowed_roots = ["/home/opencode"]
+
+[logging]
+level = "info"
+format = "json"
+
+[metrics]
+enabled = true
+address = "0.0.0.0"
+port = 9464

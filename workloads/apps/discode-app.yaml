@@ -1,0 +1,32 @@
+---
+# Staged but deliberately NOT registered: see workloads/discode/README.md
+# activation gates. Manages no custom resources, so no
+# SkipDryRunOnMissingResource.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: discode
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
+    path: workloads/discode
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opencode
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        maxDuration: 5m
+        factor: 2
