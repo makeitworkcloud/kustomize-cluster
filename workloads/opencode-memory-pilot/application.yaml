@@ -1,8 +1,11 @@
 ---
+# Staged and intentionally inactive: excluded from workloads/apps and from
+# this directory's kustomization; no automated sync. Activation gates in
+# README.md.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: opencode
+  name: opencode-memory-pilot
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
@@ -12,22 +15,24 @@ spec:
     - chart: opencode-server
       repoURL: ghcr.io/makeitworkcloud/charts
       targetRevision: 0.4.1
-    - chart: agent-pipe-uploader
-      repoURL: ghcr.io/makeitworkcloud/charts
-      targetRevision: 0.2.0
+      helm:
+        valuesObject:
+          fullnameOverride: opencode-memory-pilot
+          persistence:
+            existingClaim: opencode-memory-pilot-home
+          memoryPilot:
+            enabled: true
+            providerSecretName: opencode-memory-pilot-provider
+            serverSecretName: opencode-memory-pilot-server-auth
     - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
-      path: workloads/opencode
+      path: workloads/opencode-memory-pilot
       targetRevision: main
   destination:
     server: https://kubernetes.default.svc
     namespace: opencode
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - SkipDryRunOnMissingResource=true
     retry:
       limit: 5
       backoff:

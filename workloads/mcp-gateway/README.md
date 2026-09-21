@@ -10,7 +10,7 @@ Each direct endpoint is `https://mcp-<integration>.makeitwork.cloud/mcp` for:
 
 `apify`, `argocd`, `aws`, `aws-docs`, `cloudflare`, `context7`, `gcp`,
 `grafana`, `kubernetes`, `parallel-search`, `playwright`, `slidespeak`,
-`terraform-docs`, and `twilio-docs`.
+and `terraform-docs`.
 
 The `TunnelBinding` owns workload DNS and routes each hostname to its
 ToolHive-generated ClusterIP proxy Service. `tfroot-cloudflare` owns the

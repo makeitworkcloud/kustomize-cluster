@@ -37,8 +37,6 @@ subjects:
     spec: {fqdn: mcp-slidespeak.makeitwork.cloud, target: http://mcp-slidespeak-remote-proxy.mcp.svc:8080}
   - name: mcp-terraform-docs-proxy
     spec: {fqdn: mcp-terraform-docs.makeitwork.cloud, target: http://mcp-terraform-docs-proxy.mcp.svc:8080}
-  - name: mcp-twilio-docs-remote-proxy
-    spec: {fqdn: mcp-twilio-docs.makeitwork.cloud, target: http://mcp-twilio-docs-remote-proxy.mcp.svc:8080}
 tunnelRef:
   kind: ClusterTunnel
   name: cluster-apps
