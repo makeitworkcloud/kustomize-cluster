@@ -20,7 +20,12 @@ until the owner completes the activation gates.
   `["1418250936547148011"]` (single allowed user). `discode-static`
   asserts these exact values.
 - No SOPS/KSOPS files are committed: the `discode-bot-auth` Secret does not
-  exist yet and is only referenced.
+  exist yet and is only referenced. `.sops.yaml` does carry a dedicated
+  creation rule for the basename `discode-bot-auth-secret.yaml` (encrypting
+  exactly `DISCORD_TOKEN` with the existing public age recipient) placed
+  before the generic fallback, whose case-sensitive `encrypted_regex` does
+  not match the uppercase key. No KSOPS generator reference exists, so
+  nothing dangles.
 - No Service, Ingress, or TunnelBinding is added: the workload is
   pod-internal.
 
@@ -144,8 +149,8 @@ Trusted-household surface, **not a restricted sandbox**:
   Cloudflare edge leg; the tunnel's backend leg to the in-cluster Service
   is plain HTTP and is not claimed as protected.
 - These manifests constrain directories, roots, and identity. They do
-  **not** constrain what OpenCode sessions or selected agents may do on the
-  server host.
+  **not** constrain what OpenCode sessions or selected agents may do on
+  the server host.
 
 ## Metrics caveat
 
@@ -163,15 +168,62 @@ process; it is also not a final end-to-end readiness proof.
    `discode-static` asserts the exact values and the exact single-user
    array.
 2. Create the SOPS-encrypted `discode-bot-auth` Secret (key `DISCORD_TOKEN`)
-   per the approved secret-editing process and add a KSOPS generator here.
-   Pending — no token has been delivered and no secret file exists yet.
+   following "Creating the bot Secret" below, then add a KSOPS generator
+   here. Pending — no token has been delivered and no secret file exists
+   yet; only the `.sops.yaml` creation rule is staged.
 3. Install (invite) Discord application `1553536583355994272` into guild
-   `1540492160103620668`. Pending — the bot is not installed in the guild;
-   nothing in this repository performs the install.
+   `1540492160103620668`. Owner-reported done — the owner reports the bot
+   is installed in the guild; that is not runtime-verified here (no CI or
+   cluster check observes the guild), and nothing in this repository
+   performs the install.
 4. Register `../apps/discode-app.yaml` in
    `workloads/apps/kustomization.yaml`.
 5. Scale `spec.replicas` to 1.
 6. Verify Argo health, then check `/oc health` from Discord.
+
+## Creating the bot Secret (owner)
+
+Preparation only: this stage adds the `.sops.yaml` creation rule and these
+instructions and performs no activation — `replicas: 0` and the
+unregistered child Application keep the workload inactive regardless of
+Secret existence. The token never appears in chat, issues, reviews,
+plaintext files, or commits; it is only ever plaintext inside the SOPS
+editor session that encrypts it on save.
+
+When the owner is ready to supply the token, from a trusted checkout of
+this branch with SOPS installed:
+
+1. Open `workloads/discode/discode-bot-auth-secret.yaml` in the SOPS editor
+   (`sops workloads/discode/discode-bot-auth-secret.yaml`); the editor
+   encrypts on first save. Its shape:
+
+   ```yaml
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: discode-bot-auth
+     namespace: opencode
+   stringData:
+     DISCORD_TOKEN: REPLACE_WITH_BOT_TOKEN
+   ```
+
+   `REPLACE_WITH_BOT_TOKEN` is a dummy placeholder for this document only.
+   Paste the real token solely into the SOPS editor — never into chat, an
+   issue, a review, or any plaintext file — and never commit plaintext.
+2. Save and confirm encryption on disk: `sops filestatus
+   workloads/discode/discode-bot-auth-secret.yaml` reports the creation
+   rule in use, and the raw file shows the `DISCORD_TOKEN` value replaced
+   by an `ENC[AES256_GCM,...]` ciphertext while `metadata.name` and
+   `metadata.namespace` stay plaintext and reviewable.
+3. Commit the encrypted file together with the KSOPS generator reference
+   in `kustomization.yaml` in one change, so no commit ever carries a
+   dangling generator reference.
+
+The dedicated rule reuses the repository's existing public age recipient.
+Encrypting a new file needs only that public recipient — not the private
+key — so any trusted checkout with SOPS installed can create the file;
+decryption stays cluster-side. If SOPS is not installed or the checkout is
+not trusted, stop and do not improvise a plaintext alternative.
 
 ## Rollback
 
@@ -192,7 +244,11 @@ reference resolution), `discode-static`, and `discode-build`.
 container with the pinned image and `/bin/sh -ec` command, the pinned
 archive URL and sha256 literals present in the init script, the required
 runtime env names, `discode-app.yaml` absent from
-`workloads/apps/kustomization.yaml`, and the full TOML shape via the
+`workloads/apps/kustomization.yaml`, the `.sops.yaml` first-match contract
+for the future bot Secret (the dedicated `discode-bot-auth-secret.yaml`
+rule must be the first match and encrypt exactly `DISCORD_TOKEN` with the
+existing public recipient, asserted credentiallessly against creation-rule
+policy only), and the full TOML shape via the
 Python stdlib `tomllib` (exact owner-approved IDs and the exact
 single-user array, booleans, routing, `[host.cluster]` including the HTTPS
 `base_url`, logging, metrics). It then uploads the extracted init script

@@ -216,13 +216,15 @@ jobs:
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
 
   # DisCode preparation gates. discode-static asserts the standby posture
-  # (replicas 0, child Application unregistered, owner-approved-ID TOML shape
-  # via the stdlib tomllib) and extracts the build-discode init script path-limited
-  # from workloads/discode/deployment.yaml, cross-checking the init image,
-  # archive URL, and digest literals. discode-build runs that script inside
-  # the same digest-pinned Node image via a job container, as root in an
-  # ephemeral runner (the pod runs uid 1000): it validates the build path,
-  # not the pod security context or any runtime credential behavior.
+  # (replicas 0, child Application unregistered, the dedicated SOPS creation
+  # rule first-match contract for the future bot Secret, owner-approved-ID
+  # TOML shape via the stdlib tomllib) and extracts the build-discode init
+  # script path-limited from workloads/discode/deployment.yaml,
+  # cross-checking the init image, archive URL, and digest literals.
+  # discode-build runs that script inside the same digest-pinned Node image
+  # via a job container, as root in an ephemeral runner (the pod runs
+  # uid 1000): it validates the build path, not the pod security context or
+  # any runtime credential behavior.
   discode-static:
     runs-on: ubuntu-latest
     steps:
@@ -240,7 +242,7 @@ jobs:
         run: |
           python -m pip install --quiet --require-hashes -r .github/requirements-ci.txt
           python - <<'EOF'
-          import os, sys, tomllib, yaml
+          import os, re, sys, tomllib, yaml
           from pathlib import Path
 
           dep = yaml.safe_load(Path("workloads/discode/deployment.yaml").read_text())
@@ -286,6 +288,42 @@ jobs:
           apps = Path("workloads/apps/kustomization.yaml").read_text()
           if "discode-app.yaml" in apps:
               sys.exit("discode-app.yaml must stay unregistered until activation")
+
+          # SOPS policy first-match contract for the future bot Secret.
+          # Credentialless: only .sops.yaml creation rules are read, never
+          # secret material or ciphertext. The generic fallback's
+          # case-sensitive encrypted_regex would not encrypt DISCORD_TOKEN,
+          # so the first matching rule for the target path must be the
+          # dedicated one, using the repository's existing recipient.
+          sops = yaml.safe_load(Path(".sops.yaml").read_text()) or {}
+          rules = sops.get("creation_rules") or []
+          if not rules:
+              sys.exit(".sops.yaml must declare creation_rules")
+          target = "workloads/discode/discode-bot-auth-secret.yaml"
+          # Mirror SOPS path matching: first rule whose path_regex matches
+          # the path (unanchored search, like Go regexp MatchString), with
+          # pathless rules as catch-all fallback.
+          first = next(
+              (r for r in rules
+               if r.get("path_regex") is None
+               or re.search(r["path_regex"], target)),
+              None,
+          )
+          if first is None:
+              sys.exit(f".sops.yaml has no creation rule matching {target}")
+          if first.get("path_regex") != r"(^|/)discode-bot-auth-secret\.yaml$":
+              sys.exit(
+                  f"first creation rule matching {target} must be the dedicated "
+                  f"discode-bot-auth-secret.yaml rule, got {first.get('path_regex')!r}"
+              )
+          if not re.fullmatch(first.get("encrypted_regex") or "", "DISCORD_TOKEN"):
+              sys.exit(
+                  f"discode creation rule encrypted_regex {first.get('encrypted_regex')!r} "
+                  "must fullmatch DISCORD_TOKEN"
+              )
+          expected_recipient = "age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l"
+          if first.get("age") != expected_recipient:
+              sys.exit("discode creation rule must use the existing repository age recipient")
 
           cfg = tomllib.loads(Path("workloads/discode/discode-config.toml").read_text())
           if set(cfg) != {"discord", "routing", "host", "logging", "metrics"}:
