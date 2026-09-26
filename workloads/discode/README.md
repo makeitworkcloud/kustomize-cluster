@@ -9,13 +9,16 @@ until the owner completes the activation gates.
 ## Status: inactive
 
 - `deployment.yaml` ships with `spec.replicas: 0` — no pod is scheduled, so
-  the referenced Secrets are never resolved and the sentinel config never
+  the referenced Secrets are never resolved and the config never
   runs.
 - `../apps/discode-app.yaml` is staged and **not registered** in
   `workloads/apps/kustomization.yaml`.
-- `discode-config.toml` carries `REPLACE_WITH_*` sentinel **identifiers**
-  (identifiers, not credentials) for the Discord IDs the owner has not
-  supplied.
+- `discode-config.toml` carries the owner-supplied Discord
+  **identifiers** (identifiers, not credentials): application
+  `1553536583355994272`, guild `1540492160103620668`, parent channel
+  `1540492160988610643` (`#general`), and `allowed_user_ids` as exactly
+  `["1418250936547148011"]` (single allowed user). `discode-static`
+  asserts these exact values.
 - No SOPS/KSOPS files are committed: the `discode-bot-auth` Secret does not
   exist yet and is only referenced.
 - No Service, Ingress, or TunnelBinding is added: the workload is
@@ -88,8 +91,8 @@ defaults (system CA, enabled). Not verified live in this preparation.
   keys fail startup. `allowed_user_ids` is an **array** of ID strings.
 - `[host.cluster].base_url` is `https://opencode.makeitwork.cloud`, the
   canonical public HTTPS endpoint for the OpenCode server documented in
-  this repository's README ("OpenCode access"). The route is owned by the
-  existing `opencode` `TunnelBinding`
+  this repository's README ("OpenCode access"). The route is owned by
+  the existing `opencode` `TunnelBinding`
   (`workloads/opencode/tunnel-binding.yaml`); this overlay creates no new
   route. OpenCode enforces native HTTP Basic authentication backed by the
   `opencode-server-auth` Secret and is reachable without Cloudflare
@@ -141,8 +144,8 @@ Trusted-household surface, **not a restricted sandbox**:
   Cloudflare edge leg; the tunnel's backend leg to the in-cluster Service
   is plain HTTP and is not claimed as protected.
 - These manifests constrain directories, roots, and identity. They do
-  **not** constrain what OpenCode sessions or selected agents may do on the
-  server host.
+  **not** constrain what OpenCode sessions or selected agents may do on
+  the server host.
 
 ## Metrics caveat
 
@@ -155,13 +158,20 @@ process; it is also not a final end-to-end readiness proof.
 
 ## Activation checklist (owner)
 
-1. Replace every `REPLACE_WITH_*` sentinel in `discode-config.toml`.
+1. ~~Replace every `REPLACE_WITH_*` sentinel in `discode-config.toml`.~~
+   Done — the owner-supplied identifiers above are committed, and
+   `discode-static` asserts the exact values and the exact single-user
+   array.
 2. Create the SOPS-encrypted `discode-bot-auth` Secret (key `DISCORD_TOKEN`)
    per the approved secret-editing process and add a KSOPS generator here.
-3. Register `../apps/discode-app.yaml` in
+   Pending — no token has been delivered and no secret file exists yet.
+3. Install (invite) Discord application `1553536583355994272` into guild
+   `1540492160103620668`. Pending — the bot is not installed in the guild;
+   nothing in this repository performs the install.
+4. Register `../apps/discode-app.yaml` in
    `workloads/apps/kustomization.yaml`.
-4. Scale `spec.replicas` to 1.
-5. Verify Argo health, then check `/oc health` from Discord.
+5. Scale `spec.replicas` to 1.
+6. Verify Argo health, then check `/oc health` from Discord.
 
 ## Rollback
 
@@ -183,9 +193,10 @@ container with the pinned image and `/bin/sh -ec` command, the pinned
 archive URL and sha256 literals present in the init script, the required
 runtime env names, `discode-app.yaml` absent from
 `workloads/apps/kustomization.yaml`, and the full TOML shape via the
-Python stdlib `tomllib` (sentinels, booleans, routing, `[host.cluster]`
-including the HTTPS `base_url`, logging, metrics). It then uploads the
-extracted init script as an artifact.
+Python stdlib `tomllib` (exact owner-approved IDs and the exact
+single-user array, booleans, routing, `[host.cluster]` including the HTTPS
+`base_url`, logging, metrics). It then uploads the extracted init script
+as an artifact.
 
 `discode-build` downloads that artifact and runs the script inside the same
 digest-pinned `node:22-slim` image via a job container, asserting the

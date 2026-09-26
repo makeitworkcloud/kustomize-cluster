@@ -216,8 +216,8 @@ jobs:
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
 
   # DisCode preparation gates. discode-static asserts the standby posture
-  # (replicas 0, child Application unregistered, sentinel TOML shape via the
-  # stdlib tomllib) and extracts the build-discode init script path-limited
+  # (replicas 0, child Application unregistered, owner-approved-ID TOML shape
+  # via the stdlib tomllib) and extracts the build-discode init script path-limited
   # from workloads/discode/deployment.yaml, cross-checking the init image,
   # archive URL, and digest literals. discode-build runs that script inside
   # the same digest-pinned Node image via a job container, as root in an
@@ -291,11 +291,15 @@ jobs:
           if set(cfg) != {"discord", "routing", "host", "logging", "metrics"}:
               sys.exit(f"unexpected TOML top-level keys: {sorted(cfg)}")
           d = cfg["discord"]
-          for key in ("client_id", "guild_id", "parent_channel_id"):
-              if not d[key].startswith("REPLACE_WITH_"):
-                  sys.exit(f"discord.{key} sentinel missing while activation-gated")
-          if not isinstance(d["allowed_user_ids"], list) or not d["allowed_user_ids"]:
-              sys.exit("discord.allowed_user_ids must be a non-empty array")
+          for key, value in (
+              ("client_id", "1553536583355994272"),
+              ("guild_id", "1540492160103620668"),
+              ("parent_channel_id", "1540492160988610643"),
+          ):
+              if d.get(key) != value:
+                  sys.exit(f"discord.{key} must be the owner-approved ID {value!r}")
+          if d.get("allowed_user_ids") != ["1418250936547148011"]:
+              sys.exit('discord.allowed_user_ids must be exactly ["1418250936547148011"]')
           for key in ("allow_permission_always", "stream_assistant_text", "show_tool_summaries"):
               if d[key] is not False:
                   sys.exit(f"discord.{key} must be false")

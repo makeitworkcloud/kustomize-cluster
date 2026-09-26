@@ -1,11 +1,12 @@
-# Sentinels and activation gates: see README.md in this directory.
+# Owner-supplied Discord IDs (identifiers, not credentials) and activation
+# gates: see README.md in this directory.
 # allowed_user_ids is an array of user-ID strings (upstream schema).
 
 [discord]
-client_id = "REPLACE_WITH_DISCORD_APPLICATION_CLIENT_ID"
-guild_id = "REPLACE_WITH_DISCORD_GUILD_ID"
-parent_channel_id = "REPLACE_WITH_DISCORD_PARENT_CHANNEL_ID"
-allowed_user_ids = ["REPLACE_WITH_DISCORD_ALLOWED_USER_ID"]
+client_id = "1553536583355994272"
+guild_id = "1540492160103620668"
+parent_channel_id = "1540492160988610643"
+allowed_user_ids = ["1418250936547148011"]
 allow_permission_always = false
 stream_assistant_text = false
 show_tool_summaries = false
