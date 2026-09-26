@@ -149,8 +149,8 @@ Trusted-household surface, **not a restricted sandbox**:
   Cloudflare edge leg; the tunnel's backend leg to the in-cluster Service
   is plain HTTP and is not claimed as protected.
 - These manifests constrain directories, roots, and identity. They do
-  **not** constrain what OpenCode sessions or selected agents may do on
-  the server host.
+  **not** constrain what OpenCode sessions or selected agents may do on the
+  server host.
 
 ## Metrics caveat
 
