@@ -91,8 +91,8 @@ defaults (system CA, enabled). Not verified live in this preparation.
   keys fail startup. `allowed_user_ids` is an **array** of ID strings.
 - `[host.cluster].base_url` is `https://opencode.makeitwork.cloud`, the
   canonical public HTTPS endpoint for the OpenCode server documented in
-  this repository's README ("OpenCode access"). The route is owned by
-  the existing `opencode` `TunnelBinding`
+  this repository's README ("OpenCode access"). The route is owned by the
+  existing `opencode` `TunnelBinding`
   (`workloads/opencode/tunnel-binding.yaml`); this overlay creates no new
   route. OpenCode enforces native HTTP Basic authentication backed by the
   `opencode-server-auth` Secret and is reachable without Cloudflare
@@ -144,8 +144,8 @@ Trusted-household surface, **not a restricted sandbox**:
   Cloudflare edge leg; the tunnel's backend leg to the in-cluster Service
   is plain HTTP and is not claimed as protected.
 - These manifests constrain directories, roots, and identity. They do
-  **not** constrain what OpenCode sessions or selected agents may do on
-  the server host.
+  **not** constrain what OpenCode sessions or selected agents may do on the
+  server host.
 
 ## Metrics caveat
 
