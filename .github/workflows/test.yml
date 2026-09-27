@@ -344,8 +344,8 @@ jobs:
           ):
               if d.get(key) != value:
                   sys.exit(f"discord.{key} must be the owner-approved ID {value!r}")
-          if d.get("allowed_user_ids") != ["1418250936547148011"]:
-              sys.exit('discord.allowed_user_ids must be exactly ["1418250936547148011"]')
+          if d.get("allowed_user_ids") != ["1418250936547148011", "1553609131833696388"]:
+              sys.exit('discord.allowed_user_ids must be exactly ["1418250936547148011", "1553609131833696388"]')
           for key in ("allow_permission_always", "stream_assistant_text", "show_tool_summaries"):
               if d[key] is not False:
                   sys.exit(f"discord.{key} must be false")
