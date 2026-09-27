@@ -404,7 +404,7 @@ jobs:
           sops = yaml.safe_load(Path(".sops.yaml").read_text()) or {}
           rules = sops.get("creation_rules") or []
           if not rules:
-              sys.exit(".sops.yaml must declare_creation_rules")
+              sys.exit(".sops.yaml must declare creation_rules")
           target = "workloads/discode/discode-bot-auth-secret.yaml"
           # Mirror SOPS path matching: first rule whose path_regex matches
           # the path (unanchored search, like Go regexp MatchString), with
