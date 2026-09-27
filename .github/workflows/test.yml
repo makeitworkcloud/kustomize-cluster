@@ -404,7 +404,7 @@ jobs:
           sops = yaml.safe_load(Path(".sops.yaml").read_text()) or {}
           rules = sops.get("creation_rules") or []
           if not rules:
-              sys.exit(".sops.yaml must declare creation_rules")
+              sys.exit(".sops.yaml must declare_creation_rules")
           target = "workloads/discode/discode-bot-auth-secret.yaml"
           # Mirror SOPS path matching: first rule whose path_regex matches
           # the path (unanchored search, like Go regexp MatchString), with
@@ -534,14 +534,14 @@ jobs:
               sys.exit("MALFORMED: sops.mac must be an ENC[AES256_GCM,...] marker")
           age_entries = sops.get("age")
           if not isinstance(age_entries, list) or len(age_entries) != 1:
-              sys.exit("MALFORMED: Secret must contain exactly one age recipient entry")
+              sys.exit("MALFORMED: sops.age must contain exactly one recipient entry")
           expected_recipient = "age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l"
           recipients = [e.get("recipient") for e in age_entries if isinstance(e, dict)]
           if recipients != [expected_recipient]:
-              sys.exit("MALFORMED: Secret age recipient must be exactly the repository age recipient")
+              sys.exit("MALFORMED: sops.age recipient must be exactly the repository age recipient")
 
           # The file's recipient and encrypted_regex must equal the first
-          # creation rule matching this path, and that rule
+          # .sops.yaml creation rule matching this path, and that rule
           # must still select exactly DISCORD_TOKEN (SOPS first-match
           # semantics).
           rules_doc = yaml.safe_load(Path(".sops.yaml").read_text()) or {}
