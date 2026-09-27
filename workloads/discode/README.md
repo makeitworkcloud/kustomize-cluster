@@ -20,7 +20,7 @@ has occurred.
 - `discode-config.toml` carries the owner-supplied Discord
   **identifiers** (identifiers, not credentials): application
   `1553536583355994272`, guild `1540492160103620668`, parent channel
-  `1540492160103620643` (`#general`), and `allowed_user_ids` as exactly
+  `1540492160988610643` (`#general`), and `allowed_user_ids` as exactly
   `[["1418250936547148011", "1553609131833696388"]]` (two approved
   household users). `discode-static` asserts these exact values.
 - The encrypted `discode-bot-auth` Secret is committed
@@ -104,8 +104,8 @@ defaults (system CA, enabled). Not verified live in this preparation.
   keys fail startup. `allowed_user_ids` is an **array** of ID strings.
 - `[host.cluster].base_url` is `https://opencode.makeitwork.cloud`, the
   canonical public HTTPS endpoint for the OpenCode server documented in
-  this repository's README ("OpenCode access"). The route is owned by
-  the existing `opencode` `TunnelBinding`
+  this repository's README ("OpenCode access"). The route is owned by the
+  existing `opencode` `TunnelBinding`
   (`workloads/opencode/tunnel-binding.yaml`); this overlay creates no new
   route. OpenCode enforces native HTTP Basic authentication backed by the
   `opencode-server-auth` Secret and is reachable without Cloudflare
@@ -166,7 +166,7 @@ Trusted-household surface, **not a restricted sandbox**:
 have a listener to touch; no Service exists, so nothing routinely scrapes
 it. `opencode_discord_bridge_ready` reflects OpenCode host HTTP+SSE health
 only — a passing probe does not prove the Discord gateway connection.
-`/oc health` reports OpenCode host HTTP+SSE reachability from the bridge
+`/oc health` reports OpenCode host HTTP/SSE reachability from the bridge
 process; it is also not a final end-to-end readiness proof.
 
 ## Activation status and remaining verification (owner)
@@ -204,7 +204,7 @@ process; it is also not a final end-to-end readiness proof.
    - **Discord login** — the bot appears online in guild
      `1540492160103620668`. Proves token validity and gateway login;
      proves nothing about OpenCode host reachability.
-   - **`/oc health`** — reports OpenCode host HTTP+SSE reachability from
+   - **`/oc health`** — reports OpenCode host HTTP/SSE reachability from
      the bridge process. Proves the HTTPS host path and Basic
      authentication; not an end-to-end proof.
    - **Functional proof** — from an allowlisted user, `/oc start` and
