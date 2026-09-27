@@ -183,7 +183,7 @@ process; it is also not a final end-to-end readiness proof.
    cluster check observes the guild), and nothing in this repository
    performs the install.
 4. Register `../apps/discode-app.yaml` in
-   `workloads/apps/kustomization.yaml`.
+  `workloads/apps/kustomization.yaml`.
 5. Scale `spec.replicas` to 1.
 6. Verify Argo health, then check `/oc health` from Discord.
 
@@ -193,11 +193,12 @@ Preparation only: `replicas: 0` and the unregistered child Application keep
 the workload inactive regardless of Secret existence. The owner has since
 pushed the encrypted file (`discode-bot-auth-secret.yaml` is present on
 this branch) and the KSOPS generator is wired; these instructions remain
-the canonical recipe for any future rotation. The token never appears in
-chat, issues, reviews, plaintext files, or commits; it is only ever
-plaintext inside the SOPS editor session that encrypts it on save.
-Nothing in this repository reads, decrypts, or reproduces the committed
-ciphertext.
+the canonical recipe for any future rotation. The token is never committed
+or uploaded in plaintext and never appears in chat, issues, or reviews; the
+trusted SOPS editor handles temporary plaintext in its editor session and
+encrypts on save. Agents do not retrieve Secret contents; CI inspects
+encrypted shape without decryption or logging values; cluster KSOPS
+decrypts during authorized manifest generation.
 
 When the owner is ready to supply the token, from a trusted checkout of
 this branch with SOPS installed:
@@ -269,13 +270,14 @@ handling (no content echoed), `apiVersion: v1` / `kind: Secret` /
 `type: Opaque`, metadata exactly `name: discode-bot-auth` and
 `namespace: opencode`, `stringData` containing exactly the `DISCORD_TOKEN`
 key whose value must be an `ENC[AES256_GCM,...]` SOPS marker (plaintext or
-base64 fails closed), the `sops.mac` ENC marker, the `sops.age` recipient
-equal to the creation rule, and that rule's `encrypted_regex` still
-matching `DISCORD_TOKEN`. Failures emit fixed messages only; no secret
-bytes are logged or exported, and no sops binary or new dependency is
-introduced. A pass proves encrypted shape — it does **not** prove a valid
-Discord token or cluster-side decryptability (no runtime decrypt has
-occurred).
+base64 fails closed), the `sops.mac` ENC marker, exactly one `sops.age`
+recipient entry equal to the creation-rule recipient, the file's
+`sops.encrypted_regex` equal to that rule's `encrypted_regex`, and the
+rule itself still selecting `DISCORD_TOKEN`. Failures emit fixed messages
+only; no secret bytes are logged or exported, and no sops binary or new
+dependency is introduced. A pass proves encrypted shape — it does **not**
+prove a valid Discord token or cluster-side decryptability (no runtime
+decrypt has occurred).
 
 `discode-build` downloads that artifact and runs the script inside the same
 digest-pinned `node:22-slim` image via a job container, asserting the

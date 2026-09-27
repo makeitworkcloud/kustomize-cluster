@@ -373,11 +373,12 @@ jobs:
       # asserts only shape: apiVersion/kind/type, exact name and
       # namespace, the single DISCORD_TOKEN stringData key as an
       # ENC[AES256_GCM,...] marker (plaintext or base64 fails closed), the
-      # sops MAC marker, and the age recipient equal to the first
-      # .sops.yaml creation rule matching this path. No sops binary, no
-      # decryption, no secret artifacts or logs; failures emit fixed
-      # messages only. Passing proves encrypted shape, NOT token validity
-      # or cluster-side decryptability.
+      # sops MAC marker, exactly one age recipient entry equal to the
+      # first .sops.yaml creation rule matching this path, and the file's
+      # sops.encrypted_regex equal to that rule's encrypted_regex. No sops
+      # binary, no decryption, no secret artifacts or logs; failures emit
+      # fixed messages only. Passing proves encrypted shape, NOT token
+      # validity or cluster-side decryptability.
       - name: Verify encrypted DisCode bot Secret shape (no decryption)
         run: |
           python -m pip install --quiet --require-hashes -r .github/requirements-ci.txt
@@ -430,16 +431,17 @@ jobs:
           if not isinstance(mac, str) or not mac.startswith("ENC[") or "AES256_GCM" not in mac:
               sys.exit("MALFORMED: sops.mac must be an ENC[AES256_GCM,...] marker")
           age_entries = sops.get("age")
-          if not isinstance(age_entries, list):
-              sys.exit("MALFORMED: sops.age must be a list")
+          if not isinstance(age_entries, list) or len(age_entries) != 1:
+              sys.exit("MALFORMED: sops.age must contain exactly one recipient entry")
           expected_recipient = "age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l"
           recipients = [e.get("recipient") for e in age_entries if isinstance(e, dict)]
-          if expected_recipient not in recipients:
-              sys.exit("MALFORMED: sops.age must include the repository age recipient")
+          if recipients != [expected_recipient]:
+              sys.exit("MALFORMED: sops.age recipient must be exactly the repository age recipient")
 
-          # The file's recipient must equal the first .sops.yaml creation
-          # rule matching this path, and that rule must still select
-          # exactly DISCORD_TOKEN (SOPS first-match semantics).
+          # The file's recipient and encrypted_regex must equal the first
+          # .sops.yaml creation rule matching this path, and that rule
+          # must still select exactly DISCORD_TOKEN (SOPS first-match
+          # semantics).
           rules_doc = yaml.safe_load(Path(".sops.yaml").read_text()) or {}
           first = next(
               (r for r in rules_doc.get("creation_rules") or []
@@ -453,6 +455,8 @@ jobs:
               sys.exit("MALFORMED: creation rule must use the repository age recipient")
           if not re.fullmatch(first.get("encrypted_regex") or "", "DISCORD_TOKEN"):
               sys.exit("MALFORMED: creation rule encrypted_regex must match DISCORD_TOKEN")
+          if sops.get("encrypted_regex") != first.get("encrypted_regex"):
+              sys.exit("MALFORMED: file sops.encrypted_regex must equal the creation rule encrypted_regex")
 
           print(
               "OK: discode-bot-auth Secret encrypted shape verified "
