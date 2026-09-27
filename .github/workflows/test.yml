@@ -66,12 +66,12 @@ jobs:
           EOF
 
       # Guard the staged opencode-memory-pilot evaluation: minimal overlay,
-      # fixed Application/values contract, and inactivity until the
-      # owner-confirmed activation PR.
+      # fixed Application/values contract, optional owner-encrypted secrets,
+      # and inactivity until the owner-confirmed activation PR.
       - name: Validate staged opencode-memory-pilot contract and inactivity
         run: |
           python - <<'EOF'
-          import os, subprocess, sys, yaml
+          import os, re, subprocess, sys, yaml
           from pathlib import Path
 
           errors = []
@@ -79,21 +79,107 @@ jobs:
               if not cond:
                   errors.append(msg)
 
+          # Never include YAML exceptions or payload values in diagnostics.
+          def load_mapping(path):
+              if path.is_symlink() or not path.is_file():
+                  sys.exit("PILOT-INVALID: expected a regular YAML file")
+              try:
+                  doc = yaml.safe_load(path.read_text())
+              except (yaml.YAMLError, OSError, UnicodeError, ValueError, RecursionError):
+                  sys.exit("PILOT-INVALID: YAML could not be parsed safely")
+              if not isinstance(doc, dict):
+                  sys.exit("PILOT-INVALID: YAML must be a mapping")
+              return doc
+
+          def encrypted(value):
+              return (isinstance(value, str)
+                      and value.startswith("ENC[AES256_GCM,") and value.endswith("]"))
+
           base = Path("workloads/opencode-memory-pilot")
+          rules = load_mapping(Path(".sops.yaml")).get("creation_rules")
+          if not isinstance(rules, list) or not rules:
+              sys.exit("PILOT-INVALID: SOPS creation rules are required")
+          expected_recipient = "age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l"
+
+          def first_rule(filename, key):
+              first = None
+              try:
+                  for rule in rules:
+                      if not isinstance(rule, dict):
+                          sys.exit("PILOT-INVALID: SOPS rule must be a mapping")
+                      if (rule.get("path_regex") is None
+                              or re.search(rule["path_regex"], str(base / filename))):
+                          first = rule
+                          break
+                  if (first is None or first.get("age") != expected_recipient
+                          or not first.get("encrypted_regex")
+                          or not re.search(first["encrypted_regex"], key)):
+                      sys.exit("PILOT-INVALID: first SOPS rule must encrypt the expected key with the repository recipient")
+              except (re.error, TypeError, ValueError):
+                  sys.exit("PILOT-INVALID: SOPS rule regex is invalid")
+              return first
+
+          # Always test the proposed embeddings path, even with no credentials.
+          first_rule("opencode-memory-pilot-embeddings-secret.yaml", "apiToken")
+          print("OK: proposed embeddings apiToken first-match SOPS policy verified")
+
+          allowed_secrets = {
+              "opencode-memory-pilot-embeddings-secret.yaml":
+                  ("opencode-memory-pilot-embeddings", "apiToken"),
+              "opencode-memory-pilot-provider-secret.yaml":
+                  ("opencode-memory-pilot-provider", "ZHIPU_API_KEY"),
+              "opencode-memory-pilot-server-auth-secret.yaml":
+                  ("opencode-memory-pilot-server-auth", "password"),
+          }
+          generator = "ksops-opencode-memory-pilot-secrets.yaml"
           expected_files = {
               "kustomization.yaml", "persistent-volume-claim.yaml",
               "service.yaml", "application.yaml", "README.md",
           }
-          actual_files = {p.name for p in base.iterdir() if p.is_file()}
-          check(actual_files == expected_files,
-                "pilot directory files %s != expected %s; additions (secrets, "
-                "tunnel bindings, ingresses) require design review"
-                % (sorted(actual_files), sorted(expected_files)))
+          actual_files = {p.name for p in base.iterdir()}
+          present = actual_files & set(allowed_secrets)
+          for filename in sorted(present):
+              name, key = allowed_secrets[filename]
+              doc = load_mapping(base / filename)
+              if (set(doc) != {"apiVersion", "kind", "metadata", "type", "stringData", "sops"}
+                      or doc.get("apiVersion") != "v1" or doc.get("kind") != "Secret"
+                      or doc.get("type") != "Opaque"
+                      or doc.get("metadata") != {"name": name, "namespace": "opencode"}):
+                  sys.exit("PILOT-INVALID: Secret must have exactly the approved envelope and identity")
+              data = doc.get("stringData")
+              if (not isinstance(data, dict) or set(data) != {key}
+                      or not encrypted(data[key])):
+                  sys.exit("PILOT-INVALID: Secret must contain only the expected encrypted stringData key")
+              sops = doc.get("sops")
+              if not isinstance(sops, dict) or not encrypted(sops.get("mac")):
+                  sys.exit("PILOT-INVALID: Secret requires an encrypted SOPS MAC")
+              first = first_rule(filename, key)
+              age = sops.get("age")
+              if (not isinstance(age, list) or len(age) != 1
+                      or not isinstance(age[0], dict)
+                      or age[0].get("recipient") != first.get("age")
+                      or sops.get("encrypted_regex") != first.get("encrypted_regex")):
+                  sys.exit("PILOT-INVALID: Secret SOPS recipient and regex must match the first creation rule")
 
-          kust = yaml.safe_load((base / "kustomization.yaml").read_text()) or {}
+          kust = load_mapping(base / "kustomization.yaml")
           check(kust.get("resources") == ["persistent-volume-claim.yaml", "service.yaml"],
                 "pilot kustomization resources must be exactly the PVC and Service")
-          check(not kust.get("generators"), "pilot kustomization must not declare generators")
+          if present:
+              gen = load_mapping(base / generator)
+              refs = gen.get("files")
+              if (not isinstance(refs, list) or not all(isinstance(r, str) for r in refs)
+                      or len(refs) != len(present) or set(refs) != present
+                      or gen != {"apiVersion": "viaduct.ai/v1", "kind": "ksops",
+                                 "metadata": {"name": "ksops-opencode-memory-pilot-secrets"},
+                                 "files": refs}):
+                  sys.exit("PILOT-INVALID: KSOPS generator must reference exactly the present approved Secret files")
+              check(kust.get("generators") == [generator],
+                    "pilot must declare exactly the approved KSOPS generator")
+              expected_files |= present | {generator}
+          else:
+              check(not kust.get("generators"), "pilot without encrypted files must not declare generators")
+          check(actual_files == expected_files,
+                "pilot directory must contain only the original five files and the validated optional Secret set")
 
           pvc = yaml.safe_load((base / "persistent-volume-claim.yaml").read_text())
           check(pvc.get("kind") == "PersistentVolumeClaim", "PVC kind")
@@ -209,6 +295,13 @@ jobs:
               for e in errors:
                   print("PILOT-INVALID: %s" % e)
               sys.exit(1)
+          if not present:
+              print("PENDING: all three pilot credentials and KSOPS wiring; not activation-ready")
+          elif present != set(allowed_secrets):
+              print("PENDING: remaining pilot credentials; partial encrypted shape only, not activation-ready")
+          else:
+              print("OK: all three encrypted shapes verified; not credential validity or decryptability")
+          print("PENDING: published remote chart and reviewed pilot pin/configuration; no activation authorized")
           print("OK: opencode-memory-pilot staged contract and inactivity verified")
           EOF
 
