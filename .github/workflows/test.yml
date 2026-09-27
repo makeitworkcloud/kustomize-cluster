@@ -215,16 +215,16 @@ jobs:
       - name: pre-commit tests
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
 
-  # DisCode preparation gates. discode-static asserts the standby posture
-  # (replicas 0, child Application unregistered, the dedicated SOPS creation
-  # rule first-match contract for the bot Secret, owner-approved-ID
-  # TOML shape via the stdlib tomllib) and extracts the build-discode init
-  # script path-limited from workloads/discode/deployment.yaml,
-  # cross-checking the init image, archive URL, and digest literals. It
-  # also verifies the committed bot Secret's encrypted shape (parse, SOPS
-  # envelope markers, and creation-rule recipient match) without
-  # decryption or value logging: a shape proof, not token validity or
-  # decryptability.
+  # DisCode gates. discode-static asserts the approved active posture
+  # (replicas 1, child Application registered exactly once, the dedicated
+  # SOPS creation rule first-match contract for the bot Secret,
+  # owner-approved-ID TOML shape via the stdlib tomllib) and extracts
+  # the build-discode init script path-limited from
+  # workloads/discode/deployment.yaml, cross-checking the init image,
+  # archive URL, and digest literals. It also verifies the committed bot
+  # Secret's encrypted shape (parse, SOPS envelope markers, and
+  # creation-rule recipient match) without decryption or value logging:
+  # a shape proof, not token validity or decryptability.
   # discode-build runs that script inside the same digest-pinned Node image
   # via a job container, as root in an ephemeral runner (the pod runs
   # uid 1000): it validates the build path, not the pod security context or
@@ -240,7 +240,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: DisCode standby assertions and init-script extraction
+      - name: DisCode active assertions and init-script extraction
         env:
           EXPECTED_INIT_IMAGE: docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
         run: |
@@ -251,8 +251,8 @@ jobs:
 
           dep = yaml.safe_load(Path("workloads/discode/deployment.yaml").read_text())
           spec = dep["spec"]
-          if spec.get("replicas") != 0:
-              sys.exit("deployment replicas must be 0 while activation-gated")
+          if spec.get("replicas") != 1:
+              sys.exit("deployment replicas must be 1 (approved active contract)")
           if spec.get("strategy", {}).get("type") != "Recreate":
               sys.exit("deployment strategy must be Recreate")
           pod = spec["template"]["spec"]
@@ -289,11 +289,15 @@ jobs:
               if name not in env_names:
                   sys.exit(f"runtime container lacks env {name}")
 
-          apps = Path("workloads/apps/kustomization.yaml").read_text()
-          if "discode-app.yaml" in apps:
-              sys.exit("discode-app.yaml must stay unregistered until activation")
+          apps = yaml.safe_load(Path("workloads/apps/kustomization.yaml").read_text()) or {}
+          registered = [r for r in apps.get("resources") or [] if r == "discode-app.yaml"]
+          if registered != ["discode-app.yaml"]:
+              sys.exit(
+                  "discode-app.yaml must be registered exactly once in "
+                  "workloads/apps/kustomization.yaml"
+              )
 
-          # SOPS policy first-match contract for the future bot Secret.
+          # SOPS policy first-match contract for the bot Secret.
           # Credentialless: only .sops.yaml creation rules are read, never
           # secret material or ciphertext. The generic fallback's
           # case-sensitive encrypted_regex would not encrypt DISCORD_TOKEN,
@@ -360,12 +364,12 @@ jobs:
           if cfg["logging"] != {"level": "info", "format": "json"}:
               sys.exit("logging must be info/json")
           if cfg["metrics"] != {"enabled": True, "address": "0.0.0.0", "port": 9464}:
-              sys.exit("metrics must match the documented standby shape")
+              sys.exit("metrics must match the documented shape")
 
           out = Path(".discode-ci/init.sh")
           out.parent.mkdir(exist_ok=True)
           out.write_text(script)
-          print(f"standby assertions passed; extracted {len(script)} bytes of init script")
+          print(f"active assertions passed; extracted {len(script)} bytes of init script")
           EOF
 
       # Encrypted-shape gate for the committed bot Secret. Credentialless:

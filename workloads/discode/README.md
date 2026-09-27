@@ -1,18 +1,22 @@
-# DisCode — activation-gated workload preparation
+# DisCode — Discord control surface workload
 
 [DisCode](https://github.com/upiscium/DisCode) (package name
 `opencode-discord-bridge`) is a Discord control surface for OpenCode
 sessions: bound Discord threads drive OpenCode sessions over the OpenCode
-server API. This overlay prepares the workload disconnected; nothing runs
-until the owner completes the activation gates.
+server API. The owner approved activation; this branch registers the
+child Application and scales the Deployment to one replica. Activation is
+selected, not deployed yet: no merge, rollout, or runtime verification
+has occurred.
 
-## Status: inactive
+## Status: activation selected, not yet deployed
 
-- `deployment.yaml` ships with `spec.replicas: 0` — no pod is scheduled, so
-  the referenced Secrets are never resolved and the config never
-  runs.
-- `../apps/discode-app.yaml` is staged and **not registered** in
-  `workloads/apps/kustomization.yaml`.
+- `deployment.yaml` sets `spec.replicas: 1` on this branch (single writer
+  with the `Recreate` strategy). Not deployed yet: until this branch
+  merges and the child Application syncs, no pod is scheduled, the
+  referenced Secrets are never resolved, and the config never runs.
+- `../apps/discode-app.yaml` is registered in
+  `workloads/apps/kustomization.yaml` (exactly once — `discode-static`
+  asserts the registration).
 - `discode-config.toml` carries the owner-supplied Discord
   **identifiers** (identifiers, not credentials): application
   `1553536583355994272`, guild `1540492160103620668`, parent channel
@@ -56,7 +60,7 @@ until the owner completes the activation gates.
   and `makeitwork-codebase-memory` manifests. This preparation did not
   re-vet the image. First pull evidence is the `discode-build` CI job,
   which pulled this exact digest on a GitHub runner at 2026-09-19T19:28Z;
-  cluster-side pulling stays unverified until activation. A Docker Hub
+  cluster-side pulling stays unverified until deployment. A Docker Hub
   registry read on 2026-09-19 showed the `22-slim` tag has since moved to a
   newer index digest; the pinned digest remains immutable by registry
   construction. Moving to a newer digest is an owner decision.
@@ -119,7 +123,7 @@ defaults (system CA, enabled). Not verified live in this preparation.
   Intended single writer: one replica with the `Recreate` strategy, so
   updates replace rather than overlap the pod. This does not by itself
   prevent a manual replica increase; the single-writer property depends on
-  keeping `replicas: 1` at activation. State holds routing/presentation
+  keeping `replicas: 1`. State holds routing/presentation
   metadata only; upstream never persists credentials.
 
 ## Secrets (referenced only, never read)
@@ -153,8 +157,8 @@ Trusted-household surface, **not a restricted sandbox**:
   Cloudflare edge leg; the tunnel's backend leg to the in-cluster Service
   is plain HTTP and is not claimed as protected.
 - These manifests constrain directories, roots, and identity. They do
-  **not** constrain what OpenCode sessions or selected agents may do on the
-  server host.
+  **not** constrain what OpenCode sessions or selected agents may do on
+  the server host.
 
 ## Metrics caveat
 
@@ -165,7 +169,7 @@ only — a passing probe does not prove the Discord gateway connection.
 `/oc health` reports OpenCode host HTTP/SSE reachability from the bridge
 process; it is also not a final end-to-end readiness proof.
 
-## Activation checklist (owner)
+## Activation status and remaining verification (owner)
 
 1. ~~Replace every `REPLACE_WITH_*` sentinel in `discode-config.toml`.~~
    Done — the owner-supplied identifiers above are committed, and
@@ -183,25 +187,45 @@ process; it is also not a final end-to-end readiness proof.
    cluster check observes the guild), and nothing in this repository
    performs the install.
 4. Register `../apps/discode-app.yaml` in
-  `workloads/apps/kustomization.yaml`.
-5. Scale `spec.replicas` to 1.
-6. Verify Argo health, then check `/oc health` from Discord.
+  `workloads/apps/kustomization.yaml`. Done on this branch — registered
+  exactly once; `discode-static` asserts it.
+5. Scale `spec.replicas` to 1. Done on this branch — pending merge and
+  rollout.
+6. Verify after rollout. Each proof below is distinct; passing one does
+   not imply any other:
+   - **Root/child reconciliation** — the root `workloads/apps`
+     kustomization and the `discode` child Application reach Synced and
+     Healthy in Argo. Proves rendering (including KSOPS generation) and
+     sync; proves nothing about the pod or Discord.
+   - **Pod health** — the `discode` pod is Running and passes the
+     tcpSocket probes on the metrics port. Proves the bootstrap build and
+     a listening metrics port; the readiness metric reflects OpenCode
+     host health only, not the Discord gateway connection.
+   - **Discord login** — the bot appears online in guild
+     `1540492160103620668`. Proves token validity and gateway login;
+     proves nothing about OpenCode host reachability.
+   - **`/oc health`** — reports OpenCode host HTTP/SSE reachability from
+     the bridge process. Proves the HTTPS host path and Basic
+     authentication; not an end-to-end proof.
+   - **Functional proof** — from the allowlisted user, `/oc start` and
+     `/oc bind` a session under `/home/opencode`, run a task end-to-end,
+     and exercise photo/session behavior (including `/oc close` cleanup).
+     This is the only end-to-end readiness proof.
 
 ## Creating the bot Secret (owner)
 
-Preparation only: `replicas: 0` and the unregistered child Application keep
-the workload inactive regardless of Secret existence. The owner has since
-pushed the encrypted file (`discode-bot-auth-secret.yaml` is present on
-this branch) and the KSOPS generator is wired; these instructions remain
-the canonical recipe for any future rotation. The token is never committed
-or uploaded in plaintext and never appears in chat, issues, or reviews; the
-trusted SOPS editor handles temporary plaintext in its editor session and
-encrypts on save. Agents do not retrieve Secret contents; CI inspects
-encrypted shape without decryption or logging values; cluster KSOPS
-decrypts during authorized manifest generation.
+The owner has pushed the encrypted file (`discode-bot-auth-secret.yaml` is
+present on this branch) and the KSOPS generator is wired; these
+instructions remain the canonical recipe for any future rotation. The
+token is never committed or uploaded in plaintext and never appears in
+chat, issues, or reviews; the trusted SOPS editor handles temporary
+plaintext in its editor session and encrypts on save. Agents do not
+retrieve Secret contents; CI inspects encrypted shape without decryption
+or logging values; cluster KSOPS decrypts during authorized manifest
+generation.
 
-When the owner is ready to supply the token, from a trusted checkout of
-this branch with SOPS installed:
+For a future rotation, from a trusted checkout of this branch with SOPS
+installed:
 
 1. Open `workloads/discode/discode-bot-auth-secret.yaml` in the SOPS editor
    (`sops workloads/discode/discode-bot-auth-secret.yaml`); the editor
@@ -249,20 +273,20 @@ separate owner decision.
 `test` job (YAML/hygiene hooks, gitleaks, kube-linter, kustomization
 reference resolution), `discode-static`, and `discode-build`.
 
-`discode-static` asserts the standby posture on every PR: `replicas: 0`,
-`Recreate`, no service-account token, exactly one `build-discode` init
-container with the pinned image and `/bin/sh -ec` command, the pinned
-archive URL and sha256 literals present in the init script, the required
-runtime env names, `discode-app.yaml` absent from
-`workloads/apps/kustomization.yaml`, the `.sops.yaml` first-match contract
-for the bot Secret (the dedicated `discode-bot-auth-secret.yaml`
-rule must be the first match and encrypt exactly `DISCORD_TOKEN` with the
-existing public recipient, asserted credentiallessly against creation-rule
-policy only), and the full TOML shape via the
-Python stdlib `tomllib` (exact owner-approved IDs and the exact
-single-user array, booleans, routing, `[host.cluster]` including the HTTPS
-`base_url`, logging, metrics). It then uploads the extracted init script
-as an artifact.
+`discode-static` asserts the approved active posture on every PR:
+`replicas: 1`, `Recreate`, no service-account token, exactly one
+`build-discode` init container with the pinned image and `/bin/sh -ec`
+command, the pinned archive URL and sha256 literals present in the init
+script, the required runtime env names, `discode-app.yaml` registered
+exactly once in `workloads/apps/kustomization.yaml`, the `.sops.yaml`
+first-match contract for the bot Secret (the dedicated
+`discode-bot-auth-secret.yaml` rule must be the first match and encrypt
+exactly `DISCORD_TOKEN` with the existing public recipient, asserted
+credentiallessly against creation-rule policy only), and the full TOML
+shape via the Python stdlib `tomllib` (exact owner-approved IDs and the
+exact single-user array, booleans, routing, `[host.cluster]` including
+the HTTPS `base_url`, logging, metrics). It then uploads the extracted
+init script as an artifact.
 
 A dedicated step in `discode-static` verifies the committed bot Secret's
 encrypted shape without decryption: PyYAML parse with generic failure
@@ -301,5 +325,6 @@ including the HTTPS host path) remains unexercised — no CI step runs the
 runtime with real credentials, by design; the bot Secret's token validity
 and cluster-side decryptability remain unproven (CI checks encrypted
 shape only and cannot run KSOPS decryption), and Argo rendering of the
-child Application is unvalidated (the Application is unregistered); and
-branch protection may need the owner to mark the new jobs required.
+child Application is unvalidated until deployment (registration is wired
+on this branch, but no live sync has run); and branch protection may need
+the owner to mark the new jobs required.
