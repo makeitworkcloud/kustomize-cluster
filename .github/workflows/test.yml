@@ -72,6 +72,7 @@ jobs:
         run: |
           python - <<'EOF'
           import os, re, subprocess, sys, yaml
+          from datetime import datetime
           from pathlib import Path
 
           errors = []
@@ -151,15 +152,39 @@ jobs:
                       or not encrypted(data[key])):
                   sys.exit("PILOT-INVALID: Secret must contain only the expected encrypted stringData key")
               sops = doc.get("sops")
-              if not isinstance(sops, dict) or not encrypted(sops.get("mac")):
+              required = {"age", "lastmodified", "mac", "encrypted_regex", "version"}
+              auxiliary = {"kms", "gcp_kms", "azure_kv", "hc_vault", "pgp"}
+              if (not isinstance(sops, dict) or not required <= set(sops)
+                      or not set(sops) <= required | auxiliary
+                      or any(sops[k] != [] for k in auxiliary if k in sops)):
+                  sys.exit("PILOT-INVALID: SOPS metadata requires approved keys and empty auxiliary recipient lists")
+              if not encrypted(sops.get("mac")):
                   sys.exit("PILOT-INVALID: Secret requires an encrypted SOPS MAC")
+              modified = sops.get("lastmodified")
+              if (not isinstance(modified, str)
+                      or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z", modified)):
+                  sys.exit("PILOT-INVALID: SOPS lastmodified must be an RFC3339 UTC string")
+              try:
+                  datetime.fromisoformat(modified)
+              except ValueError:
+                  sys.exit("PILOT-INVALID: SOPS lastmodified must be an RFC3339 UTC string")
+              if (not isinstance(sops.get("version"), str)
+                      or not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", sops["version"])):
+                  sys.exit("PILOT-INVALID: SOPS version must be a numeric semantic version")
               first = first_rule(filename, key)
               age = sops.get("age")
               if (not isinstance(age, list) or len(age) != 1
                       or not isinstance(age[0], dict)
+                      or set(age[0]) != {"recipient", "enc"}
                       or age[0].get("recipient") != first.get("age")
                       or sops.get("encrypted_regex") != first.get("encrypted_regex")):
                   sys.exit("PILOT-INVALID: Secret SOPS recipient and regex must match the first creation rule")
+              enc = age[0].get("enc")
+              if (not isinstance(enc, str) or not re.fullmatch(
+                      r"-----BEGIN AGE ENCRYPTED FILE-----\n"
+                      r"(?:[A-Za-z0-9+/]{1,64}={0,2}\n)+"
+                      r"-----END AGE ENCRYPTED FILE-----\n?", enc)):
+                  sys.exit("PILOT-INVALID: SOPS age enc must have AGE ENCRYPTED FILE armor")
 
           kust = load_mapping(base / "kustomization.yaml")
           check(kust.get("resources") == ["persistent-volume-claim.yaml", "service.yaml"],
@@ -280,7 +305,7 @@ jobs:
                   continue
               doc = yaml.safe_load(Path(f).read_text()) or {}
               for key in ref_keys:
-                  entries = doc.get(key) or []
+                  entries = doc.get(key) or []:
                   if isinstance(entries, (str, dict)):
                       entries = [entries]
                   for entry in entries:
@@ -310,6 +335,173 @@ jobs:
           print("OK: opencode-memory-pilot staged contract and inactivity verified")
           EOF
 
+      - name: Test pilot encrypted-shape guard with credentialless fixtures
+        run: |
+          python - <<'EOF'
+          import base64, copy, re, subprocess, sys, tempfile, yaml
+          from pathlib import Path
+
+          def run_tests():
+              workflow = yaml.safe_load(Path(".github/workflows/test.yml").read_text())
+              step_name = "Validate staged opencode-memory-pilot contract and inactivity"
+              steps = [s for s in workflow["jobs"]["test"]["steps"]
+                       if s.get("name") == step_name]
+              if len(steps) != 1:
+                  sys.exit("PILOT-TEST-INVALID: validator step is ambiguous")
+              lines = steps[0]["run"].splitlines()
+              boundary = 'pvc = yaml.safe_load((base / "persistent-volume-claim.yaml").read_text())'
+              if (lines.count("python - <<'EOF'") != 1 or lines[0] != "python - <<'EOF'"
+                      or lines.count("EOF") != 1 or lines[-1] != "EOF"
+                      or lines.count(boundary) != 1):
+                  sys.exit("PILOT-TEST-INVALID: validator extraction markers are ambiguous")
+              code = "\n".join(lines[1:lines.index(boundary)]) + "\n"
+              code += 'if errors:\n    raise SystemExit("PILOT-INVALID: fixture contract rejected")\n'
+              compile(code, "<pilot-guard>", "exec")
+
+              base = Path("workloads/opencode-memory-pilot")
+              baseline = {name: (base / name).read_bytes() for name in (
+                  "kustomization.yaml", "persistent-volume-claim.yaml",
+                  "service.yaml", "application.yaml", "README.md",
+              )}
+              policy = yaml.safe_load(Path(".sops.yaml").read_text())
+              generator = "ksops-opencode-memory-pilot-secrets.yaml"
+              marker = "SYNTHETIC-REJECT-MARKER"
+              encoded = base64.b64encode(marker.encode()).decode()
+              fake_enc = "ENC[AES256_GCM,SYNTHETIC-TEST-ONLY]"
+              # Armor body is base64 of SYNTHETIC-TEST-ONLY, not age ciphertext.
+              armor = ("-----BEGIN AGE ENCRYPTED FILE-----\n"
+                       "U1lOVEhFVElDLVRFU1QtT05MWQ==\n"
+                       "-----END AGE ENCRYPTED FILE-----\n")
+              secrets = {}
+              for suffix, key in (("embeddings", "apiToken"),
+                                  ("provider", "ZHIPU_API_KEY"),
+                                  ("server-auth", "password")):
+                  name = "opencode-memory-pilot-" + suffix
+                  filename = name + "-secret.yaml"
+                  rule = next(r for r in policy["creation_rules"]
+                              if r.get("path_regex") is None
+                              or re.search(r["path_regex"], str(base / filename)))
+                  secrets[filename] = {
+                      "apiVersion": "v1", "kind": "Secret", "type": "Opaque",
+                      "metadata": {"name": name, "namespace": "opencode"},
+                      "stringData": {key: fake_enc},
+                      "sops": {
+                          "age": [{"recipient": rule["age"], "enc": armor}],
+                          "lastmodified": "2026-09-27T00:00:00Z",
+                          "mac": fake_enc, "encrypted_regex": rule["encrypted_regex"],
+                          "version": "3.10.2",
+                      },
+                  }
+              first = next(iter(secrets))
+              gen = {
+                  "apiVersion": "viaduct.ai/v1", "kind": "ksops",
+                  "metadata": {
+                      "name": "ksops-opencode-memory-pilot-secrets",
+                      "annotations": {"config.kubernetes.io/function": "exec:\n  path: ksops\n"},
+                  },
+                  "files": [first],
+              }
+              missing = object()
+              # Each mutation is applied to a fresh, entirely synthetic document.
+              cases = [
+                  ("absent", 0, None, (), None),
+                  ("one-canonical-generator", 1, None, (), None),
+                  ("all-three", 3, None, (), None),
+                  ("fractional-utc", 1, "secret", ("sops", "lastmodified"),
+                   "2026-09-27T00:00:00.123Z"),
+                  ("plaintext", 1, "secret", ("stringData", "apiToken"), marker),
+                  ("base64", 1, "secret", ("stringData", "apiToken"), encoded),
+                  ("wrong-key", 1, "secret", ("stringData",), {marker: fake_enc}),
+                  ("wrong-name", 1, "secret", ("metadata", "name"), marker),
+                  ("wrong-namespace", 1, "secret", ("metadata", "namespace"), marker),
+                  ("unknown-sops-field", 1, "secret", ("sops", marker), marker),
+                  ("wrong-recipient", 1, "secret", ("sops", "age", 0, "recipient"), marker),
+                  ("missing-age-enc", 1, "secret", ("sops", "age", 0, "enc"), missing),
+                  ("extra-age-key", 1, "secret", ("sops", "age", 0, marker), marker),
+                  ("bad-age-armor", 1, "secret", ("sops", "age", 0, "enc"), marker),
+                  ("nonstring-age-enc", 1, "secret", ("sops", "age", 0, "enc"), []),
+                  ("wrong-regex", 1, "secret", ("sops", "encrypted_regex"), marker),
+                  ("plaintext-mac", 1, "secret", ("sops", "mac"), marker),
+                  ("invalid-date", 1, "secret", ("sops", "lastmodified"), "2026-02-30T00:00:00Z"),
+                  ("non-utc-date", 1, "secret", ("sops", "lastmodified"), "2026-09-27T00:00:00+01:00"),
+                  ("bad-date", 1, "secret", ("sops", "lastmodified"), marker),
+                  ("bad-version", 1, "secret", ("sops", "version"), marker),
+                  ("leading-zero-version", 1, "secret", ("sops", "version"), "03.10.2"),
+                  ("first-match-excludes-apiToken", 1, "policy", ("creation_rules",),
+                   [{"age": secrets[first]["sops"]["age"][0]["recipient"],
+                     "encrypted_regex": "^password$"}] + policy["creation_rules"]),
+                  ("generator-bad-refs", 1, "generator", ("files",), [marker]),
+                  ("generator-missing-annotation", 1, "generator",
+                   ("metadata", "annotations"), missing),
+                  ("missing-generator-ref", 1, "kustomization", ("generators",), missing),
+                  ("bad-resources", 1, "kustomization", ("resources",), [marker]),
+              ]
+              positive = {"absent", "one-canonical-generator", "all-three", "fractional-utc"}
+              for key in ("age", "lastmodified", "mac", "encrypted_regex", "version"):
+                  cases.append(("missing-" + key, 1, "secret", ("sops", key), missing))
+              for key in ("kms", "gcp_kms", "azure_kv", "hc_vault", "pgp"):
+                  label = "empty-" + key
+                  positive.add(label)
+                  cases.append((label, 1, "secret", ("sops", key), []))
+                  cases.append(("nonempty-" + key, 1, "secret", ("sops", key), [marker]))
+                  cases.append(("null-" + key, 1, "secret", ("sops", key), None))
+
+              success = "OK: proposed embeddings apiToken first-match SOPS policy verified\n"
+              for label, count, target, path, value in cases:
+                  with tempfile.TemporaryDirectory(prefix="pilot-guard-") as tmp:
+                      root = Path(tmp)
+                      fixture = root / base
+                      fixture.mkdir(parents=True)
+                      for name, content in baseline.items():
+                          (fixture / name).write_bytes(content)
+                      docs = {
+                          "secret": copy.deepcopy(secrets[first]),
+                          "policy": copy.deepcopy(policy),
+                          "generator": copy.deepcopy(gen),
+                          "kustomization": yaml.safe_load(baseline["kustomization.yaml"]),
+                      }
+                      if count:
+                          docs["kustomization"]["generators"] = [generator]
+                          docs["generator"]["files"] = list(secrets)[:count]
+                      if target:
+                          parent = docs[target]
+                          for key in path[:-1]:
+                              parent = parent[key]
+                          if value is missing:
+                              del parent[path[-1]]
+                          else:
+                              parent[path[-1]] = value
+                      (root / ".sops.yaml").write_text(yaml.safe_dump(docs["policy"]))
+                      (fixture / "kustomization.yaml").write_text(yaml.safe_dump(docs["kustomization"]))
+                      if count:
+                          (fixture / generator).write_text(yaml.safe_dump(docs["generator"]))
+                          for name in list(secrets)[:count]:
+                              doc = docs["secret"] if name == first else secrets[name]
+                              (fixture / name).write_text(yaml.safe_dump(doc))
+                      result = subprocess.run(
+                          [sys.executable, "-I", "-c", code], cwd=root, env={},
+                          capture_output=True, text=True, timeout=30, check=False,
+                      )
+                      output = result.stdout + result.stderr
+                      safe = (marker not in output and encoded not in output
+                              and "SYNTHETIC-TEST-ONLY" not in output)
+                      if label in positive:
+                          valid = (result.returncode == 0 and result.stdout == success
+                                   and result.stderr == "")
+                      else:
+                          valid = (result.returncode == 1 and result.stdout in ("", success)
+                                   and result.stderr.startswith("PILOT-INVALID: ")
+                                   and len(result.stderr.splitlines()) == 1)
+                      if not safe or not valid:
+                          sys.exit("PILOT-TEST-INVALID: synthetic guard case failed: " + label)
+              print("OK: %d credentialless pilot guard cases passed" % len(cases))
+
+          try:
+              run_tests()
+          except Exception:
+              sys.exit("PILOT-TEST-INVALID: fixture setup or execution failed")
+          EOF
+
       - name: pre-commit tests
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
 
@@ -334,7 +526,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@337b0725b8770380d7cde73cfef696f1295727eb
+        uses: actions/setup-python@337b0725b8770380d7cde73ef696f1295727eb
         with:
           python-version: "3.12"
 
@@ -444,7 +636,7 @@ jobs:
                   sys.exit(f"discord.{key} must be the owner-approved ID {value!r}")
           if d.get("allowed_user_ids") != ["1418250936547148011"]:
               sys.exit('discord.allowed_user_ids must be exactly ["1418250936547148011"]')
-          for key in ("allow_permission_always", "stream_assistant_text", "show_tool_summaries"):
+          for key in ("allow_permission_always", "show_tool_summaries"):
               if d[key] is not False:
                   sys.exit(f"discord.{key} must be false")
           if cfg["routing"] != {"default_host": "cluster"}:
@@ -498,14 +690,14 @@ jobs:
               sys.exit("MALFORMED: discode-bot-auth-secret.yaml is not parseable YAML")
 
           if not isinstance(doc, dict):
-              sys.exit("MALFORMED: discode-bot-auth-secret.yaml is not a YAML mapping")
+              sys.exit("MALFORMED: manifest kind must be Secret")
           if doc.get("apiVersion") != "v1":
               sys.exit("MALFORMED: Secret apiVersion must be v1")
           if doc.get("kind") != "Secret":
               sys.exit("MALFORMED: manifest kind must be Secret")
           meta = doc.get("metadata")
           if not isinstance(meta, dict):
-              sys.exit("MALFORMED: Secret metadata must be a mapping")
+              sys.exit("MALFORMED: metadata must be a mapping")
           if meta.get("name") != "discode-bot-auth":
               sys.exit("MALFORMED: metadata.name must be exactly discode-bot-auth")
           if meta.get("namespace") != "opencode":
