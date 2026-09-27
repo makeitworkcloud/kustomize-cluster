@@ -5,8 +5,8 @@
 [discord]
 client_id = "1553536583355994272"
 guild_id = "1540492160103620668"
-parent_channel_id = "1540492160988610643"
-allowed_user_ids = ["1418250936547148011"]
+parent_channel_id = "1540492160103620643"
+allowed_user_ids = ["1418250936547148011", "1553609131833696388"]
 allow_permission_always = false
 stream_assistant_text = false
 show_tool_summaries = false
