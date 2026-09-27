@@ -170,7 +170,12 @@ jobs:
               if (not isinstance(refs, list) or not all(isinstance(r, str) for r in refs)
                       or len(refs) != len(present) or set(refs) != present
                       or gen != {"apiVersion": "viaduct.ai/v1", "kind": "ksops",
-                                 "metadata": {"name": "ksops-opencode-memory-pilot-secrets"},
+                                 "metadata": {
+                                     "name": "ksops-opencode-memory-pilot-secrets",
+                                     "annotations": {
+                                         "config.kubernetes.io/function": "exec:\n  path: ksops\n",
+                                     },
+                                 },
                                  "files": refs}):
                   sys.exit("PILOT-INVALID: KSOPS generator must reference exactly the present approved Secret files")
               check(kust.get("generators") == [generator],
@@ -529,14 +534,14 @@ jobs:
               sys.exit("MALFORMED: sops.mac must be an ENC[AES256_GCM,...] marker")
           age_entries = sops.get("age")
           if not isinstance(age_entries, list) or len(age_entries) != 1:
-              sys.exit("MALFORMED: sops.age must contain exactly one recipient entry")
+              sys.exit("MALFORMED: Secret must contain exactly one age recipient entry")
           expected_recipient = "age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l"
           recipients = [e.get("recipient") for e in age_entries if isinstance(e, dict)]
           if recipients != [expected_recipient]:
-              sys.exit("MALFORMED: sops.age recipient must be exactly the repository age recipient")
+              sys.exit("MALFORMED: Secret age recipient must be exactly the repository age recipient")
 
           # The file's recipient and encrypted_regex must equal the first
-          # .sops.yaml creation rule matching this path, and that rule
+          # creation rule matching this path, and that rule
           # must still select exactly DISCORD_TOKEN (SOPS first-match
           # semantics).
           rules_doc = yaml.safe_load(Path(".sops.yaml").read_text()) or {}

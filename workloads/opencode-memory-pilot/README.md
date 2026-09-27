@@ -25,8 +25,8 @@ chart. No credentials have been retrieved or their existence verified.
   artifacts.
 - The proposed chart 0.4.6 uses `opencode-mem` **2.26.0** in the stock
   OpenCode image with OpenAI HTTP embeddings: model
-  `text-embedding-3-small`, **1536 dimensions**, `taskPrefixes: false`,
-  and `autoCapture: false`. No new image, embeddings Service, or sidecar
+  `text-embedding-3-small`, **1536 dimensions**, `embeddingUseTaskPrefixes: false`,
+  and `autoCaptureEnabled: false`. No new image, embeddings Service, or sidecar
   is required. These are the selected target settings, not settings wired
   into the current staged 0.4.1 Application.
 - The only Service remains ClusterIP `opencode-memory-pilot` on port 4096,
@@ -35,7 +35,7 @@ chart. No credentials have been retrieved or their existence verified.
   `ZHIPU_API_KEY` and the pilot server-auth password remain prerequisites;
   their existence is unknown. The pilot does not reuse production OpenAI
   OAuth or any production provider credential.
-- **Synthetic data only.** Disabling `autoCapture` does not disable raw
+- **Synthetic data only.** Disabling `autoCaptureEnabled` does not disable raw
   prompt persistence: synthetic prompts are still stored as `chatMessage`
   records. Embedding input is sent to OpenAI, and paid synthetic testing
   requires separate approval. Isolation is structural: the pilot mounts
@@ -87,7 +87,18 @@ is not present in the staged 0.4.1 Application.
 
 After encrypted files are actually committed, a reviewed follow-up may add
 `ksops-opencode-memory-pilot-secrets.yaml` with `apiVersion: viaduct.ai/v1`,
-`kind: ksops`, and metadata name `ksops-opencode-memory-pilot-secrets`.
+`kind: ksops`, and exactly this metadata (no additional annotations):
+
+```yaml
+metadata:
+  name: ksops-opencode-memory-pilot-secrets
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+```
+
+The function annotation must be exactly `"exec:\n  path: ksops\n"`.
 Its `files` list must contain exactly the owner-provisioned encrypted files
 actually committed from the table, with no missing references. Only then
 may `kustomization.yaml` declare that one generator. Until then, leave the
@@ -191,5 +202,5 @@ reviewed operation.
   NodePort. The boundary is dedicated HTTP Basic auth, not a claimed
   NetworkPolicy; the remote design sends embedding input to OpenAI.
 - Data: synthetic prompts only, still persisted as raw `chatMessage`
-  records despite `autoCapture: false`; no mounts or MCP wiring expose
+  records despite `autoCaptureEnabled: false`; no mounts or MCP wiring expose
   pilot data to production agents.
