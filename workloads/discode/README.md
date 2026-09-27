@@ -21,7 +21,7 @@ has occurred.
   **identifiers** (identifiers, not credentials): application
   `1553536583355994272`, guild `1540492160103620668`, parent channel
   `1540492160988610643` (`#general`), and `allowed_user_ids` as exactly
-  `[["1418250936547148011", "1553609131833696388"]]` (two approved
+  `["1418250936547148011", "1553609131833696388"]` (two approved
   household users). `discode-static` asserts these exact values.
 - The encrypted `discode-bot-auth` Secret is committed
   (`discode-bot-auth-secret.yaml`, owner-pushed) and resolved through the
