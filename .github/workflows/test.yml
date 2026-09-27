@@ -217,10 +217,14 @@ jobs:
 
   # DisCode preparation gates. discode-static asserts the standby posture
   # (replicas 0, child Application unregistered, the dedicated SOPS creation
-  # rule first-match contract for the future bot Secret, owner-approved-ID
+  # rule first-match contract for the bot Secret, owner-approved-ID
   # TOML shape via the stdlib tomllib) and extracts the build-discode init
   # script path-limited from workloads/discode/deployment.yaml,
-  # cross-checking the init image, archive URL, and digest literals.
+  # cross-checking the init image, archive URL, and digest literals. It
+  # also verifies the committed bot Secret's encrypted shape (parse, SOPS
+  # envelope markers, and creation-rule recipient match) without
+  # decryption or value logging: a shape proof, not token validity or
+  # decryptability.
   # discode-build runs that script inside the same digest-pinned Node image
   # via a job container, as root in an ephemeral runner (the pod runs
   # uid 1000): it validates the build path, not the pod security context or
@@ -362,6 +366,98 @@ jobs:
           out.parent.mkdir(exist_ok=True)
           out.write_text(script)
           print(f"standby assertions passed; extracted {len(script)} bytes of init script")
+          EOF
+
+      # Encrypted-shape gate for the committed bot Secret. Credentialless:
+      # parses the encrypted file with the existing pinned PyYAML and
+      # asserts only shape: apiVersion/kind/type, exact name and
+      # namespace, the single DISCORD_TOKEN stringData key as an
+      # ENC[AES256_GCM,...] marker (plaintext or base64 fails closed), the
+      # sops MAC marker, and the age recipient equal to the first
+      # .sops.yaml creation rule matching this path. No sops binary, no
+      # decryption, no secret artifacts or logs; failures emit fixed
+      # messages only. Passing proves encrypted shape, NOT token validity
+      # or cluster-side decryptability.
+      - name: Verify encrypted DisCode bot Secret shape (no decryption)
+        run: |
+          python -m pip install --quiet --require-hashes -r .github/requirements-ci.txt
+          python - <<'EOF'
+          import re, sys, yaml
+          from pathlib import Path
+
+          secret_path = Path("workloads/discode/discode-bot-auth-secret.yaml")
+          if not secret_path.is_file():
+              sys.exit("MISSING: workloads/discode/discode-bot-auth-secret.yaml")
+
+          try:
+              doc = yaml.safe_load(secret_path.read_text())
+          except yaml.YAMLError:
+              sys.exit("MALFORMED: discode-bot-auth-secret.yaml is not parseable YAML")
+
+          if not isinstance(doc, dict):
+              sys.exit("MALFORMED: discode-bot-auth-secret.yaml is not a YAML mapping")
+          if doc.get("apiVersion") != "v1":
+              sys.exit("MALFORMED: Secret apiVersion must be v1")
+          if doc.get("kind") != "Secret":
+              sys.exit("MALFORMED: manifest kind must be Secret")
+          meta = doc.get("metadata")
+          if not isinstance(meta, dict):
+              sys.exit("MALFORMED: Secret metadata must be a mapping")
+          if meta.get("name") != "discode-bot-auth":
+              sys.exit("MALFORMED: metadata.name must be exactly discode-bot-auth")
+          if meta.get("namespace") != "opencode":
+              sys.exit("MALFORMED: metadata.namespace must be opencode")
+          if doc.get("type") != "Opaque":
+              sys.exit("MALFORMED: Secret type must be Opaque")
+
+          string_data = doc.get("stringData")
+          if not isinstance(string_data, dict) or set(string_data) != {"DISCORD_TOKEN"}:
+              sys.exit("MALFORMED: stringData must contain exactly the DISCORD_TOKEN key")
+          token = string_data["DISCORD_TOKEN"]
+          if not isinstance(token, str):
+              sys.exit("UNENCRYPTED: DISCORD_TOKEN value must be a string")
+          if not token.startswith("ENC[AES256_GCM,") or not token.endswith("]"):
+              sys.exit(
+                  "UNENCRYPTED: DISCORD_TOKEN must be a SOPS ENC[AES256_GCM,...] "
+                  "value; plaintext or base64 is not acceptable; rotate the "
+                  "token if plaintext was ever pushed"
+              )
+
+          sops = doc.get("sops")
+          if not isinstance(sops, dict):
+              sys.exit("MALFORMED: Secret must carry a sops metadata stanza")
+          mac = sops.get("mac")
+          if not isinstance(mac, str) or not mac.startswith("ENC[") or "AES256_GCM" not in mac:
+              sys.exit("MALFORMED: sops.mac must be an ENC[AES256_GCM,...] marker")
+          age_entries = sops.get("age")
+          if not isinstance(age_entries, list):
+              sys.exit("MALFORMED: sops.age must be a list")
+          expected_recipient = "age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l"
+          recipients = [e.get("recipient") for e in age_entries if isinstance(e, dict)]
+          if expected_recipient not in recipients:
+              sys.exit("MALFORMED: sops.age must include the repository age recipient")
+
+          # The file's recipient must equal the first .sops.yaml creation
+          # rule matching this path, and that rule must still select
+          # exactly DISCORD_TOKEN (SOPS first-match semantics).
+          rules_doc = yaml.safe_load(Path(".sops.yaml").read_text()) or {}
+          first = next(
+              (r for r in rules_doc.get("creation_rules") or []
+               if r.get("path_regex") is None
+               or re.search(r["path_regex"], str(secret_path))),
+              None,
+          )
+          if first is None:
+              sys.exit("MALFORMED: .sops.yaml has no creation rule matching the Secret path")
+          if first.get("age") != expected_recipient:
+              sys.exit("MALFORMED: creation rule must use the repository age recipient")
+          if not re.fullmatch(first.get("encrypted_regex") or "", "DISCORD_TOKEN"):
+              sys.exit("MALFORMED: creation rule encrypted_regex must match DISCORD_TOKEN")
+
+          print(
+              "OK: discode-bot-auth Secret encrypted shape verified "
+              "(shape only, not token validity or decryptability)"
+          )
           EOF
 
       - name: Upload init script

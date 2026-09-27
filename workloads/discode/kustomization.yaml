@@ -4,6 +4,8 @@ kind: Kustomization
 resources:
   - persistent-volume-claim.yaml
   - deployment.yaml
+generators:
+  - ksops-discode-secrets.yaml
 configMapGenerator:
   # The generated name hash rolls the Deployment when config.toml changes.
   - name: discode-config

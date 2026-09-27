@@ -19,13 +19,17 @@ until the owner completes the activation gates.
   `1540492160988610643` (`#general`), and `allowed_user_ids` as exactly
   `["1418250936547148011"]` (single allowed user). `discode-static`
   asserts these exact values.
-- No SOPS/KSOPS files are committed: the `discode-bot-auth` Secret does not
-  exist yet and is only referenced. `.sops.yaml` does carry a dedicated
-  creation rule for the basename `discode-bot-auth-secret.yaml` (encrypting
-  exactly `DISCORD_TOKEN` with the existing public age recipient) placed
-  before the generic fallback, whose case-sensitive `encrypted_regex` does
-  not match the uppercase key. No KSOPS generator reference exists, so
-  nothing dangles.
+- The encrypted `discode-bot-auth` Secret is committed
+  (`discode-bot-auth-secret.yaml`, owner-pushed) and resolved through the
+  `ksops-discode-secrets.yaml` KSOPS generator wired in this
+  `kustomization.yaml` (the `workloads/opencode` pattern). `.sops.yaml`
+  keeps the dedicated creation rule for the basename
+  `discode-bot-auth-secret.yaml` (encrypting exactly `DISCORD_TOKEN` with
+  the existing public age recipient) placed before the generic fallback,
+  whose case-sensitive `encrypted_regex` does not match the uppercase key.
+  CI validates the file's encrypted **shape** only — it is never decrypted
+  here, no credential value has been read, and neither token validity nor
+  cluster-side decryptability is claimed; see "CI coverage and gaps".
 - No Service, Ingress, or TunnelBinding is added: the workload is
   pod-internal.
 
@@ -123,7 +127,7 @@ defaults (system CA, enabled). Not verified live in this preparation.
 | Env | Secret | Key | Status |
 |-----|--------|-----|--------|
 | `OPENCODE_HOST_CLUSTER_PASSWORD` | `opencode-server-auth` | `password` | exists; owned by `workloads/opencode`; same-namespace reference; key name verified from the `charts/opencode-server` Deployment consumer; the same Basic-auth credential the canonical endpoint documents |
-| `DISCORD_TOKEN` | `discode-bot-auth` | `DISCORD_TOKEN` | activation gate: to be SOPS-created by the owner |
+| `DISCORD_TOKEN` | `discode-bot-auth` | `DISCORD_TOKEN` | encrypted file present (owner-pushed) and KSOPS-wired; CI proves encrypted shape only — not token validity or decryptability |
 
 ## Security record (source-verified at the pinned commit)
 
@@ -169,8 +173,10 @@ process; it is also not a final end-to-end readiness proof.
    array.
 2. Create the SOPS-encrypted `discode-bot-auth` Secret (key `DISCORD_TOKEN`)
    following "Creating the bot Secret" below, then add a KSOPS generator
-   here. Pending — no token has been delivered and no secret file exists
-   yet; only the `.sops.yaml` creation rule is staged.
+   here. File present and generator wired — the owner pushed the encrypted
+   file and `ksops-discode-secrets.yaml` lists it; CI verifies encrypted
+   shape only (pending proof: no runtime validation of the token has run,
+   and decryptability is only provable cluster-side at deploy time).
 3. Install (invite) Discord application `1553536583355994272` into guild
    `1540492160103620668`. Owner-reported done — the owner reports the bot
    is installed in the guild; that is not runtime-verified here (no CI or
@@ -183,12 +189,15 @@ process; it is also not a final end-to-end readiness proof.
 
 ## Creating the bot Secret (owner)
 
-Preparation only: this stage adds the `.sops.yaml` creation rule and these
-instructions and performs no activation — `replicas: 0` and the
-unregistered child Application keep the workload inactive regardless of
-Secret existence. The token never appears in chat, issues, reviews,
-plaintext files, or commits; it is only ever plaintext inside the SOPS
-editor session that encrypts it on save.
+Preparation only: `replicas: 0` and the unregistered child Application keep
+the workload inactive regardless of Secret existence. The owner has since
+pushed the encrypted file (`discode-bot-auth-secret.yaml` is present on
+this branch) and the KSOPS generator is wired; these instructions remain
+the canonical recipe for any future rotation. The token never appears in
+chat, issues, reviews, plaintext files, or commits; it is only ever
+plaintext inside the SOPS editor session that encrypts it on save.
+Nothing in this repository reads, decrypts, or reproduces the committed
+ciphertext.
 
 When the owner is ready to supply the token, from a trusted checkout of
 this branch with SOPS installed:
@@ -245,7 +254,7 @@ container with the pinned image and `/bin/sh -ec` command, the pinned
 archive URL and sha256 literals present in the init script, the required
 runtime env names, `discode-app.yaml` absent from
 `workloads/apps/kustomization.yaml`, the `.sops.yaml` first-match contract
-for the future bot Secret (the dedicated `discode-bot-auth-secret.yaml`
+for the bot Secret (the dedicated `discode-bot-auth-secret.yaml`
 rule must be the first match and encrypt exactly `DISCORD_TOKEN` with the
 existing public recipient, asserted credentiallessly against creation-rule
 policy only), and the full TOML shape via the
@@ -253,6 +262,20 @@ Python stdlib `tomllib` (exact owner-approved IDs and the exact
 single-user array, booleans, routing, `[host.cluster]` including the HTTPS
 `base_url`, logging, metrics). It then uploads the extracted init script
 as an artifact.
+
+A dedicated step in `discode-static` verifies the committed bot Secret's
+encrypted shape without decryption: PyYAML parse with generic failure
+handling (no content echoed), `apiVersion: v1` / `kind: Secret` /
+`type: Opaque`, metadata exactly `name: discode-bot-auth` and
+`namespace: opencode`, `stringData` containing exactly the `DISCORD_TOKEN`
+key whose value must be an `ENC[AES256_GCM,...]` SOPS marker (plaintext or
+base64 fails closed), the `sops.mac` ENC marker, the `sops.age` recipient
+equal to the creation rule, and that rule's `encrypted_regex` still
+matching `DISCORD_TOKEN`. Failures emit fixed messages only; no secret
+bytes are logged or exported, and no sops binary or new dependency is
+introduced. A pass proves encrypted shape — it does **not** prove a valid
+Discord token or cluster-side decryptability (no runtime decrypt has
+occurred).
 
 `discode-build` downloads that artifact and runs the script inside the same
 digest-pinned `node:22-slim` image via a job container, asserting the
@@ -273,7 +296,8 @@ Remaining gaps: `discode-build` runs as root in an ephemeral runner
 container rather than uid 1000 with the pod's mounts and probes; DisCode's
 runtime behavior (TOML parse in-process, Discord/OpenCode interactions
 including the HTTPS host path) remains unexercised — no CI step runs the
-runtime with real credentials, by design; Secret existence and Argo
-rendering of the child Application are unvalidated (CI cannot run KSOPS
-decryption, and the Application is unregistered); and branch protection
-may need the owner to mark the new jobs required.
+runtime with real credentials, by design; the bot Secret's token validity
+and cluster-side decryptability remain unproven (CI checks encrypted
+shape only and cannot run KSOPS decryption), and Argo rendering of the
+child Application is unvalidated (the Application is unregistered); and
+branch protection may need the owner to mark the new jobs required.
