@@ -161,15 +161,17 @@ jobs:
               if not encrypted(sops.get("mac")):
                   sys.exit("PILOT-INVALID: Secret requires an encrypted SOPS MAC")
               modified = sops.get("lastmodified")
-              if (not isinstance(modified, str)
-                      or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z", modified)):
+              if (not isinstance(modified, str) or not re.fullmatch(
+                      r"[0-9]{4}-[0-9]{2}-[0-9]{2}T"
+                      r"[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z", modified)):
                   sys.exit("PILOT-INVALID: SOPS lastmodified must be an RFC3339 UTC string")
               try:
                   datetime.fromisoformat(modified)
               except ValueError:
                   sys.exit("PILOT-INVALID: SOPS lastmodified must be an RFC3339 UTC string")
-              if (not isinstance(sops.get("version"), str)
-                      or not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", sops["version"])):
+              if (not isinstance(sops.get("version"), str) or not re.fullmatch(
+                      r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)",
+                      sops["version"])):
                   sys.exit("PILOT-INVALID: SOPS version must be a numeric semantic version")
               first = first_rule(filename, key)
               age = sops.get("age")
@@ -305,7 +307,7 @@ jobs:
                   continue
               doc = yaml.safe_load(Path(f).read_text()) or {}
               for key in ref_keys:
-                  entries = doc.get(key) or []:
+                  entries = doc.get(key) or []
                   if isinstance(entries, (str, dict)):
                       entries = [entries]
                   for entry in entries:
@@ -526,7 +528,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Python
-        uses: actions/setup-python@337b0725b8770380d7cde73ef696f1295727eb
+        uses: actions/setup-python@337b0725b8770380d7cde73cfef696f1295727eb
         with:
           python-version: "3.12"
 
@@ -636,7 +638,7 @@ jobs:
                   sys.exit(f"discord.{key} must be the owner-approved ID {value!r}")
           if d.get("allowed_user_ids") != ["1418250936547148011"]:
               sys.exit('discord.allowed_user_ids must be exactly ["1418250936547148011"]')
-          for key in ("allow_permission_always", "show_tool_summaries"):
+          for key in ("allow_permission_always", "stream_assistant_text", "show_tool_summaries"):
               if d[key] is not False:
                   sys.exit(f"discord.{key} must be false")
           if cfg["routing"] != {"default_host": "cluster"}:
@@ -690,14 +692,14 @@ jobs:
               sys.exit("MALFORMED: discode-bot-auth-secret.yaml is not parseable YAML")
 
           if not isinstance(doc, dict):
-              sys.exit("MALFORMED: manifest kind must be Secret")
+              sys.exit("MALFORMED: discode-bot-auth-secret.yaml is not a YAML mapping")
           if doc.get("apiVersion") != "v1":
               sys.exit("MALFORMED: Secret apiVersion must be v1")
           if doc.get("kind") != "Secret":
               sys.exit("MALFORMED: manifest kind must be Secret")
           meta = doc.get("metadata")
           if not isinstance(meta, dict):
-              sys.exit("MALFORMED: metadata must be a mapping")
+              sys.exit("MALFORMED: Secret metadata must be a mapping")
           if meta.get("name") != "discode-bot-auth":
               sys.exit("MALFORMED: metadata.name must be exactly discode-bot-auth")
           if meta.get("namespace") != "opencode":
