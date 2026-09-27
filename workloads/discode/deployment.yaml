@@ -9,7 +9,7 @@ metadata:
     ignore-check.kube-linter.io/unset-cpu-requirements: "single-node policy"
     ignore-check.kube-linter.io/unset-memory-requirements: "single-node policy"
 spec:
-  replicas: 0
+  replicas: 1
   strategy:
     type: Recreate
   selector:
