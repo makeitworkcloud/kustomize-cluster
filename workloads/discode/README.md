@@ -21,8 +21,8 @@ has occurred.
   **identifiers** (identifiers, not credentials): application
   `1553536583355994272`, guild `1540492160103620668`, parent channel
   `1540492160988610643` (`#general`), and `allowed_user_ids` as exactly
-  `["1418250936547148011"]` (single allowed user). `discode-static`
-  asserts these exact values.
+  `["1418250936547148011", "1553609131833696388"]` (two approved
+  household users). `discode-static` asserts these exact values.
 - The encrypted `discode-bot-auth` Secret is committed
   (`discode-bot-auth-secret.yaml`, owner-pushed) and resolved through the
   `ksops-discode-secrets.yaml` KSOPS generator wired in this
@@ -173,7 +173,7 @@ process; it is also not a final end-to-end readiness proof.
 
 1. ~~Replace every `REPLACE_WITH_*` sentinel in `discode-config.toml`.~~
    Done — the owner-supplied identifiers above are committed, and
-   `discode-static` asserts the exact values and the exact single-user
+   `discode-static` asserts the exact values and the exact two-user
    array.
 2. Create the SOPS-encrypted `discode-bot-auth` Secret (key `DISCORD_TOKEN`)
    following "Creating the bot Secret" below, then add a KSOPS generator
@@ -207,7 +207,7 @@ process; it is also not a final end-to-end readiness proof.
    - **`/oc health`** — reports OpenCode host HTTP/SSE reachability from
      the bridge process. Proves the HTTPS host path and Basic
      authentication; not an end-to-end proof.
-   - **Functional proof** — from the allowlisted user, `/oc start` and
+   - **Functional proof** — from an allowlisted user, `/oc start` and
      `/oc bind` a session under `/home/opencode`, run a task end-to-end,
      and exercise photo/session behavior (including `/oc close` cleanup).
      This is the only end-to-end readiness proof.
@@ -284,7 +284,7 @@ first-match contract for the bot Secret (the dedicated
 exactly `DISCORD_TOKEN` with the existing public recipient, asserted
 credentiallessly against creation-rule policy only), and the full TOML
 shape via the Python stdlib `tomllib` (exact owner-approved IDs and the
-exact single-user array, booleans, routing, `[host.cluster]` including
+exact two-user array, booleans, routing, `[host.cluster]` including
 the HTTPS `base_url`, logging, metrics). It then uploads the extracted
 init script as an artifact.
 
