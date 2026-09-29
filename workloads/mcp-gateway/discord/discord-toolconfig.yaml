@@ -1,6 +1,5 @@
 ---
-# Read-only Discord tool surface: exactly server info, channel discovery, and
-# message history. No posting, administration, emoji, webhook, or DM tools.
+# Staged, unreferenced overlay (see README.md). Read-only tool surface.
 # Sync wave 0 so the filter exists before the MCPServer that references it.
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPToolConfig

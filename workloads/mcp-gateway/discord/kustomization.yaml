@@ -1,16 +1,11 @@
-# Staged, unreferenced discord MCP backend overlay. This directory is NOT
-# included by workloads/mcp-gateway/kustomization.yaml and no Argo CD
-# Application points at it; it renders only when an owner-approved activation
-# PR wires it in.
+# Staged, unreferenced discord MCP overlay: not included by any active
+# Kustomization or Application (see README.md).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - discord-toolconfig.yaml
   - discord-mcpserver.yaml
 configMapGenerator:
-  # Content-addressed so a logback change rolls the backend pod through the
-  # nameReference configuration below (ToolHive stores podTemplateSpec as a
-  # RawExtension; see name-reference.yaml).
   - name: mcp-discord-logging
     namespace: mcp
     files:
@@ -18,5 +13,7 @@ configMapGenerator:
     options:
       annotations:
         argocd.argoproj.io/sync-wave: "1"
+# ToolHive stores podTemplateSpec as a RawExtension, outside Kustomize's
+# default name-reference rules; this rewrites the generated ConfigMap name.
 configurations:
   - name-reference.yaml

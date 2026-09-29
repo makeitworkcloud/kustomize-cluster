@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Stderr-only console logging for the discord MCP backend. Logs go to the
-     container stderr stream (kubectl / Argo CD logs). No file appender: the
-     root filesystem is read-only and the workload keeps no log state. -->
+<!-- Stderr-only console logging; no file appender (read-only rootfs). -->
 <configuration>
   <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
     <target>System.err</target>

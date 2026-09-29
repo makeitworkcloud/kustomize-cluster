@@ -1,8 +1,8 @@
-# Kustomize does not infer references inside ToolHive's RawExtension pod
-# template. Teach it to update the generated, content-addressed ConfigMap
-# name in the MCPServer volume source so a logback policy change advances the
-# MCPServer generation (same pattern as hero-ssh-namereference.yaml and
-# gcloud-mcp-namereference.yaml).
+# ToolHive stores podTemplateSpec as a RawExtension, outside Kustomize's
+# default name-reference rules. Teach Kustomize to rewrite the generated,
+# content-addressed ConfigMap name in the MCPServer volume source so a logback
+# policy change rolls the backend pod (same pattern as
+# hero-ssh-namereference.yaml and gcloud-mcp-namereference.yaml).
 nameReference:
   - kind: ConfigMap
     version: v1
