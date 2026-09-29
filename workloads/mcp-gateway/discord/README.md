@@ -3,9 +3,12 @@
 **Status: staged and inactive.** No active Kustomization or Argo CD
 Application references this directory, so merging does not register or deploy
 Discord; the unchanged main sync workflow may still reconcile the existing
-roots as usual. Activation follows the sequence below; the
-`Validate staged discord MCP contract and inactivity` CI step fails on any
-active reference before then.
+roots as usual. Activation follows the sequence below. The
+`Validate staged discord MCP contract and inactivity` CI step checks every
+tracked `kustomization.yaml` and the repository's established
+`*app.yaml`/`application.yaml` Application manifests for references to this
+directory; the primary separately reviews the complete change for inactive
+status.
 
 ## Trust boundary
 

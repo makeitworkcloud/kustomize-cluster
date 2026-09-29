@@ -216,10 +216,11 @@ jobs:
       # contract (pinned image, stdio/streamable-http, read-only 3-tool
       # filter, mcp-discord/token secret REFERENCE only, non-root read-only
       # pod, stderr-only logback, RawExtension nameReference) and no active
-      # reference from any kustomization or tracked non-Secret Application
-      # manifest. Credentialless and static: no bot token, Discord
-      # connection, kubectl, or kustomize render; token-plaintext scanning is
-      # covered by the existing gitleaks pre-commit hook.
+      # reference from any kustomization or the repository's established
+      # *app.yaml/application.yaml Application manifests (Secret-named files
+      # excluded, never read). Credentialless and static: no bot token,
+      # Discord connection, kubectl, or kustomize render; token-plaintext
+      # scanning is covered by the existing gitleaks pre-commit hook.
       - name: Validate staged discord MCP contract and inactivity
         run: |
           python - <<'EOF'
@@ -242,7 +243,8 @@ jobs:
           kust = load("kustomization.yaml")
           require(sorted(kust.get("resources") or []) == ["discord-mcpserver.yaml", "discord-toolconfig.yaml"],
                   "resources must be exactly the MCPServer and MCPToolConfig")
-          require(not kust.get("generators"), "no generators (no KSOPS/SOPS here)")
+          require(not kust.get("generators") and not kust.get("secretGenerator"),
+                  "no generators or secretGenerator (no KSOPS/SOPS here)")
           gens = kust.get("configMapGenerator") or []
           require(len(gens) == 1 and gens[0].get("name") == "mcp-discord-logging"
                   and gens[0].get("namespace") == "mcp" and gens[0].get("files") == ["logback.xml"],
@@ -250,9 +252,12 @@ jobs:
           require(kust.get("configurations") == ["name-reference.yaml"], "configurations contract")
 
           nr = load("name-reference.yaml")
-          paths = [fs.get("path") for e in nr.get("nameReference") or []
-                   for fs in e.get("fieldSpecs") or [] if fs.get("kind") == "MCPServer"]
-          require(paths == ["spec/podTemplateSpec/spec/volumes/configMap/name"], "nameReference path")
+          require(nr.get("nameReference") == [{
+              "kind": "ConfigMap", "version": "v1",
+              "fieldSpecs": [{"group": "toolhive.stacklok.dev", "version": "v1beta1",
+                              "kind": "MCPServer",
+                              "path": "spec/podTemplateSpec/spec/volumes/configMap/name"}]}],
+                  "nameReference structure")
 
           for p in sorted(base.glob("*.yaml")):
               for d in yaml.safe_load_all(p.read_text()):
@@ -342,8 +347,8 @@ jobs:
               for d in yaml.safe_load_all(Path(f).read_text()):
                   if isinstance(d, dict) and d.get("kind") == "Application":
                       sp = d.get("spec") or {}
-                      srcs = sp.get("sources") or ([sp["source"]] if sp.get("source") else [])
-                      require(not any("mcp-gateway/discord" in str(x.get("path", ""))
+                      srcs = list(sp.get("sources") or []) + ([sp["source"]] if sp.get("source") else [])
+                      require(not any("mcp-gateway/discord" in os.path.normpath(str(x.get("path", "")))
                                       for x in srcs if isinstance(x, dict)),
                               f"Application source path to discord dir in {f}")
 
