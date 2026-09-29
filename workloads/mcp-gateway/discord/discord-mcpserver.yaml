@@ -1,0 +1,108 @@
+---
+# STAGED AND INACTIVE: this MCPServer belongs to the unreferenced
+# workloads/mcp-gateway/discord overlay. No active Kustomization or Argo CD
+# Application includes it, so merging does not create or change any cluster
+# resource. Activation requires a separate owner-approved PR.
+#
+# Trust boundary (owner decision, 2026-09-29, trusted-cluster exception): the
+# owner explicitly accepted a cluster-reachable, unauthenticated read-only MCP
+# endpoint behind the ToolHive proxy inside the trusted cluster. This backend
+# must never gain a groupRef, TunnelBinding subject, remote-proxy entry, or
+# OIDC/public route: it stays ClusterIP-only behind the ToolHive-generated
+# proxy Service.
+#
+# Read-only scope: toolConfigRef pins the tool surface to get_server_info,
+# find_channel, and read_messages. No posting, admin, emoji, webhook, or DM
+# tools.
+#
+# Image: official upstream saseq/discord-mcp, built from source commit
+# 0b35793bf9f86cc65849ae42ebae940718fbf812. Digest publication is
+# corroborated, not signature-verified.
+#
+# Secrets: references the mcp-discord Secret's `token` key as DISCORD_TOKEN.
+# That Secret does not exist yet and is intentionally NOT created here (no
+# Secret manifest, no KSOPS registration): the owner creates it later through
+# the repository's existing public-recipient SOPS process. The bot token is
+# never shared with DisCode's token.
+#
+# Replicas: the MCPServer `replicas` field is not verified against the pinned
+# ToolHive CRD (0.46.0), so this relies on the operator default of a single
+# backend pod and documents the verification gap instead of asserting an
+# unverified field.
+#
+# DISCORD_GUILD_ID is only the upstream default guild; it is NOT a guild or
+# channel allowlist. Channel access is enforced by Discord-side bot
+# permissions, not by this workload.
+#
+# No SPRING_PROFILES_ACTIVE=http and no mcpPort: the upstream raw HTTP
+# listener stays disabled; transport is stdio through the ToolHive
+# streamable-http proxy.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: discord
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  image: docker.io/saseq/discord-mcp@sha256:92a5849c282750cf92f96865ca3f0ccad9560f505e6c71e764bae206a9b47a96
+  transport: stdio
+  proxyMode: streamable-http
+  permissionProfile:
+    # Follows the existing builtin network pattern (hero-ssh, codebase-memory,
+    # gcp). This is the standard profile shape, not a network restriction
+    # claim: the backend needs Discord API egress.
+    type: builtin
+    name: network
+  toolConfigRef:
+    name: discord-readonly
+  env:
+    - name: DISCORD_GUILD_ID
+      value: "1540492160103620668"
+    # Standard Spring Boot logging override: console (stderr) only via the
+    # generated read-only ConfigMap at /config.
+    - name: LOGGING_CONFIG
+      value: file:/config/logback.xml
+  secrets:
+    # Reference only; the mcp-discord Secret is owner-created out of band via
+    # the existing SOPS process and does not exist yet.
+    - name: mcp-discord
+      key: token
+      targetEnvName: DISCORD_TOKEN
+  podTemplateSpec:
+    spec:
+      # The backend needs no Kubernetes API access; opt out of the
+      # service-account token (codebase-memory / repo-cache-sync precedent).
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: config
+          configMap:
+            name: mcp-discord-logging
+        # Provisional bound, not runtime-measured. The upstream jar under /app
+        # must remain readable with the read-only root filesystem; CI checks
+        # the mount shape statically, not upstream file permissions.
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+      containers:
+        - name: mcp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp

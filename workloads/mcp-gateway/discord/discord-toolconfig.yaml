@@ -1,0 +1,16 @@
+---
+# Read-only Discord tool surface: exactly server info, channel discovery, and
+# message history. No posting, administration, emoji, webhook, or DM tools.
+# Sync wave 0 so the filter exists before the MCPServer that references it.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPToolConfig
+metadata:
+  name: discord-readonly
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  toolsFilter:
+    - get_server_info
+    - find_channel
+    - read_messages
