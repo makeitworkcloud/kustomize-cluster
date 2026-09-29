@@ -1,6 +1,5 @@
 ---
-# Staged, unreferenced overlay (see README.md). Read-only tool surface.
-# Sync wave 0 so the filter exists before the MCPServer that references it.
+# Staged, unreferenced overlay (see README.md). Wave 0: filter before the MCPServer.
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPToolConfig
 metadata:

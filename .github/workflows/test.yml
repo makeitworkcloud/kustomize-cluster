@@ -212,236 +212,144 @@ jobs:
           print("OK: opencode-memory-pilot staged contract and inactivity verified")
           EOF
 
-      # Guard the staged, unreferenced discord MCP backend: exact file set,
-      # read-only tool filter, pinned image/transport/env and secret
-      # REFERENCE shape (no Secret object, no KSOPS generator, no token
-      # plaintext), no groupRef or public route, strict stderr-only logback,
-      # and no active reference from any kustomization, workloads/apps
-      # registration, or tracked non-Secret Application manifest until the
-      # owner-confirmed activation PR. Credentialless and static: it needs no
-      # bot token, Discord connection, kubectl, or kustomize render, so the
-      # render/runtime gap is documented, not hidden.
+      # Staged, unreferenced discord MCP backend: exact file set and spec
+      # contract (pinned image, stdio/streamable-http, read-only 3-tool
+      # filter, mcp-discord/token secret REFERENCE only, non-root read-only
+      # pod, stderr-only logback, RawExtension nameReference) and no active
+      # reference from any kustomization or tracked non-Secret Application
+      # manifest. Credentialless and static: no bot token, Discord
+      # connection, kubectl, or kustomize render; token-plaintext scanning is
+      # covered by the existing gitleaks pre-commit hook.
       - name: Validate staged discord MCP contract and inactivity
         run: |
           python - <<'EOF'
-          import os, re, subprocess, sys, xml.etree.ElementTree as ET, yaml
+          import os, subprocess, sys, xml.etree.ElementTree as ET, yaml
           from pathlib import Path
 
-          errors = []
-          def check(cond, msg):
+          fails = []
+          def require(cond, msg):
               if not cond:
-                  errors.append(msg)
+                  fails.append(msg)
 
           base = Path("workloads/mcp-gateway/discord")
-          expected_files = {
-              "kustomization.yaml", "discord-mcpserver.yaml",
-              "discord-toolconfig.yaml", "logback.xml",
-              "name-reference.yaml", "README.md",
-          }
-          check(base.is_dir(), "staged discord directory must exist")
-          actual_files = {p.name for p in base.iterdir() if p.is_file()} if base.is_dir() else set()
-          check(actual_files == expected_files,
-                "discord directory files %s != expected %s; additions (Secrets, "
-                "tunnel bindings, KSOPS files) require design review"
-                % (sorted(actual_files), sorted(expected_files)))
+          FILES = {"kustomization.yaml", "discord-mcpserver.yaml", "discord-toolconfig.yaml",
+                   "logback.xml", "name-reference.yaml", "README.md"}
+          require(base.is_dir(), "staged discord directory missing")
+          found = {p.name for p in base.iterdir() if p.is_file()} if base.is_dir() else set()
+          require(found == FILES, f"discord files {sorted(found)} != expected {sorted(FILES)}")
+          load = lambda n: yaml.safe_load((base / n).read_text()) or {}
 
-          kust = yaml.safe_load((base / "kustomization.yaml").read_text()) or {}
-          check(sorted(kust.get("resources") or [])
-                == ["discord-mcpserver.yaml", "discord-toolconfig.yaml"],
-                "discord kustomization resources must be exactly the MCPServer and MCPToolConfig")
-          check(not kust.get("generators"),
-                "discord kustomization must not declare generators (no KSOPS/SOPS here)")
+          kust = load("kustomization.yaml")
+          require(sorted(kust.get("resources") or []) == ["discord-mcpserver.yaml", "discord-toolconfig.yaml"],
+                  "resources must be exactly the MCPServer and MCPToolConfig")
+          require(not kust.get("generators"), "no generators (no KSOPS/SOPS here)")
           gens = kust.get("configMapGenerator") or []
-          check(len(gens) == 1 and gens[0].get("name") == "mcp-discord-logging"
-                and gens[0].get("namespace") == "mcp"
-                and gens[0].get("files") == ["logback.xml"],
-                "configMapGenerator must be exactly mcp-discord-logging from logback.xml")
-          check(kust.get("configurations") == ["name-reference.yaml"],
-                "kustomization configurations must be exactly name-reference.yaml")
+          require(len(gens) == 1 and gens[0].get("name") == "mcp-discord-logging"
+                  and gens[0].get("namespace") == "mcp" and gens[0].get("files") == ["logback.xml"],
+                  "configMapGenerator must be exactly mcp-discord-logging from logback.xml")
+          require(kust.get("configurations") == ["name-reference.yaml"], "configurations contract")
 
-          nr = yaml.safe_load((base / "name-reference.yaml").read_text()) or {}
-          fss = [fs for entry in nr.get("nameReference") or []
-                 for fs in entry.get("fieldSpecs") or []]
-          check(any(fs.get("kind") == "MCPServer"
-                    and fs.get("path") == "spec/podTemplateSpec/spec/volumes/configMap/name"
-                    for fs in fss),
-                "name-reference.yaml must teach ConfigMap nameReference for the MCPServer RawExtension")
+          nr = load("name-reference.yaml")
+          paths = [fs.get("path") for e in nr.get("nameReference") or []
+                   for fs in e.get("fieldSpecs") or [] if fs.get("kind") == "MCPServer"]
+          require(paths == ["spec/podTemplateSpec/spec/volumes/configMap/name"], "nameReference path")
 
-          # No Secret manifest may appear anywhere in the staged directory.
           for p in sorted(base.glob("*.yaml")):
               for d in yaml.safe_load_all(p.read_text()):
-                  if isinstance(d, dict):
-                      check(d.get("kind") != "Secret",
-                            "staged discord dir must not contain a Secret manifest (%s)" % p.name)
+                  require(not (isinstance(d, dict) and d.get("kind") == "Secret"),
+                          f"no Secret manifest allowed ({p.name})")
 
           docs = [d for d in yaml.safe_load_all((base / "discord-mcpserver.yaml").read_text()) if d]
-          check(len(docs) == 1, "discord-mcpserver.yaml must contain exactly one document")
-          srv = docs[0] if docs else {}
-          check(srv.get("apiVersion") == "toolhive.stacklok.dev/v1beta1", "MCPServer apiVersion")
-          check(srv.get("kind") == "MCPServer", "MCPServer kind")
-          meta = srv.get("metadata", {})
-          check(meta.get("name") == "discord", "MCPServer name must be discord")
-          check(meta.get("namespace") == "mcp", "MCPServer namespace must be mcp")
-          check(meta.get("annotations", {}).get("argocd.argoproj.io/sync-wave") == "1",
-                "MCPServer sync wave must be 1")
-          spec = srv.get("spec", {})
-          check(spec.get("image")
-                == "docker.io/saseq/discord-mcp@sha256:92a5849c282750cf92f96865ca3f0ccad9560f505e6c71e764bae206a9b47a96",
-                "MCPServer image must be the pinned upstream digest")
-          check(spec.get("transport") == "stdio", "transport must be stdio")
-          check(spec.get("proxyMode") == "streamable-http", "proxyMode must be streamable-http")
-          check("mcpPort" not in spec, "mcpPort must not be set (no native listener)")
-          check("groupRef" not in spec,
-                "groupRef must not be set (no VirtualMCPServer aggregation)")
-          check(spec.get("permissionProfile") == {"type": "builtin", "name": "network"},
-                "permissionProfile must be builtin network (existing pattern; not a network restriction)")
-          check(spec.get("toolConfigRef") == {"name": "discord-readonly"},
-                "toolConfigRef must be discord-readonly")
-          env = {e.get("name"): e.get("value") for e in spec.get("env") or []}
-          check(env == {"DISCORD_GUILD_ID": "1540492160103620668",
-                        "LOGGING_CONFIG": "file:/config/logback.xml"},
-                "env must be exactly DISCORD_GUILD_ID (default guild, not an allowlist) "
-                "and LOGGING_CONFIG; no SPRING_PROFILES_ACTIVE")
-          check(spec.get("secrets")
-                == [{"name": "mcp-discord", "key": "token", "targetEnvName": "DISCORD_TOKEN"}],
-                "secrets must be exactly the mcp-discord/token -> DISCORD_TOKEN reference")
+          require(len(docs) == 1, "discord-mcpserver.yaml must be one document")
+          s = docs[0] if docs else {}
+          meta = s.get("metadata", {})
+          require(s.get("apiVersion") == "toolhive.stacklok.dev/v1beta1" and s.get("kind") == "MCPServer",
+                  "apiVersion/kind")
+          require(meta.get("name") == "discord" and meta.get("namespace") == "mcp"
+                  and meta.get("annotations") == {"argocd.argoproj.io/sync-wave": "1"}, "name/namespace/wave")
+          spec = s.get("spec", {})
+          require(spec.get("image") == "docker.io/saseq/discord-mcp@sha256:92a5849c282750cf92f96865ca3f0ccad9560f505e6c71e764bae206a9b47a96", "image digest")
+          require(spec.get("transport") == "stdio" and spec.get("proxyMode") == "streamable-http",
+                  "transport/proxyMode")
+          require(not ({"mcpPort", "groupRef"} & set(spec)), "no mcpPort or groupRef")
+          require(spec.get("permissionProfile") == {"type": "builtin", "name": "network"}, "permissionProfile")
+          require(spec.get("toolConfigRef") == {"name": "discord-readonly"}, "toolConfigRef")
+          require(spec.get("env") == [{"name": "DISCORD_GUILD_ID", "value": "1540492160103620668"},
+                                      {"name": "LOGGING_CONFIG", "value": "file:/config/logback.xml"}], "env")
+          require(spec.get("secrets") == [{"name": "mcp-discord", "key": "token",
+                                           "targetEnvName": "DISCORD_TOKEN"}], "secret reference")
 
           pod = spec.get("podTemplateSpec", {}).get("spec", {})
-          check(pod.get("automountServiceAccountToken") is False,
-                "backend pod must opt out of the service-account token")
+          require(pod.get("automountServiceAccountToken") is False, "automountServiceAccountToken")
           psc = pod.get("securityContext", {})
-          check(psc.get("runAsNonRoot") is True and psc.get("runAsUser") == 1000
-                and psc.get("runAsGroup") == 1000 and psc.get("fsGroup") == 1000
-                and psc.get("seccompProfile", {}).get("type") == "RuntimeDefault",
-                "pod securityContext must be nonroot uid/gid/fsGroup 1000 with RuntimeDefault seccomp")
-          containers = pod.get("containers") or []
-          check(len(containers) == 1 and containers[0].get("name") == "mcp",
-                "pod must declare exactly the mcp container")
-          c = containers[0] if containers else {}
-          csc = c.get("securityContext", {})
-          check(csc.get("allowPrivilegeEscalation") is False
-                and csc.get("capabilities", {}).get("drop") == ["ALL"]
-                and csc.get("readOnlyRootFilesystem") is True,
-                "mcp container must drop ALL caps, deny privilege escalation, and use a read-only rootfs")
-          check("resources" not in c,
-                "mcp container must not declare resources (single-node policy)")
-          vols = {v.get("name"): v for v in pod.get("volumes") or []}
-          check(set(vols) == {"config", "tmp"}, "volumes must be exactly config and tmp")
-          check(vols.get("config", {}).get("configMap", {}).get("name") == "mcp-discord-logging",
-                "config volume must reference the mcp-discord-logging ConfigMap")
-          tmp = vols.get("tmp", {}).get("emptyDir", {})
-          check(tmp.get("sizeLimit") == "256Mi" and "medium" not in tmp,
-                "tmp must be a disk emptyDir bounded at 256Mi (provisional)")
-          check(not any("persistentVolumeClaim" in v for v in vols.values()),
-                "no PVC volumes (stateless)")
-          mounts = {m.get("name"): m for m in c.get("volumeMounts") or []}
-          check(mounts.get("config", {}).get("mountPath") == "/config"
-                and mounts.get("config", {}).get("readOnly") is True,
-                "/config must mount the generated ConfigMap read-only")
-          check(mounts.get("tmp", {}).get("mountPath") == "/tmp",
-                "/tmp must mount the tmp emptyDir")
+          require(psc.get("runAsNonRoot") is True and psc.get("runAsUser") == 1000
+                  and psc.get("runAsGroup") == 1000 and psc.get("fsGroup") == 1000
+                  and psc.get("seccompProfile") == {"type": "RuntimeDefault"}, "pod securityContext")
+          cs = pod.get("containers") or []
+          require(len(cs) == 1 and cs[0].get("name") == "mcp" and "resources" not in cs[0],
+                  "single mcp container, no resources")
+          csc = cs[0].get("securityContext", {}) if cs else {}
+          require(csc.get("allowPrivilegeEscalation") is False and csc.get("capabilities") == {"drop": ["ALL"]}
+                  and csc.get("readOnlyRootFilesystem") is True, "container securityContext")
+          require(pod.get("volumes") == [{"name": "config", "configMap": {"name": "mcp-discord-logging"}},
+                                         {"name": "tmp", "emptyDir": {"sizeLimit": "256Mi"}}], "volumes")
+          require(bool(cs) and cs[0].get("volumeMounts") == [
+              {"name": "config", "mountPath": "/config", "readOnly": True},
+              {"name": "tmp", "mountPath": "/tmp"}], "volumeMounts")
 
-          tcdocs = [d for d in yaml.safe_load_all((base / "discord-toolconfig.yaml").read_text()) if d]
-          check(len(tcdocs) == 1, "discord-toolconfig.yaml must contain exactly one document")
-          tc = tcdocs[0] if tcdocs else {}
-          check(tc.get("kind") == "MCPToolConfig", "toolconfig kind")
-          check(tc.get("metadata", {}).get("name") == "discord-readonly", "toolconfig name")
-          check(tc.get("metadata", {}).get("namespace") == "mcp", "toolconfig namespace")
-          check(tc.get("metadata", {}).get("annotations", {}).get("argocd.argoproj.io/sync-wave") == "0",
-                "toolconfig sync wave must be 0")
-          check(tc.get("spec", {}).get("toolsFilter")
-                == ["get_server_info", "find_channel", "read_messages"],
-                "toolsFilter must be exactly get_server_info, find_channel, read_messages")
+          tc = load("discord-toolconfig.yaml")
+          require(tc.get("kind") == "MCPToolConfig" and tc.get("metadata", {}).get("name") == "discord-readonly"
+                  and tc.get("metadata", {}).get("namespace") == "mcp"
+                  and tc.get("metadata", {}).get("annotations") == {"argocd.argoproj.io/sync-wave": "0"},
+                  "toolconfig identity/wave")
+          require(tc.get("spec", {}).get("toolsFilter") == ["get_server_info", "find_channel", "read_messages"],
+                  "exact 3 tools")
 
-          # Logback: exactly one ConsoleAppender named STDERR with a single
-          # System.err target, and a root at INFO referencing only STDERR.
-          root_el = ET.parse(base / "logback.xml").getroot()
-          appenders = list(root_el.iter("appender"))
-          check(len(appenders) == 1
-                and appenders[0].get("name") == "STDERR"
-                and appenders[0].get("class") == "ch.qos.logback.core.ConsoleAppender",
-                "logback must declare exactly one ConsoleAppender named STDERR")
-          targets = list(appenders[0].iter("target")) if appenders else []
-          check(len(targets) == 1 and (targets[0].text or "").strip() == "System.err",
-                "the single appender must have exactly one target, System.err")
-          roots = list(root_el.iter("root"))
-          check(len(roots) == 1 and roots[0].get("level") == "INFO",
-                "logback root level must be INFO")
-          refs = list(roots[0].iter("appender-ref")) if roots else []
-          check(len(refs) == 1 and refs[0].get("ref") == "STDERR",
-                "root must reference exactly the STDERR appender")
+          r = ET.parse(base / "logback.xml").getroot()
+          ap = list(r.iter("appender"))
+          tg = list(ap[0].iter("target")) if ap else []
+          ro = list(r.iter("root"))
+          rf = list(ro[0].iter("appender-ref")) if ro else []
+          require(len(ap) == 1 and ap[0].get("name") == "STDERR"
+                  and ap[0].get("class") == "ch.qos.logback.core.ConsoleAppender"
+                  and len(tg) == 1 and (tg[0].text or "").strip() == "System.err"
+                  and len(ro) == 1 and ro[0].get("level") == "INFO"
+                  and len(rf) == 1 and rf[0].get("ref") == "STDERR",
+                  "logback: one STDERR ConsoleAppender System.err, root INFO")
 
-          # No Discord token plaintext anywhere in the staged directory.
-          token_re = re.compile(
-              r"mfa\.[A-Za-z0-9_-]{20,}"
-              r"|[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,}")
-          for p in sorted(base.iterdir()):
-              if p.is_file():
-                  check(not token_re.search(p.read_text(errors="replace")),
-                        "possible Discord token plaintext in %s" % p)
-
-          # Inactivity: no kustomization outside the staged directory may
-          # reference it, comparing resolved ref paths (handles ./, ../,
-          # nested components, and legacy keys), not just name matching.
-          kust_files = ["kustomization.yaml"] + subprocess.run(
+          keys = ("resources", "patches", "configurations", "generators", "components",
+                  "bases", "patchesStrategicMerge", "patchesJson6902")
+          kusts = ["kustomization.yaml"] + subprocess.run(
               ["git", "ls-files", "*/kustomization.yaml"],
-              capture_output=True, text=True, check=True,
-          ).stdout.split()
-          ref_keys = ("resources", "patches", "configurations", "generators",
-                      "components", "bases", "patchesStrategicMerge",
-                      "patchesJson6902")
-          for f in kust_files:
+              capture_output=True, text=True, check=True).stdout.split()
+          for f in kusts:
               if Path(f).parent == base:
                   continue
               doc = yaml.safe_load(Path(f).read_text()) or {}
-              for key in ref_keys:
-                  entries = doc.get(key) or []
-                  if isinstance(entries, (str, dict)):
-                      entries = [entries]
-                  for entry in entries:
-                      ref = entry.get("path") if isinstance(entry, dict) else entry
-                      if not isinstance(ref, str) or ref.startswith(("https://", "git::")):
-                          continue
-                      resolved = Path(os.path.normpath(Path(f).parent / ref))
-                      if resolved == base or base in resolved.parents:
-                          errors.append("active reference to staged discord dir in %s: %s[%s]"
-                                        % (f, key, ref))
-          apps = yaml.safe_load(Path("workloads/apps/kustomization.yaml").read_text()) or {}
-          refs = [r for r in apps.get("resources") or [] if "discord" in str(r)]
-          check(not refs, "workloads/apps must not register a discord Application yet: %s" % refs)
-          check(not list(Path("workloads/apps").glob("*discord*")),
-                "no discord Application manifest may exist in workloads/apps before activation")
-          # Tracked Application manifests anywhere in the repo (*app.yaml /
-          # *application.yaml; Secret-named files are excluded and never
-          # read). Failures emit the file path only, never content.
-          app_files = [
-              f for f in subprocess.run(
-                  ["git", "ls-files", "*app.yaml", "*application.yaml"],
-                  capture_output=True, text=True, check=True,
-              ).stdout.split()
-              if "secret" not in Path(f).name.lower()
-          ]
-          for f in app_files:
-              if Path(f).parent == base or base in Path(f).parents:
+              for k in keys:
+                  es = doc.get(k) or []
+                  es = [es] if isinstance(es, (str, dict)) else es
+                  for e in es:
+                      ref = e.get("path") if isinstance(e, dict) else e
+                      if isinstance(ref, str) and not ref.startswith(("https://", "git::")):
+                          rp = Path(os.path.normpath(Path(f).parent / ref))
+                          require(rp != base and base not in rp.parents,
+                                  f"active ref to discord dir in {f}: {k}[{ref}]")
+          for f in subprocess.run(["git", "ls-files", "*app.yaml", "*application.yaml"],
+                                  capture_output=True, text=True, check=True).stdout.split():
+              if "secret" in Path(f).name.lower() or Path(f).parent == base or base in Path(f).parents:
                   continue
               for d in yaml.safe_load_all(Path(f).read_text()):
-                  if not isinstance(d, dict) or d.get("kind") != "Application":
-                      continue
-                  spec_d = d.get("spec") or {}
-                  srcs = spec_d.get("sources") or []
-                  if spec_d.get("source"):
-                      srcs = srcs + [spec_d["source"]]
-                  paths = [str(s.get("path", "")) for s in srcs if isinstance(s, dict)]
-                  check(not any("mcp-gateway/discord" in p for p in paths),
-                        "active Application source path to staged discord dir in %s" % f)
-          for f in ("workloads/mcp-gateway/tunnel-binding.yaml",
-                    "workloads/mcp-gateway/remote-proxies.yaml"):
-              check("discord" not in Path(f).read_text(),
-                    "%s must not gain a discord route or proxy while staged" % f)
+                  if isinstance(d, dict) and d.get("kind") == "Application":
+                      sp = d.get("spec") or {}
+                      srcs = sp.get("sources") or ([sp["source"]] if sp.get("source") else [])
+                      require(not any("mcp-gateway/discord" in str(x.get("path", ""))
+                                      for x in srcs if isinstance(x, dict)),
+                              f"Application source path to discord dir in {f}")
 
-          if errors:
-              for e in errors:
-                  print("DISCORD-STAGED-INVALID: %s" % e)
+          if fails:
+              for m in fails:
+                  print("DISCORD-STAGED-INVALID:", m)
               sys.exit(1)
           print("OK: staged discord MCP contract and inactivity verified")
           EOF

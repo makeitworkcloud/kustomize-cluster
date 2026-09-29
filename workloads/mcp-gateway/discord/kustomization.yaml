@@ -1,5 +1,4 @@
-# Staged, unreferenced discord MCP overlay: not included by any active
-# Kustomization or Application (see README.md).
+# Staged, unreferenced discord MCP overlay (see README.md).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -13,7 +12,5 @@ configMapGenerator:
     options:
       annotations:
         argocd.argoproj.io/sync-wave: "1"
-# ToolHive stores podTemplateSpec as a RawExtension, outside Kustomize's
-# default name-reference rules; this rewrites the generated ConfigMap name.
 configurations:
   - name-reference.yaml
