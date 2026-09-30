@@ -16,6 +16,15 @@ data:
           method: GET
           preferred_ip_protocol: ip4
           valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      http_opencode_auth_boundary:
+        prober: http
+        timeout: 5s
+        http:
+          method: GET
+          preferred_ip_protocol: ip4
+          valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+          valid_status_codes: [401]
+          follow_redirects: false
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -35,6 +44,8 @@ spec:
     metadata:
       labels:
         app: blackbox-exporter
+      annotations:
+        checksum/blackbox-exporter-config: b50f985dff04c46e468ede6f829f52fa004b471e2629b5c7dcccc87dc8686076
     spec:
       securityContext:
         runAsNonRoot: true
@@ -98,3 +109,49 @@ spec:
         - https://argocd.makeitwork.cloud
         - https://grafana.makeitwork.cloud
         - https://status.makeitwork.cloud
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: opencode-internal-auth-boundary
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    application: opencode
+    probe_path: internal
+spec:
+  interval: 30s
+  scrapeTimeout: 10s
+  module: http_opencode_auth_boundary
+  jobName: opencode-internal-auth-boundary
+  prober:
+    path: /probe
+    url: blackbox-exporter.grafana.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - http://opencode.opencode.svc:4096/global/health
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: opencode-external-auth-boundary
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    application: opencode
+    probe_path: external
+spec:
+  interval: 30s
+  scrapeTimeout: 10s
+  module: http_opencode_auth_boundary
+  jobName: opencode-external-auth-boundary
+  prober:
+    path: /probe
+    url: blackbox-exporter.grafana.svc:9115
+  targets:
+    staticConfig:
+      static:
+        - https://opencode.makeitwork.cloud/global/health
