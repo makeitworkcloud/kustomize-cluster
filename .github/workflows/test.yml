@@ -65,6 +65,156 @@ jobs:
           print(f"OK: all kustomization references resolve across {len(files)} kustomizations")
           EOF
 
+      - name: Validate OpenCode dashboard and auth-boundary probes
+        run: |
+          python - <<'EOF'
+          import hashlib, json, sys, yaml
+          from pathlib import Path
+
+          errors = []
+          def check(cond, msg):
+              if not cond:
+                  errors.append(msg)
+
+          docs = [d for d in yaml.safe_load_all(
+              Path("workloads/grafana/status-monitoring.yaml").read_text())
+              if isinstance(d, dict)]
+          kind_names = [(d.get("kind"), d.get("metadata", {}).get("name"))
+                        for d in docs]
+          check(len(kind_names) == len(set(kind_names)),
+                "status-monitoring documents must have unique kind/name")
+          by_kind_name = dict(zip(kind_names, docs))
+
+          cm = by_kind_name.get(("ConfigMap", "blackbox-exporter-config"))
+          check(cm is not None, "blackbox-exporter-config ConfigMap missing")
+          cfg = yaml.safe_load(cm["data"]["blackbox.yml"])
+          modules = cfg.get("modules", {})
+          check(set(modules) == {"http_2xx", "http_opencode_auth_boundary"},
+                "blackbox modules must be exactly http_2xx and http_opencode_auth_boundary")
+          check(modules.get("http_2xx") == {
+              "prober": "http", "timeout": "10s",
+              "http": {"method": "GET", "preferred_ip_protocol": "ip4",
+                       "valid_http_versions": ["HTTP/1.1", "HTTP/2.0"]}},
+                "http_2xx module must be unchanged")
+          check(modules.get("http_opencode_auth_boundary") == {
+              "prober": "http", "timeout": "5s",
+              "http": {"method": "GET", "preferred_ip_protocol": "ip4",
+                       "valid_http_versions": ["HTTP/1.1", "HTTP/2.0"],
+                       "valid_status_codes": [401], "follow_redirects": False}},
+                "http_opencode_auth_boundary must be a 401-only, no-redirect, 5s GET prober")
+          forbidden = {"basic_auth", "authorization", "headers", "body",
+                       "bearer_token", "bearer_token_file", "oauth2", "tls_config"}
+          check(not (forbidden & set(modules["http_opencode_auth_boundary"]["http"])),
+                "auth-boundary module must not carry credentials, headers, or body")
+
+          dep = by_kind_name.get(("Deployment", "blackbox-exporter"))
+          check(dep is not None, "blackbox-exporter Deployment missing")
+          ann = dep["spec"]["template"]["metadata"].get("annotations", {})
+          digest = hashlib.sha256(
+              cm["data"]["blackbox.yml"].encode("utf-8")).hexdigest()
+          check(ann.get("checksum/blackbox-exporter-config") == digest,
+                "checksum/blackbox-exporter-config must equal sha256 of blackbox.yml")
+
+          probes = {d["metadata"]["name"]: d for d in docs
+                    if d.get("kind") == "Probe"}
+          status = probes.get("status-endpoints")
+          check(status is not None, "status-endpoints Probe missing")
+          if status:
+              check(status["spec"].get("module") == "http_2xx",
+                    "status-endpoints module must remain http_2xx")
+              check(status["spec"].get("interval") == "30s",
+                    "status-endpoints interval must remain 30s")
+              check(status["spec"]["targets"]["staticConfig"]["static"] == [
+                  "https://argocd.makeitwork.cloud",
+                  "https://grafana.makeitwork.cloud",
+                  "https://status.makeitwork.cloud"],
+                  "status-endpoints targets must be unchanged")
+          expected_probes = {
+              "opencode-internal-auth-boundary": (
+                  "internal", "http://opencode.opencode.svc:4096/global/health"),
+              "opencode-external-auth-boundary": (
+                  "external", "https://opencode.makeitwork.cloud/global/health"),
+          }
+          check(set(expected_probes) <= set(probes),
+                "both auth-boundary Probes must exist")
+          for name, (path_label, url) in expected_probes.items():
+              p = probes.get(name)
+              if not p:
+                  continue
+              check(p["metadata"].get("namespace") == "grafana",
+                    "%s namespace must be grafana" % name)
+              labels = p["metadata"].get("labels", {})
+              check(labels.get("application") == "opencode"
+                    and labels.get("probe_path") == path_label,
+                    "%s metadata labels must be application=opencode probe_path=%s"
+                    % (name, path_label))
+              spec = p["spec"]
+              check(spec.get("interval") == "30s", "%s interval must be 30s" % name)
+              check(spec.get("scrapeTimeout") == "10s",
+                    "%s scrapeTimeout must be 10s" % name)
+              check(spec.get("module") == "http_opencode_auth_boundary",
+                    "%s module must be http_opencode_auth_boundary" % name)
+              check(spec.get("jobName") == name,
+                    "%s jobName must match the Probe name" % name)
+              check(spec.get("prober") == {
+                  "path": "/probe", "url": "blackbox-exporter.grafana.svc:9115"},
+                  "%s prober must be blackbox-exporter.grafana.svc:9115 /probe" % name)
+              static_cfg = spec["targets"]["staticConfig"]
+              check(static_cfg["static"] == [url],
+                    "%s target must be exactly %s" % (name, url))
+              check(static_cfg.get("labels") == {
+                  "application": "opencode", "probe_path": path_label},
+                  "%s target labels must be application=opencode probe_path=%s"
+                  % (name, path_label))
+
+          dash_doc = yaml.safe_load(
+              Path("workloads/grafana/opencode-dashboard.yaml").read_text())
+          check(dash_doc.get("kind") == "GrafanaDashboard", "dashboard kind")
+          check(dash_doc["metadata"].get("name") == "opencode-sessions",
+                "dashboard name must be opencode-sessions")
+          dash = json.loads(dash_doc["spec"]["json"])
+          check(dash.get("uid") == "opencode-sessions",
+                "dashboard uid must remain opencode-sessions")
+          panels = dash.get("panels", [])
+          ids = [p.get("id") for p in panels]
+          check(len(ids) == len(set(ids)), "dashboard panel ids must be unique")
+          check(sorted(ids) == list(range(1, 23)),
+                "dashboard must contain exactly panels 1..22")
+          grid = [(p["gridPos"]["x"], p["gridPos"]["y"],
+                   p["gridPos"]["w"], p["gridPos"]["h"]) for p in panels]
+          check(len(grid) == len(set(grid)),
+                "dashboard panel grid positions must be unique")
+          for p in panels:
+              targets = p.get("targets") or []
+              check(bool(targets), "panel %s must have targets" % p.get("id"))
+              for t in targets:
+                  check(t.get("datasource", {}).get("uid") == "prometheus",
+                        "panel %s datasource uid must be prometheus" % p.get("id"))
+                  check(isinstance(t.get("expr"), str) and t["expr"].strip(),
+                        "panel %s must have a non-empty metric expression" % p.get("id"))
+
+          by_id = {p.get("id"): p for p in panels}
+          psi_exprs = " ".join(
+              t.get("expr", "") for t in by_id.get(17, {}).get("targets", []))
+          for metric in ("node_pressure_cpu_waiting_seconds_total",
+                         "node_pressure_memory_stalled_seconds_total",
+                         "node_pressure_io_stalled_seconds_total"):
+              check(metric in psi_exprs,
+                    "panel 17 must use exporter PSI metric %s" % metric)
+          check("_full_stalled" not in psi_exprs,
+                "panel 17 must not use nonexistent *_full_stalled PSI metric names")
+          for pid in (20, 21, 22):
+              for t in by_id.get(pid, {}).get("targets", []):
+                  check("probe_path" in (t.get("legendFormat") or ""),
+                        "panel %s legend must bind the probe_path label" % pid)
+
+          if errors:
+              for e in errors:
+                  print("OPENCODE-OBS-INVALID: %s" % e)
+              sys.exit(1)
+          print("OK: OpenCode dashboard and auth-boundary probe contract verified")
+          EOF
+
       # Guard the staged opencode-memory-pilot evaluation: minimal overlay,
       # fixed Application/values contract, and inactivity until the
       # owner-confirmed activation PR.
