@@ -65,11 +65,6 @@ jobs:
           print(f"OK: all kustomization references resolve across {len(files)} kustomizations")
           EOF
 
-      # Guard the OpenCode observability contract: dashboard JSON shape and
-      # the blackbox auth-boundary module/Probe wiring, including the
-      # exporter reload checksum annotation. Uses only the pinned PyYAML
-      # installed above and stdlib json/hashlib; no cluster, secret, or
-      # network access.
       - name: Validate OpenCode dashboard and auth-boundary probes
         run: |
           python - <<'EOF'
@@ -84,8 +79,11 @@ jobs:
           docs = [d for d in yaml.safe_load_all(
               Path("workloads/grafana/status-monitoring.yaml").read_text())
               if isinstance(d, dict)]
-          by_kind_name = {
-              (d.get("kind"), d.get("metadata", {}).get("name")): d for d in docs}
+          kind_names = [(d.get("kind"), d.get("metadata", {}).get("name"))
+                        for d in docs]
+          check(len(kind_names) == len(set(kind_names)),
+                "status-monitoring documents must have unique kind/name")
+          by_kind_name = dict(zip(kind_names, docs))
 
           cm = by_kind_name.get(("ConfigMap", "blackbox-exporter-config"))
           check(cm is not None, "blackbox-exporter-config ConfigMap missing")
@@ -148,7 +146,7 @@ jobs:
               labels = p["metadata"].get("labels", {})
               check(labels.get("application") == "opencode"
                     and labels.get("probe_path") == path_label,
-                    "%s labels must be application=opencode probe_path=%s"
+                    "%s metadata labels must be application=opencode probe_path=%s"
                     % (name, path_label))
               spec = p["spec"]
               check(spec.get("interval") == "30s", "%s interval must be 30s" % name)
@@ -161,8 +159,13 @@ jobs:
               check(spec.get("prober") == {
                   "path": "/probe", "url": "blackbox-exporter.grafana.svc:9115"},
                   "%s prober must be blackbox-exporter.grafana.svc:9115 /probe" % name)
-              check(spec["targets"]["staticConfig"]["static"] == [url],
+              static_cfg = spec["targets"]["staticConfig"]
+              check(static_cfg["static"] == [url],
                     "%s target must be exactly %s" % (name, url))
+              check(static_cfg.get("labels") == {
+                  "application": "opencode", "probe_path": path_label},
+                  "%s target labels must be application=opencode probe_path=%s"
+                  % (name, path_label))
 
           dash_doc = yaml.safe_load(
               Path("workloads/grafana/opencode-dashboard.yaml").read_text())
@@ -189,6 +192,21 @@ jobs:
                         "panel %s datasource uid must be prometheus" % p.get("id"))
                   check(isinstance(t.get("expr"), str) and t["expr"].strip(),
                         "panel %s must have a non-empty metric expression" % p.get("id"))
+
+          by_id = {p.get("id"): p for p in panels}
+          psi_exprs = " ".join(
+              t.get("expr", "") for t in by_id.get(17, {}).get("targets", []))
+          for metric in ("node_pressure_cpu_waiting_seconds_total",
+                         "node_pressure_memory_stalled_seconds_total",
+                         "node_pressure_io_stalled_seconds_total"):
+              check(metric in psi_exprs,
+                    "panel 17 must use exporter PSI metric %s" % metric)
+          check("_full_stalled" not in psi_exprs,
+                "panel 17 must not use nonexistent *_full_stalled PSI metric names")
+          for pid in (20, 21, 22):
+              for t in by_id.get(pid, {}).get("targets", []):
+                  check("probe_path" in (t.get("legendFormat") or ""),
+                        "panel %s legend must bind the probe_path label" % pid)
 
           if errors:
               for e in errors:

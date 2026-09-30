@@ -132,6 +132,9 @@ spec:
     staticConfig:
       static:
         - http://opencode.opencode.svc:4096/global/health
+      labels:
+        application: opencode
+        probe_path: internal
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: Probe
@@ -155,3 +158,6 @@ spec:
     staticConfig:
       static:
         - https://opencode.makeitwork.cloud/global/health
+      labels:
+        application: opencode
+        probe_path: external
