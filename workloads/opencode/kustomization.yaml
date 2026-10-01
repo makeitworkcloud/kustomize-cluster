@@ -17,7 +17,12 @@ patches:
       kind: Deployment
       name: opencode-session-metrics
     patch: |-
-      - op: add
-        path: /spec/template/metadata/annotations
-        value:
-          opencode.makeitwork.cloud/config-revision: token-telemetry-v1
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: opencode-session-metrics
+      spec:
+        template:
+          metadata:
+            annotations:
+              opencode.makeitwork.cloud/config-revision: token-telemetry-v1
