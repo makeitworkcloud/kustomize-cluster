@@ -158,7 +158,7 @@ jobs:
                     "%s jobName must match the Probe name" % name)
               check(spec.get("prober") == {
                   "path": "/probe", "url": "blackbox-exporter.grafana.svc:9115"},
-                    "%s prober must be blackbox-exporter.grafana.svc:9115 /probe" % name)
+                "%s prober must be blackbox-exporter.grafana.svc:9115 /probe" % name)
               static_cfg = spec["targets"]["staticConfig"]
               check(static_cfg["static"] == [url],
                     "%s target must be exactly %s" % (name, url))
@@ -322,6 +322,7 @@ jobs:
                   self.module = build_module()
                   self.clock = FakeClock()
                   self.module.time = self.clock
+                  self.real_fetch_usage_page = self.module.fetch_usage_page
               def scan(self, api):
                   self.module.fetch_usage_page = api
                   self.module.poll_usage()
@@ -402,6 +403,7 @@ jobs:
                   self.setUp()
                   before = self.seed()
                   self.module.usage_opener = RecordingOpener(TrickleResponse(self.clock))
+                  self.module.fetch_usage_page = self.real_fetch_usage_page
                   self.module.poll_usage()
                   self.assert_down(self.module.state, before, 1, 0)
               def test_multichunk_body_decodes_only_at_eof(self):
@@ -420,6 +422,7 @@ jobs:
                       return responses.pop(0)
                   opener.open = queued_open
                   self.module.usage_opener = opener
+                  self.module.fetch_usage_page = self.real_fetch_usage_page
                   self.module.poll_usage()
                   state = self.module.state
                   self.assertEqual((state["usage_up"], state["usage_scan_pages"],
@@ -434,6 +437,7 @@ jobs:
                       return chunk
                   slow.read1 = slow_read1
                   self.module.usage_opener = RecordingOpener(slow)
+                  self.module.fetch_usage_page = self.real_fetch_usage_page
                   self.module.poll_usage()
                   self.assert_down(self.module.state, before, 1, 0)
 
@@ -508,6 +512,7 @@ jobs:
                           if name == "body-cap":
                               self.module.MAX_RESPONSE_BYTES = 1024
                           self.module.usage_opener = RecordingOpener(StaticResponse(body))
+                          self.module.fetch_usage_page = self.real_fetch_usage_page
                           self.module.poll_usage()
                           self.assert_down(self.module.state, before, 0, 1)
                   self.setUp()
@@ -541,7 +546,8 @@ jobs:
                   self.scan(failure)
                   self.assertEqual(
                       self.module.state["usage_baselines"]["synthetic-b"]["missed"], 1)
-                  state = self.scan(FakeUsageApi([make_row("synthetic-a", base + 700, input=70)]))
+                  state = self.scan(FakeUsageApi(
+                      [make_row("synthetic-a", base + 700, input=70, output=60)]))
                   self.assertNotIn("synthetic-b", state["usage_baselines"])
                   self.assertEqual((state["usage_totals"]["input"],
                                     state["usage_totals"]["output"]), (20.0, 10.0))
@@ -686,7 +692,11 @@ jobs:
                           self.assertNotIn("or vector(0)", target["expr"])
 
           if __name__ == "__main__":
-              unittest.main(verbosity=2)
+              def forbid_live_network(*args, **kwargs):
+                  raise AssertionError("live network forbidden in exporter CI")
+              with mock.patch.object(urllib.request, "urlopen", forbid_live_network), \
+                      mock.patch.object(urllib.request.OpenerDirector, "open", forbid_live_network):
+                  unittest.main(verbosity=2)
           EOF
 
       # Guard the staged opencode-memory-pilot evaluation: minimal overlay,
