@@ -405,7 +405,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/opencode-session-metrics: pending
+        checksum/opencode-session-metrics: 785966ebb24aeaf5bcebcdeeceea0d0f3549ad5ea46a524cac7411e7382f0843
       labels:
         app.kubernetes.io/name: opencode-session-metrics
     spec:
