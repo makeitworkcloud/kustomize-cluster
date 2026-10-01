@@ -138,3 +138,39 @@ root and child revisions, `Synced`, `Healthy`, resource tree, controller rollout
 pods, events, bounded logs, persistent-data behavior, and the functional
 endpoint. Record any emergency action and follow-up fix in the canonical Git
 history.
+
+## Verify an OpenCode usage-exporter change
+
+This is a cluster-overlay change, not an OpenCode chart publication. After a
+separately approved merge, use authorized Argo CD, Kubernetes, and Grafana access:
+
+1. Verify the tested Git revision on `gitops-workloads` and the `opencode` child,
+   plus `Synced`/`Healthy`. Verify the `grafana` child separately; its dashboard
+   overlay reconciles independently, not through a cross-Application sync wave.
+2. Confirm the exporter rollout and expected `checksum/opencode-session-metrics`
+   pod-template annotation. Check Ready pods, unchanged image/Secret references,
+   unchanged OpenCode chart/server pins, and no unexpected server-pod replacement.
+3. Check `up{job="opencode-session-metrics"}` and
+   `opencode_session_usage_scan_up` are 1, truncation is 0, and the last-success
+   timestamp is positive and fresh. Check the baseline timestamp, scan pages,
+   session coverage, duration, and stable errors. Coverage need not exceed 1,000
+   if the dataset does not; an exactly-full final page without a continuation
+   header is valid. The 15-second scan budget is soft, not a hard HTTP deadline.
+4. Expect token panels to show **No data** during failed/stale collection and
+   until five-minute rate or one-hour stat warmup completes. Stat queries are
+   instant so they cannot retain an older healthy value as the current result.
+   After passive normal usage, verify growth for previously observed sessions;
+   do not create paid inference traffic merely to force a signal. First-seen
+   sessions are baselined without historical credit. Zero in a valid window means
+   no observed growth, not proof that all sessions were idle or consumed no tokens.
+5. Do not dump session API responses, identifiers, titles, prompts, directories,
+   or credentials. Inspect aggregate metrics instead. On failure, compare health,
+   truncation/errors and budgets with the release-specific contract; do not delete
+   sessions, patch collector state, or raise bounds blindly.
+
+Re-verify the native pagination contract on server upgrades: this repair uses
+OpenCode 1.18.29's array response and timestamp continuation header, not the newer
+v2 Page envelope. See the pinned [upstream handler](https://github.com/anomalyco/opencode/blob/16747470f976aca3d362ad730bcd3fe82ecc2c9a/packages/opencode/src/server/routes/instance/httpapi/handlers/experimental.ts).
+A separately reviewed Git revert restores the prior collector/dashboard behavior;
+exporter replacement resets in-memory baselines and counters. Source, static CI,
+reconciliation, pod health, and observed token growth remain separate proof stages.

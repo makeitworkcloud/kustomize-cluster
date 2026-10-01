@@ -215,6 +215,490 @@ jobs:
           print("OK: OpenCode dashboard and auth-boundary probe contract verified")
           EOF
 
+      - name: Test OpenCode session usage pagination contract
+        run: |
+          python - <<'EOF'
+          import hashlib, json, math, os, types, unittest, urllib.request
+          from pathlib import Path
+          from unittest import mock
+
+          import yaml
+
+          DOCS = [d for d in yaml.safe_load_all(Path("workloads/opencode/session-metrics.yaml").read_text())
+                  if isinstance(d, dict)]
+          CONFIG_MAP = next(d for d in DOCS if d.get("kind") == "ConfigMap")
+          DEPLOYMENT = next(d for d in DOCS if d.get("kind") == "Deployment")
+          EXPORTER_SOURCE = CONFIG_MAP["data"]["exporter.py"]
+          METRIC_NAMES = set((
+              "opencode_session_status_up opencode_active_sessions "
+              "opencode_session_status_last_success_timestamp_seconds "
+              "opencode_session_status_poll_errors_total opencode_llm_tokens_total "
+              "opencode_session_usage_scan_up "
+              "opencode_session_usage_scan_last_success_timestamp_seconds "
+              "opencode_session_usage_scan_errors_total "
+              "opencode_session_usage_scan_truncated opencode_session_usage_projects "
+              "opencode_session_usage_sessions opencode_session_usage_baseline_timestamp_seconds "
+              "opencode_session_usage_scan_pages opencode_session_usage_scan_duration_seconds"
+          ).split())
+
+          def build_module():
+              module = types.ModuleType("exporter_under_test")
+              env = {"SESSION_LIST_LIMIT": "1000", "MAX_USAGE_SCAN_PAGES": "20",
+                     "MAX_USAGE_SCAN_SESSIONS": "10000", "USAGE_SCAN_TIMEOUT_SECONDS": "15",
+                     "MAX_RESPONSE_BYTES": "4194304", "REQUEST_TIMEOUT_SECONDS": "5"}
+              with mock.patch.dict(os.environ, env):
+                  exec(compile(EXPORTER_SOURCE, "exporter.py", "exec"), module.__dict__)
+              return module
+
+          class FakeClock:
+              def __init__(self, wall=1700000000.0):
+                  self.wall, self.mono = wall, 1000.0
+              def time(self):
+                  return self.wall
+              def monotonic(self):
+                  return self.mono
+
+          def make_row(session_id, updated, project_id="proj-alpha", **kinds):
+              return {
+                  "id": session_id, "projectID": project_id, "time": {"updated": updated},
+                  "tokens": {"input": kinds.get("input", 0), "output": kinds.get("output", 0),
+                             "reasoning": kinds.get("reasoning", 0),
+                             "cache": {"read": kinds.get("cache_read", 0),
+                                       "write": kinds.get("cache_write", 0)}},
+                  "title": "Synthetic Title", "directory": "/synthetic/worktree",
+                  "provider": "synthetic-provider", "model": "synthetic-model",
+              }
+
+          class FakeUsageApi:
+              def __init__(self, rows):
+                  self.rows = sorted(rows, key=lambda r: (r["time"]["updated"], r["id"]), reverse=True)
+                  self.calls = []
+              def __call__(self, limit, cursor, budget_check):
+                  self.calls.append((limit, cursor))
+                  filtered = [r for r in self.rows if cursor is None or r["time"]["updated"] < cursor]
+                  page = [dict(r) for r in filtered[:limit]]
+                  return page, (str(page[-1]["time"]["updated"]) if len(filtered) > limit else None)
+
+          class StaticResponse:
+              def __init__(self, body, status=200, headers=None):
+                  self.body, self.status, self.offset = (
+                      body if isinstance(body, bytes) else body.encode()), status, 0
+                  self.headers = dict(headers or {})
+              def read1(self, size):
+                  chunk = self.body[self.offset:self.offset + size]
+                  self.offset = min(self.offset + size, len(self.body))
+                  return chunk
+              def __enter__(self):
+                  return self
+              def __exit__(self, *args):
+                  return False
+
+          class TrickleResponse(StaticResponse):
+              def __init__(self, clock):
+                  StaticResponse.__init__(self, b"x")
+                  self.clock = clock
+              def read1(self, size):
+                  self.clock.mono += 2.0
+                  return b"x"
+
+          class RecordingOpener:
+              def __init__(self, response):
+                  self.response, self.requests = response, []
+              def open(self, request, timeout=None):
+                  self.requests.append((request.full_url, dict(request.header_items())))
+                  return self.response
+
+          def snapshot(module):
+              with module.state_lock:
+                  return (dict(module.state["usage_totals"]),
+                          {k: (dict(v["tokens"]), v["missed"])
+                           for k, v in module.state["usage_baselines"].items()},
+                          module.state["usage_last_success"], module.state["usage_baseline_ts"],
+                          module.state["usage_scan_pages"], module.state["usage_projects"],
+                          module.state["usage_sessions"], module.state["usage_initialized"])
+
+          class ExporterTestCase(unittest.TestCase):
+              def setUp(self):
+                  self.module = build_module()
+                  self.clock = FakeClock()
+                  self.module.time = self.clock
+                  self.real_fetch_usage_page = self.module.fetch_usage_page
+              def scan(self, api):
+                  self.module.fetch_usage_page = api
+                  self.module.poll_usage()
+                  return self.module.state
+              def seed(self):
+                  self.scan(FakeUsageApi([make_row("synthetic-seed-a", 1400000000500, input=5),
+                                          make_row("synthetic-seed-b", 1400000000400, input=6)]))
+                  return snapshot(self.module)
+              def assert_down(self, state, before, truncated, errors):
+                  self.assertEqual((state["usage_up"], state["usage_scan_truncated"],
+                                    state["usage_scan_errors"]), (0, truncated, errors))
+                  self.assertEqual(snapshot(self.module), before)
+
+          class TestPaging(ExporterTestCase):
+              def test_two_pages_baseline_then_deltas(self):
+                  base = 1700000000000
+                  api = FakeUsageApi([make_row("synthetic-session-%04d" % i, base + i,
+                                               project_id="proj-alpha" if i % 2 else "proj-beta")
+                                      for i in range(1501)])
+                  state = self.scan(api)
+                  self.assertEqual((state["usage_up"], state["usage_scan_pages"],
+                                    state["usage_sessions"], state["usage_projects"],
+                                    sum(state["usage_totals"].values())), (1, 2, 1501, 2, 0.0))
+                  rows = [make_row("synthetic-session-%04d" % i, base + 10000 + i, input=3)
+                          for i in range(1501)]
+                  rows.append(make_row("synthetic-session-new", base + 20000, input=10 ** 9))
+                  self.clock.wall += 30.0
+                  state = self.scan(FakeUsageApi(rows))
+                  self.assertEqual((state["usage_totals"]["input"], state["usage_sessions"]),
+                                   (1501 * 3, 1502))
+              def test_exact_full_page_without_header_completes(self):
+                  api = FakeUsageApi([make_row("synthetic-full-%04d" % i, 1600000000000 + i)
+                                      for i in range(1000)])
+                  state = self.scan(api)
+                  self.assertEqual((state["usage_up"], state["usage_scan_pages"],
+                                    state["usage_sessions"]), (1, 1, 1000))
+              def test_tie_overlap_expands_limit_without_double_count(self):
+                  updated = 1500000000000
+                  api = FakeUsageApi([make_row("synthetic-tie-%04d" % i, updated, output=10)
+                                      for i in range(2500)])
+                  state = self.scan(api)
+                  self.assertEqual((state["usage_scan_pages"], state["usage_sessions"],
+                                    sum(state["usage_totals"].values())), (4, 2500, 0.0))
+                  self.assertEqual([call[0] for call in api.calls], [1000, 1000, 2000, 4000])
+                  state = self.scan(FakeUsageApi(
+                      [make_row("synthetic-tie-%04d" % i, updated, output=15)
+                       for i in range(2500)]))
+                  self.assertEqual((state["usage_totals"]["output"], state["usage_sessions"]),
+                                   (12500, 2500))
+
+          class TestBounds(ExporterTestCase):
+              def assert_incomplete(self, api, before):
+                  self.assert_down(self.scan(api), before, 1, 0)
+              def test_configured_bounds_fail_incomplete_atomic(self):
+                  cases = [("tie-group-too-large", {"MAX_USAGE_SCAN_SESSIONS": 1500}, True, 2500),
+                           ("unique-session-bound", {"MAX_USAGE_SCAN_SESSIONS": 100}, False, 150),
+                           ("page-bound", {"MAX_USAGE_SCAN_PAGES": 2}, False, 2500)]
+                  for name, overrides, tie, count in cases:
+                      with self.subTest(bound=name):
+                          self.setUp()
+                          for key, value in overrides.items():
+                              setattr(self.module, key, value)
+                          before = self.seed()
+                          updated = 1500000000000
+                          rows = [make_row("synthetic-%04d" % i,
+                                           updated if tie else updated + i)
+                                  for i in range(count)]
+                          self.assert_incomplete(FakeUsageApi(rows), before)
+              def test_soft_time_budget_and_trickle_incomplete_atomic(self):
+                  before = self.seed()
+                  api = FakeUsageApi([make_row("synthetic-budget-%04d" % i, 1500000000000 + i)
+                                      for i in range(1500)])
+                  def slow_fetch(limit, cursor, budget_check):
+                      result = api(limit, cursor, budget_check)
+                      self.clock.mono += 16.0
+                      return result
+                  self.assert_incomplete(slow_fetch, before)
+                  self.setUp()
+                  before = self.seed()
+                  self.module.usage_opener = RecordingOpener(TrickleResponse(self.clock))
+                  self.module.fetch_usage_page = self.real_fetch_usage_page
+                  self.module.poll_usage()
+                  self.assert_down(self.module.state, before, 1, 0)
+              def test_multichunk_body_decodes_only_at_eof(self):
+                  rows = [dict(r, title="Synthetic " + "x" * 112)
+                          for r in (make_row("synthetic-mc-%04d" % i, 1500000000000 - i)
+                                    for i in range(1501))]
+                  page_one, page_two = rows[:1000], rows[999:]
+                  responses = [
+                      StaticResponse(json.dumps(page_one).encode(),
+                                     headers={"x-next-cursor": str(page_one[-1]["time"]["updated"])}),
+                      StaticResponse(json.dumps(page_two).encode()),
+                  ]
+                  opener = RecordingOpener(None)
+                  def queued_open(request, timeout=None):
+                      opener.requests.append(request.full_url)
+                      return responses.pop(0)
+                  opener.open = queued_open
+                  self.module.usage_opener = opener
+                  self.module.fetch_usage_page = self.real_fetch_usage_page
+                  self.module.poll_usage()
+                  state = self.module.state
+                  self.assertEqual((state["usage_up"], state["usage_scan_pages"],
+                                    state["usage_sessions"]), (1, 2, 1501))
+                  self.setUp()
+                  before = self.seed()
+                  slow = StaticResponse(json.dumps(rows[:900]).encode())
+                  def slow_read1(size):
+                      chunk = StaticResponse.read1(slow, size)
+                      if not chunk:
+                          self.clock.mono += 16.0
+                      return chunk
+                  slow.read1 = slow_read1
+                  self.module.usage_opener = RecordingOpener(slow)
+                  self.module.fetch_usage_page = self.real_fetch_usage_page
+                  self.module.poll_usage()
+                  self.assert_down(self.module.state, before, 1, 0)
+
+          class TestProtocolFailures(ExporterTestCase):
+              def static_api(self, page, header=None):
+                  return lambda limit, cursor, budget_check: (page, header)
+              def full_page(self):
+                  return [make_row("synthetic-page-%04d" % i, 1000 - i) for i in range(1000)]
+              def test_row_schema_failures_error_atomic(self):
+                  def api_for(mutate):
+                      row = make_row("synthetic-bad", 500)
+                      mutate(row)
+                      return self.static_api([row])
+                  cases = [
+                      ("non-array", lambda: self.static_api({"unexpected": True})),
+                      ("non-dict-entry", lambda: self.static_api(["unexpected"])),
+                      ("missing-id", lambda: api_for(lambda r: r.pop("id"))),
+                      ("empty-id", lambda: api_for(lambda r: r.__setitem__("id", ""))),
+                      ("missing-project-id", lambda: api_for(lambda r: r.pop("projectID"))),
+                      ("missing-time", lambda: api_for(lambda r: r.pop("time"))),
+                      ("bool-timestamp", lambda: api_for(lambda r: r.__setitem__("time", {"updated": True}))),
+                      ("float-timestamp", lambda: api_for(lambda r: r.__setitem__("time", {"updated": 500.5}))),
+                      ("negative-timestamp", lambda: api_for(lambda r: r.__setitem__("time", {"updated": -1}))),
+                      ("missing-tokens", lambda: api_for(lambda r: r.pop("tokens"))),
+                      ("missing-input-token", lambda: api_for(lambda r: r["tokens"].pop("input"))),
+                      ("missing-cache-tokens", lambda: api_for(lambda r: r["tokens"].pop("cache"))),
+                      ("nan-token", lambda: api_for(lambda r: r["tokens"].__setitem__("input", float("nan")))),
+                      ("bool-token", lambda: api_for(lambda r: r["tokens"]["cache"].__setitem__("read", True))),
+                      ("negative-token", lambda: api_for(lambda r: r["tokens"].__setitem__("output", -3))),
+                      ("string-token", lambda: api_for(lambda r: r["tokens"].__setitem__("reasoning", "many"))),
+                  ]
+                  for name, make_api in cases:
+                      with self.subTest(case=name):
+                          self.setUp()
+                          before = self.seed()
+                          self.assert_down(self.scan(make_api()), before, 0, 1)
+              def test_page_protocol_failures_error_atomic(self):
+                  api = FakeUsageApi(self.full_page() + [make_row("synthetic-zero", 0)])
+                  def cursor_violation(limit, cursor, budget_check):
+                      if cursor is None:
+                          return api(limit, None, budget_check)
+                      return [make_row("synthetic-late", 999)], None
+                  cases = [
+                      ("page-ordering", self.static_api(
+                          [make_row("synthetic-a", 300), make_row("synthetic-b", 200),
+                           make_row("synthetic-c", 250)])),
+                      ("cursor-filter", cursor_violation),
+                      ("header-on-partial-page", self.static_api([make_row("synthetic-a", 50)], "50")),
+                      ("header-mismatch", self.static_api(self.full_page(), "500")),
+                      ("header-malformed", self.static_api(self.full_page(), "12x4")),
+                      ("header-negative", self.static_api(self.full_page(), "-1")),
+                      ("header-float", self.static_api(self.full_page(), "1.5")),
+                  ]
+                  for name, case_api in cases:
+                      with self.subTest(case=name):
+                          self.setUp()
+                          before = self.seed()
+                          self.assert_down(self.scan(case_api), before, 0, 1)
+              def test_body_cap_json_overflow_partial_error_atomic(self):
+                  self.scan(FakeUsageApi([make_row("synthetic-a", 1300000000500),
+                                          make_row("synthetic-b", 1300000000400)]))
+                  before = snapshot(self.module)
+                  state = self.scan(FakeUsageApi(
+                      [make_row("synthetic-a", 1300000000600, input=1.7e308),
+                       make_row("synthetic-b", 1300000000500, input=1.7e308)]))
+                  self.assert_down(state, before, 0, 1)
+                  for name, body in (("body-cap", b"z" * 4096),
+                                     ("malformed-json", b"{"), ("empty-body", b"")):
+                      with self.subTest(case=name):
+                          self.setUp()
+                          before = self.seed()
+                          if name == "body-cap":
+                              self.module.MAX_RESPONSE_BYTES = 1024
+                          self.module.usage_opener = RecordingOpener(StaticResponse(body))
+                          self.module.fetch_usage_page = self.real_fetch_usage_page
+                          self.module.poll_usage()
+                          self.assert_down(self.module.state, before, 0, 1)
+                  self.setUp()
+                  base = 1300000000000
+                  self.scan(FakeUsageApi([make_row("synthetic-f-%04d" % i, base + i)
+                                          for i in range(1501)]))
+                  before = snapshot(self.module)
+                  api = FakeUsageApi([make_row("synthetic-f-%04d" % i, base + 10000 + i, input=4)
+                                      for i in range(1501)])
+                  calls = []
+                  def fail_on_second_page(limit, cursor, budget_check):
+                      calls.append(1)
+                      if len(calls) > 1:
+                          raise RuntimeError("synthetic failure")
+                      return api(limit, cursor, budget_check)
+                  self.assert_down(self.scan(fail_on_second_page), before, 0, 1)
+
+          class TestLifecycle(ExporterTestCase):
+              def test_miss_prune_reappear_regression_history(self):
+                  base = 1300000000000
+                  self.scan(FakeUsageApi([make_row("synthetic-a", base + 500, input=100, output=50),
+                                          make_row("synthetic-b", base + 400, input=20)]))
+                  state = self.scan(FakeUsageApi(
+                      [make_row("synthetic-a", base + 600, input=50, output=60)]))
+                  self.assertEqual((state["usage_totals"]["input"],
+                                    state["usage_totals"]["output"],
+                                    state["usage_sessions"]), (0.0, 10.0, 1))
+                  self.assertEqual(state["usage_baselines"]["synthetic-b"]["missed"], 1)
+                  def failure(limit, cursor, budget_check):
+                      raise RuntimeError("synthetic failure")
+                  self.scan(failure)
+                  self.assertEqual(
+                      self.module.state["usage_baselines"]["synthetic-b"]["missed"], 1)
+                  state = self.scan(FakeUsageApi(
+                      [make_row("synthetic-a", base + 700, input=70, output=60)]))
+                  self.assertNotIn("synthetic-b", state["usage_baselines"])
+                  self.assertEqual((state["usage_totals"]["input"],
+                                    state["usage_totals"]["output"]), (20.0, 10.0))
+                  state = self.scan(FakeUsageApi(
+                      [make_row("synthetic-a", base + 800, input=90, output=65),
+                       make_row("synthetic-b", base + 500, input=120)]))
+                  self.assertEqual((state["usage_totals"]["input"],
+                                    state["usage_totals"]["output"]), (40.0, 15.0))
+                  state = self.scan(FakeUsageApi(
+                      [make_row("synthetic-a", base + 900, input=95, output=65),
+                       make_row("synthetic-b", base + 600, input=130)]))
+                  self.assertEqual((state["usage_totals"]["input"],
+                                    state["usage_totals"]["output"]), (55.0, 15.0))
+              def test_restart_and_baseline_timestamp_set_once(self):
+                  base = 1200000000000
+                  self.scan(FakeUsageApi([make_row("synthetic-old", base, input=777)]))
+                  first = self.module.state["usage_baseline_ts"]
+                  self.clock.wall += 45.0
+                  state = self.scan(FakeUsageApi(
+                      [make_row("synthetic-old", base + 10, input=778)]))
+                  self.assertEqual((state["usage_baseline_ts"], state["usage_last_success"]),
+                                   (first, self.clock.wall))
+                  restarted = build_module()
+                  restarted.time = FakeClock(wall=1800000000.0)
+                  restarted.fetch_usage_page = FakeUsageApi(
+                      [make_row("synthetic-old", base + 20, input=999)])
+                  restarted.poll_usage()
+                  self.assertEqual((restarted.state["usage_initialized"],
+                                    restarted.state["usage_baseline_ts"],
+                                    restarted.state["usage_totals"]["input"]),
+                                   (True, 1800000000.0, 0.0))
+
+          class TestGuards(ExporterTestCase):
+              def test_overlapping_poll_skipped(self):
+                  api = FakeUsageApi([make_row("synthetic-skip", 1100000000000)])
+                  self.module.fetch_usage_page = api
+                  self.module.poll_usage()
+                  self.assertEqual(self.module.state["usage_up"], 1)
+                  self.module.usage_scan_lock.acquire(blocking=False)
+                  self.module.poll_usage()
+                  self.module.usage_scan_lock.release()
+                  self.assertEqual(len(api.calls), 1)
+              def test_redirect_rejected_credentials_not_forwarded(self):
+                  opener = RecordingOpener(StaticResponse(b"[]", status=302, headers={
+                      "Location": "http://synthetic-elsewhere/session",
+                      "Link": '</synthetic-next>; rel="next"'}))
+                  self.module.usage_opener = opener
+                  self.module.poll_usage()
+                  self.assertEqual(len(opener.requests), 1)
+                  url, headers = opener.requests[0]
+                  self.assertEqual(url, "http://opencode.opencode.svc:4096/experimental/session"
+                                       "?archived=true&limit=1000")
+                  authorization = {k.lower(): v for k, v in headers.items()}.get("authorization", "")
+                  self.assertTrue(authorization.startswith("Basic "))
+                  self.assertEqual((self.module.state["usage_up"],
+                                    self.module.state["usage_scan_errors"]), (0, 1))
+                  handler_request = urllib.request.Request("http://opencode.opencode.svc:4096/session")
+                  self.assertIsNone(self.module._NoRedirect().redirect_request(
+                      handler_request, None, 302, "Found", {}, "http://synthetic-elsewhere/session"))
+              def test_metrics_privacy_and_export_names(self):
+                  first = FakeUsageApi([
+                      make_row("synthetic-p1", 1100000000001, input=3, project_id="proj-alpha"),
+                      make_row("synthetic-p2", 1100000000000, cache_read=4, project_id="proj-beta")])
+                  second = FakeUsageApi([
+                      make_row("synthetic-p1", 1100000000002, input=5, project_id="proj-alpha"),
+                      make_row("synthetic-p2", 1100000000001, cache_read=6, project_id="proj-beta")])
+                  self.scan(first)
+                  self.scan(second)
+                  body = self.module.metrics_body().decode()
+                  for forbidden in ("synthetic", "Synthetic", "proj-alpha", "proj-beta", "Basic "):
+                      self.assertNotIn(forbidden, body)
+                  names, labels = set(), set()
+                  for line in body.splitlines():
+                      if line and not line.startswith("#"):
+                          names.add(line.split("{", 1)[0].split(" ", 1)[0])
+                          if "{" in line:
+                              labels.update(part.split("=", 1)[0]
+                                            for part in line[line.index("{") + 1:line.index("}")].split(","))
+                  self.assertEqual(names, METRIC_NAMES)
+                  self.assertEqual(labels, {"kind", "state"})
+
+          class TestContracts(unittest.TestCase):
+              def test_deployment_and_checksum_contract(self):
+                  container = next(c for c in DEPLOYMENT["spec"]["template"]["spec"]["containers"]
+                                   if c["name"] == "exporter")
+                  env = {item["name"]: item.get("value")
+                         for item in container["env"] if "value" in item}
+                  for name, value in (("SESSION_LIST_LIMIT", "1000"),
+                                      ("REQUEST_TIMEOUT_SECONDS", "5"),
+                                      ("MAX_USAGE_SCAN_PAGES", "20"),
+                                      ("MAX_USAGE_SCAN_SESSIONS", "10000"),
+                                      ("USAGE_SCAN_TIMEOUT_SECONDS", "15"),
+                                      ("MAX_RESPONSE_BYTES", "4194304")):
+                      self.assertEqual(env.get(name), value, "deployment env contract for " + name)
+                  secret = next(item for item in container["env"]
+                                if item["name"] == "OPENCODE_STATUS_PASSWORD")
+                  self.assertEqual(secret["valueFrom"]["secretKeyRef"],
+                                   {"name": "opencode-server-auth", "key": "password"})
+                  self.assertEqual(container["image"], "docker.io/library/python:3.13-alpine")
+                  annotations = DEPLOYMENT["spec"]["template"]["metadata"].get("annotations", {})
+                  self.assertIn("checksum/opencode-session-metrics", annotations)
+                  digest = hashlib.sha256(EXPORTER_SOURCE.encode("utf-8")).hexdigest()
+                  self.assertEqual(annotations.get("checksum/opencode-session-metrics"), digest,
+                                   "checksum/opencode-session-metrics must equal sha256 of exporter.py")
+              def test_dashboard_gates_uid_and_panel17_restored(self):
+                  document = yaml.safe_load(
+                      Path("workloads/grafana/opencode-dashboard.yaml").read_text())
+                  dashboard = json.loads(document["spec"]["json"])
+                  panels = {panel["id"]: panel for panel in dashboard["panels"]}
+                  self.assertEqual((dashboard["uid"], dashboard["version"]),
+                                   ("opencode-sessions", 5))
+                  self.assertEqual(sorted(panels), list(range(1, 23)))
+                  self.assertEqual(panels[17]["fieldConfig"],
+                                   {"defaults": {"unit": "percentunit", "min": 0},
+                                    "overrides": []})
+                  windows = {5: ("sum by (kind) (rate(opencode_llm_tokens_total[5m]))", 300, "5m"),
+                             9: ("sum(increase(opencode_llm_tokens_total[1h]))", 3600, "1h"),
+                             10: ('kind="cache_read"', 3600, "1h")}
+                  for panel_id, (source, seconds, window) in windows.items():
+                      expr = panels[panel_id]["targets"][0]["expr"]
+                      self.assertIn(source, expr)
+                      for gate in (
+                          "min(opencode_session_usage_scan_up) == 1",
+                          "min(opencode_session_usage_scan_last_success_timestamp_seconds) > 0",
+                          "(time() - max(opencode_session_usage_scan_last_success_timestamp_seconds)) >= 0",
+                          "(time() - min(opencode_session_usage_scan_last_success_timestamp_seconds)) < 120",
+                          "min(opencode_session_usage_baseline_timestamp_seconds) > 0",
+                          "(time() - max(opencode_session_usage_baseline_timestamp_seconds)) >= %d" % seconds,
+                          "min(min_over_time(opencode_session_usage_scan_up[%s])) == 1" % window):
+                          self.assertIn(gate, expr)
+                      self.assertNotIn(" or vector(", expr)
+                      self.assertIn("not provider billing", panels[panel_id]["description"])
+                      self.assertIn("No data", panels[panel_id]["description"])
+                  for pid in (7, 9, 10):
+                      self.assertTrue(all(target.get("instant") is True and target.get("range") is False
+                                          for target in panels[pid]["targets"]))
+                  self.assertIn(
+                      "max(opencode_session_usage_scan_last_success_timestamp_seconds) > 0",
+                      panels[7]["targets"][0]["expr"])
+                  for panel in dashboard["panels"]:
+                      for target in panel["targets"]:
+                          self.assertNotIn("or vector(0)", target["expr"])
+
+          if __name__ == "__main__":
+              def forbid_live_network(*args, **kwargs):
+                  raise AssertionError("live network forbidden in exporter CI")
+              with mock.patch.object(urllib.request, "urlopen", forbid_live_network), \
+                      mock.patch.object(urllib.request.OpenerDirector, "open", forbid_live_network):
+                  unittest.main(verbosity=2)
+          EOF
+
       # Guard the staged opencode-memory-pilot evaluation: minimal overlay,
       # fixed Application/values contract, and inactivity until the
       # owner-confirmed activation PR.
