@@ -382,7 +382,7 @@ data:
     if __name__ == "__main__":
         threading.Thread(target=poll_status_forever, daemon=True).start()
         threading.Thread(target=poll_usage_forever, daemon=True).start()
-        ThreadingHTTPServer(("0.00.0.0", 9108), Handler).serve_forever()
+        ThreadingHTTPServer(("0.0.0.0", 9108), Handler).serve_forever()
 ---
 apiVersion: apps/v1
 kind: Deployment
