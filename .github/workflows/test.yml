@@ -599,7 +599,7 @@ jobs:
                   self.assertEqual(len(opener.requests), 1)
                   url, headers = opener.requests[0]
                   self.assertEqual(url, "http://opencode.opencode.svc:4096/experimental/session"
-                                        "?archived=true&limit=1000")
+                                       "?archived=true&limit=1000")
                   authorization = {k.lower(): v for k, v in headers.items()}.get("authorization", "")
                   self.assertTrue(authorization.startswith("Basic "))
                   self.assertEqual((self.module.state["usage_up"],
@@ -699,13 +699,6 @@ jobs:
                   unittest.main(verbosity=2)
           EOF
 
-      # Secret-free fixture: renders only the exporter Deployment through the
-      # production kustomization's real patch list with the preinstalled
-      # kustomize CLI (ubuntu-latest runner image, kustomize 5.8.1), proving
-      # the strategic-merge patch preserves existing pod annotations (config
-      # checksum, unrelated keys), creates the map when absent, and leaves
-      # non-target Deployments untouched. No ConfigMap exporter source,
-      # Secrets, KSOPS generators, SOPS material, or cluster access.
       - name: Test exporter annotation strategic-merge overlay
         run: |
           python - <<'EOF'
