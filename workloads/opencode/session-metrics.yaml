@@ -199,7 +199,7 @@ data:
             if cursor is not None and next_request_cursor == cursor:
                 # Boundary ties straddle pages because the upstream filter is strict (time_updated < cursor), so
                 # expand the page to cover the whole tie group rather than skip rows, per upstream
-                # handlers/experimental.ts @ https://github.com/sst/opencode/tree/16747470f976aca3d362ad730bcd3fe82ecc2c9a
+                # handlers/experimental.ts @ https://github.com/anomalyco/opencode/blob/16747470f976aca3d362ad730bcd3fe82ecc2c9a/packages/opencode/src/server/routes/instance/httpapi/handlers/experimental.ts
                 if limit >= MAX_USAGE_SCAN_SESSIONS:
                     raise IncompleteScan("usage scan tie bound reached")
                 limit = min(limit * 2, MAX_USAGE_SCAN_SESSIONS)
