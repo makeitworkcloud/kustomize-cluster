@@ -1,0 +1,217 @@
+---
+# Alloy collector: cluster-wide, opt-in pod log collection via the Kubernetes
+# API (no hostPath, no node journald), pushing to Loki over mTLS.
+# Helm source renders the pinned upstream chart; the git source applies the
+# companion client Certificate under workloads/logging/alloy.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: alloy
+      targetRevision: 1.13.0
+      helm:
+        releaseName: alloy
+        skipCrds: true
+        values: |
+          fullnameOverride: alloy
+
+          # Do not install monitoring.grafana.com CRDs (PodLogs unused).
+          crds:
+            create: false
+
+          global:
+            podSecurityContext:
+              runAsNonRoot: true
+              runAsUser: 473
+              runAsGroup: 473
+              fsGroup: 473
+              seccompProfile:
+                type: RuntimeDefault
+
+          alloy:
+            stabilityLevel: generally-available
+            enableReporting: false
+            # Ephemeral, bounded collector state (positions/queues are
+            # in-memory/ephemeral; no durability promise).
+            storagePath: /var/lib/alloy
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+            mounts:
+              extra:
+                - name: client-tls
+                  mountPath: /etc/alloy/client-tls
+                  readOnly: true
+                - name: storage
+                  mountPath: /var/lib/alloy
+            configMap:
+              content: |
+                // Opt-in cluster log collection.
+                //
+                // Privacy model (fail closed):
+                //   1. Only pods annotated `logging.makeitwork.cloud/approved: "true"`
+                //      are collected. No production pod carries this annotation yet.
+                //   2. Pods must carry a stable `app.kubernetes.io/name` label.
+                //   3. Namespaces opencode, mcp and arc-runners, and any container
+                //      named "runner", are hard-denied BEFORE any log source runs.
+                //   4. The final label set is exactly: cluster, namespace,
+                //      application, container. Pod UID/name are only used
+                //      internally to target the Kubernetes API and are never
+                //      indexed as Loki labels.
+
+                discovery.kubernetes "pods" {
+                  role = "pod"
+                }
+
+                discovery.relabel "approved_pods" {
+                  targets = discovery.kubernetes.pods.targets
+
+                  // Fail closed: only explicitly approved pods.
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_annotation_logging_makeitwork_cloud_approved"]
+                    regex         = "true"
+                    action        = "keep"
+                  }
+
+                  // Require a stable application label.
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+                    regex         = ".+"
+                    action        = "keep"
+                  }
+
+                  // Hard deny OpenCode, MCP and CI runner infrastructure
+                  // before any log source is created.
+                  rule {
+                    source_labels = ["__meta_kubernetes_namespace"]
+                    regex         = "opencode|mcp|arc-runners"
+                    action        = "drop"
+                  }
+
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_container_name"]
+                    regex         = "runner"
+                    action        = "drop"
+                  }
+
+                  // Stable, low-cardinality label set.
+                  rule {
+                    source_labels = ["__meta_kubernetes_namespace"]
+                    target_label  = "namespace"
+                  }
+
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+                    target_label  = "application"
+                  }
+
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_container_name"]
+                    target_label  = "container"
+                  }
+                }
+
+                loki.source.kubernetes "approved_pods" {
+                  targets    = discovery.relabel.approved_pods.output
+                  forward_to = [loki.write.logging.receiver]
+                }
+
+                loki.write "logging" {
+                  endpoint {
+                    url                 = "https://loki.logging.svc:3100/loki/api/v1/push"
+                    batch_wait          = "1s"
+                    batch_size          = "1MiB"
+                    timeout             = "10s"
+                    min_backoff         = "500ms"
+                    max_backoff         = "5m"
+                    max_backoff_retries = 10
+
+                    queue_config {
+                      capacity      = "32MiB"
+                      min_shards    = 1
+                      max_shards    = 4
+                      max_age       = "5m"
+                      drain_timeout = "30s"
+                    }
+
+                    tls_config {
+                      ca_file              = "/etc/alloy/client-tls/ca.crt"
+                      cert_file            = "/etc/alloy/client-tls/tls.crt"
+                      key_file             = "/etc/alloy/client-tls/tls.key"
+                      server_name          = "loki.logging.svc"
+                      insecure_skip_verify = false
+                    }
+                  }
+
+                  external_labels = {
+                    cluster = "k3s",
+                  }
+                }
+
+          controller:
+            type: deployment
+            replicas: 1
+            podAnnotations:
+              # Roll the pod when the mounted client TLS secret is renewed.
+              reloader.stakater.com/auto: "true"
+            volumes:
+              extra:
+                - name: client-tls
+                  secret:
+                    secretName: loki-alloy-client
+                    defaultMode: 0440
+                - name: storage
+                  emptyDir:
+                    sizeLimit: 256Mi
+
+          # Minimal RBAC: pod discovery and pod log reads only. No node,
+          # namespace, secret or configmap access; no cluster-scoped rules.
+          rbac:
+            create: true
+            rules:
+              - apiGroups: [""]
+                resources: ["pods"]
+                verbs: ["get", "list", "watch"]
+              - apiGroups: [""]
+                resources: ["pods/log"]
+                verbs: ["get"]
+            clusterRules: []
+
+          serviceAccount:
+            create: true
+            name: alloy
+
+          # Alloy's own metrics (port 12345) are not scraped yet; enabling
+          # the chart ServiceMonitor is a follow-up once selector labels are
+          # confirmed against the monitoring stack.
+          serviceMonitor:
+            enabled: false
+    - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
+      targetRevision: main
+      path: workloads/logging/alloy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        maxDuration: 5m
+        factor: 2

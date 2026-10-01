@@ -1,0 +1,88 @@
+---
+# Operational-only scrape path for Loki. The internal server (port 3101)
+# serves /ready and /metrics with NO log query/push API. Plain HTTP,
+# in-cluster only. This Service/ServiceMonitor pair is the canonical
+# integration: the chart ServiceMonitor cannot be used because the chart
+# Service only exposes the mTLS port 3100.
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki-internal
+  namespace: logging
+  labels:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: loki
+    app.kubernetes.io/component: single-binary
+    logging.makeitwork.cloud/metrics: internal
+spec:
+  type: ClusterIP
+  ports:
+    - name: http-internal
+      port: 3101
+      targetPort: 3101
+      protocol: TCP
+  # Matches the chart-rendered pod labels (loki.selectorLabels +
+  # app.kubernetes.io/component=single-binary, release name "loki").
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: loki
+    app.kubernetes.io/component: single-binary
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: loki
+  namespace: logging
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      logging.makeitwork.cloud/metrics: internal
+  endpoints:
+    - port: http-internal
+      path: /metrics
+      interval: 30s
+---
+# Disk headroom and ingest-pressure signals. Alerts are informational only:
+# no automatic mutation is configured; response is a manual source opt-out
+# or retention review per the runbook.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: loki-logging
+  namespace: logging
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: logging.storage
+      rules:
+        - alert: LoggingStorageHeadroomLow
+          expr: |
+            node_filesystem_avail_bytes{mountpoint="/var/lib/rancher/k3s/storage"}
+              / node_filesystem_size_bytes{mountpoint="/var/lib/rancher/k3s/storage"} < 0.2
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Logging data filesystem below 20% free
+            description: Node-local logging storage is running low. Manual action only — review opt-in sources or retention. No automatic mutation occurs.
+        - alert: LoggingLokiIngestDiscards
+          expr: |
+            sum(rate(loki_discarded_samples_total{namespace="logging"}[5m])) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Loki is discarding or rejecting log samples
+            description: Ingest rate, stream-count or line-size limits are dropping data. Review sources and consider opting out noisy producers.
+        - alert: LoggingLokiDown
+          expr: |
+            up{namespace="logging", job="loki-internal"} == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: Loki metrics endpoint is down
+            description: The Loki internal server (port 3101) is not being scraped.
