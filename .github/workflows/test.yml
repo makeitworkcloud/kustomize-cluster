@@ -257,8 +257,6 @@ jobs:
                   return self.wall
               def monotonic(self):
                   return self.mono
-              def sleep(self, seconds):
-                  self.mono += seconds
 
           def make_row(session_id, updated, project_id="proj-alpha", **kinds):
               return {
@@ -298,10 +296,9 @@ jobs:
           class TrickleResponse(StaticResponse):
               def __init__(self, clock):
                   StaticResponse.__init__(self, b"x")
-                  self.clock, self.chunks = clock, 0
+                  self.clock = clock
               def read1(self, size):
                   self.clock.mono += 2.0
-                  self.chunks += 1
                   return b"x"
 
           class RecordingOpener:
@@ -404,11 +401,41 @@ jobs:
                   self.assert_incomplete(slow_fetch, before)
                   self.setUp()
                   before = self.seed()
-                  trickle = TrickleResponse(self.clock)
-                  self.module.usage_opener = RecordingOpener(trickle)
+                  self.module.usage_opener = RecordingOpener(TrickleResponse(self.clock))
                   self.module.poll_usage()
                   self.assert_down(self.module.state, before, 1, 0)
-                  self.assertGreaterEqual(trickle.chunks, 1)
+              def test_multichunk_body_decodes_only_at_eof(self):
+                  rows = [dict(r, title="Synthetic " + "x" * 112)
+                          for r in (make_row("synthetic-mc-%04d" % i, 1500000000000 - i)
+                                    for i in range(1501))]
+                  page_one, page_two = rows[:1000], rows[999:]
+                  responses = [
+                      StaticResponse(json.dumps(page_one).encode(),
+                                     headers={"x-next-cursor": str(page_one[-1]["time"]["updated"])}),
+                      StaticResponse(json.dumps(page_two).encode()),
+                  ]
+                  opener = RecordingOpener(None)
+                  def queued_open(request, timeout=None):
+                      opener.requests.append(request.full_url)
+                      return responses.pop(0)
+                  opener.open = queued_open
+                  self.module.usage_opener = opener
+                  self.module.poll_usage()
+                  state = self.module.state
+                  self.assertEqual((state["usage_up"], state["usage_scan_pages"],
+                                    state["usage_sessions"]), (1, 2, 1501))
+                  self.setUp()
+                  before = self.seed()
+                  slow = StaticResponse(json.dumps(rows[:900]).encode())
+                  def slow_read1(size):
+                      chunk = StaticResponse.read1(slow, size)
+                      if not chunk:
+                          self.clock.mono += 16.0
+                      return chunk
+                  slow.read1 = slow_read1
+                  self.module.usage_opener = RecordingOpener(slow)
+                  self.module.poll_usage()
+                  self.assert_down(self.module.state, before, 1, 0)
 
           class TestProtocolFailures(ExporterTestCase):
               def static_api(self, page, header=None):
@@ -473,7 +500,8 @@ jobs:
                       [make_row("synthetic-a", 1300000000600, input=1.7e308),
                        make_row("synthetic-b", 1300000000500, input=1.7e308)]))
                   self.assert_down(state, before, 0, 1)
-                  for name, body in (("body-cap", b"z" * 4096), ("malformed-json", b"{")):
+                  for name, body in (("body-cap", b"z" * 4096),
+                                     ("malformed-json", b"{"), ("empty-body", b"")):
                       with self.subTest(case=name):
                           self.setUp()
                           before = self.seed()
@@ -553,10 +581,8 @@ jobs:
                   self.module.poll_usage()
                   self.assertEqual(self.module.state["usage_up"], 1)
                   self.module.usage_scan_lock.acquire(blocking=False)
-                  try:
-                      self.module.poll_usage()
-                  finally:
-                      self.module.usage_scan_lock.release()
+                  self.module.poll_usage()
+                  self.module.usage_scan_lock.release()
                   self.assertEqual(len(api.calls), 1)
               def test_redirect_rejected_credentials_not_forwarded(self):
                   opener = RecordingOpener(StaticResponse(b"[]", status=302, headers={
@@ -572,10 +598,9 @@ jobs:
                   self.assertTrue(authorization.startswith("Basic "))
                   self.assertEqual((self.module.state["usage_up"],
                                     self.module.state["usage_scan_errors"]), (0, 1))
-                  handler = self.module._NoRedirect()
-                  request = urllib.request.Request("http://opencode.opencode.svc:4096/session")
-                  self.assertIsNone(handler.redirect_request(
-                      request, None, 302, "Found", {}, "http://synthetic-elsewhere/session"))
+                  handler_request = urllib.request.Request("http://opencode.opencode.svc:4096/session")
+                  self.assertIsNone(self.module._NoRedirect().redirect_request(
+                      handler_request, None, 302, "Found", {}, "http://synthetic-elsewhere/session"))
               def test_metrics_privacy_and_export_names(self):
                   first = FakeUsageApi([
                       make_row("synthetic-p1", 1100000000001, input=3, project_id="proj-alpha"),
@@ -650,6 +675,9 @@ jobs:
                       self.assertNotIn(" or vector(", expr)
                       self.assertIn("not provider billing", panels[panel_id]["description"])
                       self.assertIn("No data", panels[panel_id]["description"])
+                  for pid in (7, 9, 10):
+                      self.assertTrue(all(target.get("instant") is True and target.get("range") is False
+                                          for target in panels[pid]["targets"]))
                   self.assertIn(
                       "max(opencode_session_usage_scan_last_success_timestamp_seconds) > 0",
                       panels[7]["targets"][0]["expr"])
