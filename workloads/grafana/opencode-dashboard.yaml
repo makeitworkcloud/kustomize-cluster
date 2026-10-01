@@ -66,7 +66,7 @@ spec:
           "title": "Observed token delta rate by kind",
           "description": "Aggregate token deltas after the exporter baseline. Observed deltas only, not provider billing data; token history cached before a session was first observed is excluded. No data until a complete, fresh scan covers the entire window. No session, prompt, directory, or identity labels are exported.",
           "gridPos": {"h": 10, "w": 24, "x": 0, "y": 18},
-          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (kind) (rate(opencode_llm_tokens_total[5m])) and on() (min(opencode_session_usage_scan_up) == 1) and on() (opencode_session_usage_scan_last_success_timestamp_seconds > 0) and on() ((time() - opencode_session_usage_scan_last_success_timestamp_seconds) >= 0) and on() ((time() - opencode_session_usage_scan_last_success_timestamp_seconds) < 120) and on() (opencode_session_usage_baseline_timestamp_seconds > 0) and on() ((time() - opencode_session_usage_baseline_timestamp_seconds) >= 300) and on() (min(min_over_time(opencode_session_usage_scan_up[5m])) == 1)", "legendFormat": "{{kind}}", "refId": "A"}],
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (kind) (rate(opencode_llm_tokens_total[5m])) and on() (min(opencode_session_usage_scan_up) == 1) and on() (min(opencode_session_usage_scan_last_success_timestamp_seconds) > 0) and on() ((time() - max(opencode_session_usage_scan_last_success_timestamp_seconds)) >= 0) and on() ((time() - min(opencode_session_usage_scan_last_success_timestamp_seconds)) < 120) and on() (min(opencode_session_usage_baseline_timestamp_seconds) > 0) and on() ((time() - max(opencode_session_usage_baseline_timestamp_seconds)) >= 300) and on() (min(min_over_time(opencode_session_usage_scan_up[5m])) == 1)", "legendFormat": "{{kind}}", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "tokens/s", "min": 0}, "overrides": []},
           "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
         },
@@ -106,7 +106,7 @@ spec:
           "title": "Observed token deltas, 1h",
           "description": "Token growth observed during the last hour after the exporter baseline. Observed deltas only, not provider billing data; token history before the exporter observed a session is excluded. No data until a complete, fresh scan covers the entire hour window.",
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 36},
-          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(increase(opencode_llm_tokens_total[1h])) and on() (min(opencode_session_usage_scan_up) == 1) and on() (opencode_session_usage_scan_last_success_timestamp_seconds > 0) and on() ((time() - opencode_session_usage_scan_last_success_timestamp_seconds) >= 0) and on() ((time() - opencode_session_usage_scan_last_success_timestamp_seconds) < 120) and on() (opencode_session_usage_baseline_timestamp_seconds > 0) and on() ((time() - opencode_session_usage_baseline_timestamp_seconds) >= 3600) and on() (min(min_over_time(opencode_session_usage_scan_up[1h])) == 1)", "refId": "A"}],
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(increase(opencode_llm_tokens_total[1h])) and on() (min(opencode_session_usage_scan_up) == 1) and on() (min(opencode_session_usage_scan_last_success_timestamp_seconds) > 0) and on() ((time() - max(opencode_session_usage_scan_last_success_timestamp_seconds)) >= 0) and on() ((time() - min(opencode_session_usage_scan_last_success_timestamp_seconds)) < 120) and on() (min(opencode_session_usage_baseline_timestamp_seconds) > 0) and on() ((time() - max(opencode_session_usage_baseline_timestamp_seconds)) >= 3600) and on() (min(min_over_time(opencode_session_usage_scan_up[1h])) == 1)", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "tokens", "min": 0, "decimals": 0}, "overrides": []},
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
         },
@@ -116,7 +116,7 @@ spec:
           "title": "Observed cache-read ratio, 1h",
           "description": "Observed cache-read tokens divided by non-cached input plus cache-read tokens during the last hour. Observed deltas only, not provider billing data; this is an efficiency signal, not proof of waste. No data until a complete, fresh scan covers the entire hour window.",
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 36},
-          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "(sum(increase(opencode_llm_tokens_total{kind=\"cache_read\"}[1h])) / clamp_min(sum(increase(opencode_llm_tokens_total{kind=~\"input|cache_read\"}[1h])), 1)) and on() (min(opencode_session_usage_scan_up) == 1) and on() (opencode_session_usage_scan_last_success_timestamp_seconds > 0) and on() ((time() - opencode_session_usage_scan_last_success_timestamp_seconds) >= 0) and on() ((time() - opencode_session_usage_scan_last_success_timestamp_seconds) < 120) and on() (opencode_session_usage_baseline_timestamp_seconds > 0) and on() ((time() - opencode_session_usage_baseline_timestamp_seconds) >= 3600) and on() (min(min_over_time(opencode_session_usage_scan_up[1h])) == 1)", "refId": "A"}],
+          "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "(sum(increase(opencode_llm_tokens_total{kind=\"cache_read\"}[1h])) / clamp_min(sum(increase(opencode_llm_tokens_total{kind=~\"input|cache_read\"}[1h])), 1)) and on() (min(opencode_session_usage_scan_up) == 1) and on() (min(opencode_session_usage_scan_last_success_timestamp_seconds) > 0) and on() ((time() - max(opencode_session_usage_scan_last_success_timestamp_seconds)) >= 0) and on() ((time() - min(opencode_session_usage_scan_last_success_timestamp_seconds)) < 120) and on() (min(opencode_session_usage_baseline_timestamp_seconds) > 0) and on() ((time() - max(opencode_session_usage_baseline_timestamp_seconds)) >= 3600) and on() (min(min_over_time(opencode_session_usage_scan_up[1h])) == 1)", "refId": "A"}],
           "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "decimals": 2}, "overrides": []},
           "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
         },
@@ -194,7 +194,7 @@ spec:
             {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "avg by (instance) (rate(node_pressure_memory_stalled_seconds_total[5m]))", "legendFormat": "{{instance}} memory full stalled", "refId": "B"},
             {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "avg by (instance) (rate(node_pressure_io_stalled_seconds_total[5m]))", "legendFormat": "{{instance}} io full stalled", "refId": "C"}
           ],
-          "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+          "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
           "options": {"legend": {"displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi"}}
         },
         {
