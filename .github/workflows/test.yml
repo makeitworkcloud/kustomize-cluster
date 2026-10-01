@@ -158,7 +158,7 @@ jobs:
                     "%s jobName must match the Probe name" % name)
               check(spec.get("prober") == {
                   "path": "/probe", "url": "blackbox-exporter.grafana.svc:9115"},
-                "%s prober must be blackbox-exporter.grafana.svc:9115 /probe" % name)
+                  "%s prober must be blackbox-exporter.grafana.svc:9115 /probe" % name)
               static_cfg = spec["targets"]["staticConfig"]
               check(static_cfg["static"] == [url],
                     "%s target must be exactly %s" % (name, url))
@@ -870,6 +870,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Python
+        # setup-python main 2026-09-09. The previous pin (5fda3b95, v7.0.0)
+        # became unresolvable to runners on 2026-09-09 across regions and
+        # retries while the API tag cache still served it; upstream rewrote
+        # the tagged commit. Re-pinned to a branch-reachable commit.
         uses: actions/setup-python@337b0725b8770380d7cde73cfef696f1295727eb
         with:
           python-version: "3.12"
@@ -974,7 +978,7 @@ jobs:
           for key, value in (
               ("client_id", "1553536583355994272"),
               ("guild_id", "1540492160103620668"),
-              ("parent_channel_id", "1540492160980643"),
+              ("parent_channel_id", "1540492160988610643"),
           ):
               if d.get(key) != value:
                   sys.exit(f"discord.{key} must be the owner-approved ID {value!r}")
