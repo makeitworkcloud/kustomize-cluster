@@ -128,7 +128,12 @@ spec:
 # Trust is bounded by: controller identity + controlling ownerReference to an
 # approved Certificate + namespace/issuer/usages/isCA profile consistency.
 # The OLD object is matched on UPDATE for defense even though the spec is
-# immutable upstream.
+# immutable upstream. usages/isCA are correlated EXACTLY with the controlling
+# ownerReference: the logging-root-ca request must be a CA with the full
+# three-usage CA set, a loki-server-owned request must be a leaf with exactly
+# 'server auth', and an alloy-client or grafana-loki-client-owned request must
+# be a leaf with exactly 'client auth'; a missing or subset usage list, or a
+# usage/owner mismatch, is denied even for the cert-manager identity.
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -162,38 +167,60 @@ spec:
     - name: metadataOnlyUpdate
       expression: >-
         request.operation == 'UPDATE' && oldObject != null && object.spec == oldObject.spec
-    - name: controlledByApprovedCertificate
+    - name: controlledByRoot
       expression: >-
+        object.spec.issuerRef.name == 'logging-selfsigned' &&
+        request.namespace == 'cert-manager' &&
         has(object.metadata.ownerReferences) &&
         object.metadata.ownerReferences.exists(o,
           o.apiVersion == 'cert-manager.io/v1' && o.kind == 'Certificate' &&
           has(o.controller) && o.controller == true &&
-          ((object.spec.issuerRef.name == 'logging-selfsigned' &&
-            o.name == 'logging-root-ca' && request.namespace == 'cert-manager') ||
-           (object.spec.issuerRef.name == 'logging-ca' &&
-            ((o.name == 'loki-server' && request.namespace == 'logging') ||
-             (o.name == 'alloy-client' && request.namespace == 'logging') ||
-             (o.name == 'grafana-loki-client' && request.namespace == 'grafana')))))
+          o.name == 'logging-root-ca')
+    - name: controlledByServer
+      expression: >-
+        object.spec.issuerRef.name == 'logging-ca' &&
+        request.namespace == 'logging' &&
+        has(object.metadata.ownerReferences) &&
+        object.metadata.ownerReferences.exists(o,
+          o.apiVersion == 'cert-manager.io/v1' && o.kind == 'Certificate' &&
+          has(o.controller) && o.controller == true &&
+          o.name == 'loki-server')
+    - name: controlledByClient
+      expression: >-
+        object.spec.issuerRef.name == 'logging-ca' &&
+        has(object.metadata.ownerReferences) &&
+        object.metadata.ownerReferences.exists(o,
+          o.apiVersion == 'cert-manager.io/v1' && o.kind == 'Certificate' &&
+          has(o.controller) && o.controller == true &&
+          ((o.name == 'alloy-client' && request.namespace == 'logging') ||
+           (o.name == 'grafana-loki-client' && request.namespace == 'grafana')))
     - name: requestProfile
       expression: >-
-        (object.spec.issuerRef.name == 'logging-selfsigned' &&
+        (variables.controlledByRoot &&
          has(object.spec.isCA) && object.spec.isCA == true &&
-         (!has(object.spec.usages) || object.spec.usages.all(u, u in ['signing', 'cert sign', 'crl sign']))) ||
-        (object.spec.issuerRef.name == 'logging-ca' &&
+         has(object.spec.usages) && size(object.spec.usages) == 3 &&
+         object.spec.usages.all(u, u in ['signing', 'cert sign', 'crl sign'])) ||
+        (variables.controlledByServer &&
          (!has(object.spec.isCA) || object.spec.isCA == false) &&
          has(object.spec.usages) && size(object.spec.usages) == 1 &&
-         object.spec.usages.all(u, u in ['server auth', 'client auth']))
+         object.spec.usages.all(u, u == 'server auth')) ||
+        (variables.controlledByClient &&
+         (!has(object.spec.isCA) || object.spec.isCA == false) &&
+         has(object.spec.usages) && size(object.spec.usages) == 1 &&
+         object.spec.usages.all(u, u == 'client auth'))
   validations:
     - expression: >-
         variables.isCertManager &&
-        (variables.metadataOnlyUpdate ||
-         (variables.controlledByApprovedCertificate && variables.requestProfile))
+        (variables.metadataOnlyUpdate || variables.requestProfile)
       message: >-
         Logging PKI CertificateRequests: every operation requires the
         cert-manager controller identity; create/spec-change additionally
         requires a controlling ownerReference to the matching approved
-        Certificate plus a profile-consistent usages/isCA. A forged
-        ownerReference does not help a different requester.
+        Certificate with the exact usages/isCA profile for that owner
+        (root CA: isCA with signing/cert sign/crl sign; loki-server leaf:
+        exactly 'server auth'; alloy-client or grafana-loki-client leaf:
+        exactly 'client auth'). A forged ownerReference does not help a
+        different requester.
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
