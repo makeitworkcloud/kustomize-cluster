@@ -239,7 +239,7 @@ jobs:
           if cds:
             cfg = cds[0]
             check(cfg == structured, 'config == structuredConfig verbatim')
-            for path, want in [ ('auth_enabled', False), ('server.http_listen_address', '0.0.0.0'), ('server.http_listen_port', 3100), ('server.grpc_listen_address', '127.0.0.1'), ('server.grpc_listen_port', 9095), ('server.http_tls_config.client_auth_type', 'RequireAndVerifyClientCert'), ('server.http_tls_config.cert_file', '/etc/loki/server-tls/tls.crt'), ('server.http_tls_config.key_file', '/etc/loki/server-tls/tls.key'), ('server.http_tls_config.client_ca_file', '/etc/loki/server-tls/ca.crt'), ('internal_server.enable', True), ('internal_server.http_listen_address', '0.0.0.0'), ('internal_server.http_listen_port', 3101), ('common.instance_addr', '127.0.0.1'), ('frontend_worker.frontend_address', '127.0.0.1:9095'), ('memberlist.bind_addr', ['127.0.0.1']), ('memberlist.join_members', []), ('limits_config.retention_period', '720h'), ('limits_config.max_query_lookback', '720h'), ('limits_config.ingestion_rate_mb', 0.02), ('limits_config.ingestion_burst_size_mb', 1), ('limits_config.max_streams_per_user', 1000), ('limits_config.max_line_size', 4096), ('limits_config.per_stream_rate_limit', 20480), ('limits_config.per_stream_rate_limit_burst', 1048576), ('compactor.retention_enabled', True), ('compactor.delete_request_store', 'filesystem'), ]:
+            for path, want in [ ('auth_enabled', False), ('server.http_listen_address', '0.0.0.0'), ('server.http_listen_port', 3100), ('server.register_instrumentation', True), ('server.grpc_listen_address', '127.0.0.1'), ('server.grpc_listen_port', 9095), ('server.http_tls_config.client_auth_type', 'RequireAndVerifyClientCert'), ('server.http_tls_config.cert_file', '/etc/loki/server-tls/tls.crt'), ('server.http_tls_config.key_file', '/etc/loki/server-tls/tls.key'), ('server.http_tls_config.client_ca_file', '/etc/loki/server-tls/ca.crt'), ('internal_server.enable', True), ('internal_server.http_listen_address', '0.0.0.0'), ('internal_server.http_listen_port', 3101), ('internal_server.register_instrumentation', False), ('common.instance_addr', '127.0.0.1'), ('frontend_worker.frontend_address', '127.0.0.1:9095'), ('memberlist.bind_addr', ['127.0.0.1']), ('memberlist.join_members', []), ('limits_config.retention_period', '720h'), ('limits_config.max_query_lookback', '720h'), ('limits_config.ingestion_rate_mb', 0.02), ('limits_config.ingestion_burst_size_mb', 1), ('limits_config.max_streams_per_user', 1000), ('limits_config.max_line_size', 4096), ('limits_config.per_stream_rate_limit', 20480), ('limits_config.per_stream_rate_limit_burst', 1048576), ('compactor.retention_enabled', True), ('compactor.delete_request_store', 'filesystem'), ]:
                 node = cfg
                 for part in path.split('.'):
                     node = node[part]
@@ -318,7 +318,8 @@ jobs:
                 check(ps.get(pn) == 12345, 'alloy metrics port 12345')
           sc = yaml.safe_load( Path('workloads/logging/loki/server-certificate.yaml').read_text())
           cc = yaml.safe_load( Path('workloads/logging/alloy/client-certificate.yaml').read_text())
-          for cert, usages in ((sc, ['server auth']), (cc, ['client auth'])):
+          mc = yaml.safe_load( Path('workloads/logging/loki/metrics-client-certificate.yaml').read_text())
+          for cert, usages in ((sc, ['server auth']), (cc, ['client auth']), (mc, ['client auth'])):
             n = cert['metadata']['name']
             check(cert.get('kind') == 'Certificate', '%s kind' % n)
             check(cert['spec'].get('usages') == usages, '%s usages' % n)
@@ -327,22 +328,32 @@ jobs:
             check(pk.get('rotationPolicy') == 'Always' and pk.get('algorithm') == 'ECDSA' and pk.get('size') == 256, '%s ECDSA Always' % n)
             check(cert['spec'].get('duration') == '2160h' and cert['spec'].get('renewBefore') == '360h', '%s 90d/360h' % n)
             check('status' not in cert, '%s no status in git' % n)
+            check(cert['spec'].get('isCA', False) is False, '%s leaf is not a CA' % n)
           check(sc['spec']['secretName'] == 'loki-server-tls', 'server secretName')
           check(cc['spec']['secretName'] == 'loki-alloy-client', 'client secretName')
+          check(mc['metadata'].get('name') == 'prometheus-client' and mc['metadata'].get('namespace') == 'logging' and mc['spec'].get('secretName') == 'loki-prometheus-client', 'metrics client identity+secret')
+          check(mc['spec'].get('commonName') == 'prometheus.logging' and 'dnsNames' not in mc['spec'], 'metrics client CN and no DNS names')
+          lres = yaml.safe_load(Path('workloads/logging/loki/kustomization.yaml').read_text()).get('resources') or []
+          check('metrics-client-certificate.yaml' in lres, 'metrics client staged in Loki child overlay')
           check(sc['spec'].get('dnsNames') == [ 'loki.logging.svc', 'loki.logging.svc.cluster.local', 'loki-headless.logging.svc', 'loki-headless.logging.svc.cluster.local'], 'server dnsNames')
           mon = [d for d in yaml.safe_load_all( Path('workloads/logging/loki/monitoring.yaml').read_text()) if isinstance(d, dict)]
-          isvc = next((d for d in mon if d.get('kind') == 'Service' and d['metadata']['name'] == 'loki-internal'), None)
+          isvc = next((d for d in mon if d.get('kind') == 'Service' and d['metadata']['name'] == 'loki-metrics'), None)
           imon = next((d for d in mon if d.get('kind') == 'ServiceMonitor'), None)
-          check(isvc is not None and imon is not None, 'loki-internal svc+SM')
+          check(isvc is not None and imon is not None, 'loki-metrics svc+SM')
           if isvc and imon and sts:
-            check(isvc['spec']['selector'] == { 'app.kubernetes.io/name': 'loki', 'app.kubernetes.io/instance': 'loki', 'app.kubernetes.io/component': 'single-binary'}, 'internal selector')
+            check(isvc['spec']['selector'] == { 'app.kubernetes.io/name': 'loki', 'app.kubernetes.io/instance': 'loki', 'app.kubernetes.io/component': 'single-binary'}, 'metrics selector')
             lab = isvc['metadata'].get('labels', {})
             sel = imon['spec']['selector'].get('matchLabels', {})
-            check(all(lab.get(k) == v for k, v in sel.items()), 'SM selects internal svc')
+            check(all(lab.get(k) == v for k, v in sel.items()), 'SM selects metrics svc')
+            check(isvc['metadata'].get('namespace') == 'logging' and imon['metadata'].get('namespace') == 'logging', 'metrics Service and SM namespace logging')
+            check(lab.get('logging.makeitwork.cloud/job') == 'loki', 'metrics job label loki')
             ps = isvc['spec'].get('ports', [])
-            check(len(ps) == 1 and ps[0].get('name') == 'http-internal' and ps[0].get('port') == 3101 and ps[0].get('targetPort') == 3101, 'internal http-internal/3101')
-            ep = imon['spec']['endpoints'][0]
-            check(ep.get('port') == 'http-internal' and ep.get('path') == '/metrics', 'SM scrapes /metrics http-internal')
+            check(len(ps) == 1 and ps[0].get('name') == 'https-metrics' and ps[0].get('port') == 3100 and ps[0].get('targetPort') == 3100, 'metrics https-metrics/3100')
+            eps = imon['spec'].get('endpoints') or []
+            check(len(eps) == 1, 'one Loki metrics endpoint')
+            ep = eps[0] if eps else {}
+            check(ep.get('port') == 'https-metrics' and ep.get('path') == '/metrics' and ep.get('scheme') == 'https', 'SM scrapes HTTPS /metrics https-metrics')
+            check(ep.get('tlsConfig') == {'ca': {'secret': {'name': 'loki-prometheus-client', 'key': 'ca.crt'}}, 'cert': {'secret': {'name': 'loki-prometheus-client', 'key': 'tls.crt'}}, 'keySecret': {'name': 'loki-prometheus-client', 'key': 'tls.key'}, 'serverName': 'loki.logging.svc', 'insecureSkipVerify': False}, 'SM same-namespace client TLS Secret references and verified SNI')
             check(imon['spec'].get('jobLabel') == 'logging.makeitwork.cloud/job', 'jobLabel')
           check(any(d.get('kind') == 'PrometheusRule' for d in mon), 'PrometheusRule')
           ds = yaml.safe_load(Path('workloads/grafana/loki-datasource.yaml').read_text())
@@ -723,8 +734,10 @@ jobs:
           docker logs --tail 60 loki-ci >&2 || true
           fail "3101 never ready"
           fi
-          [ "$(code http://127.0.0.1:31001/metrics)" = "200" ] \
-          || fail "internal metrics down"
+          for path in /metrics /debug/pprof /debug/pprof/ /debug/pprof/heap /debug/pprof/goroutine; do
+          [ "$(code "http://127.0.0.1:31001$path")" = "404" ] \
+            || fail "instrumentation exposed on 3101: $path"
+          done
           [ "$(code -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:31001/loki/api/v1/push)" = "404" ] \
           || fail "push on 3101"
           [ "$(code -G --data-urlencode 'query={ci="x"}' http://127.0.0.1:31001/loki/api/v1/query_range)" = "404" ] \
@@ -753,14 +766,17 @@ jobs:
           is_rej 35 000 "curl: (35) tlsv13 alert certificate required" "o:alert"
           is_rej 56 000 "curl: (56) SSL_read: Connection reset by peer" "o:recv"
           probe_client() {
+          local path="$1"; shift
           local rc=0 http
           http=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
             "${R[@]}" "${CA[@]}" \
-            "$@" $U/ready 2>"$W/tls-probe.err") || rc=$?
+            "$@" "$U$path" 2>"$W/tls-probe.err") || rc=$?
           printf '%s %s' "$rc" "$http"
           }
-          valid=$(probe_client "${VC[@]}")
+          valid=$(probe_client /ready "${VC[@]}")
           [ "$valid" = "0 200" ] || fail "valid client pre-negatives"
+          valid=$(probe_client /metrics "${VC[@]}")
+          [ "$valid" = "0 200" ] || fail "valid client metrics on 3100"
           plain_rc=0
           plain_http=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
           http://127.0.0.1:31000/ready 2>/dev/null) || plain_rc=$?
@@ -768,18 +784,28 @@ jobs:
           [ "$plain_http" = "000" ] && [ "$plain_rc" -ne 0 ] \
             || fail "plain http rc=$plain_rc http=$plain_http"
           fi
-          read nocert_rc nocert_http <<< "$(probe_client)"
+          for path in /ready /metrics; do
+          read nocert_rc nocert_http <<< "$(probe_client "$path")"
           nocert_err=$(cat "$W/tls-probe.err")
           if tls_rejected "$nocert_rc" "$nocert_http" "$nocert_err"; then :; else
-          fail "no-cert rc=$nocert_rc http=$nocert_http err=$nocert_err"
+          fail "no-cert $path rc=$nocert_rc http=$nocert_http err=$nocert_err"
           fi
-          read wrongca_rc wrongca_http <<< "$(probe_client --cert "$PKI/wrong-client.crt" --key "$PKI/wrong-client.key")"
+          read wrongca_rc wrongca_http <<< "$(probe_client "$path" --cert "$PKI/wrong-client.crt" --key "$PKI/wrong-client.key")"
           wrongca_err=$(cat "$W/tls-probe.err")
           if tls_rejected "$wrongca_rc" "$wrongca_http" "$wrongca_err"; then :; else
-          fail "wrong-CA rc=$wrongca_rc http=$wrongca_http err=$wrongca_err"
+          fail "wrong-CA $path rc=$wrongca_rc http=$wrongca_http err=$wrongca_err"
           fi
-          valid=$(probe_client "${VC[@]}")
+          done
+          for path in /debug/pprof /debug/pprof/ /debug/pprof/heap /debug/pprof/goroutine; do
+          read nocert_rc nocert_http <<< "$(probe_client "$path")"
+          nocert_err=$(cat "$W/tls-probe.err")
+          tls_rejected "$nocert_rc" "$nocert_http" "$nocert_err" \
+            || fail "unauthenticated main profiling not TLS-denied: $path rc=$nocert_rc http=$nocert_http"
+          done
+          valid=$(probe_client /ready "${VC[@]}")
           [ "$valid" = "0 200" ] || fail "valid client post-negatives"
+          valid=$(probe_client /metrics "${VC[@]}")
+          [ "$valid" = "0 200" ] || fail "valid client metrics post-negatives"
           TOKEN="ci-synthetic-line-$(date +%s)-$$"
           TIMESTAMP=$(date +%s%N)
           PAYLOAD=$(printf '{"streams":[{"stream":{"ci_job":"loki-ci","namespace":"ci","application":"ci-fixture","container":"ci"},"values":[["%s","%s"]]}]}' "$TIMESTAMP" "$TOKEN")
@@ -864,12 +890,14 @@ jobs:
           loki = cert('workloads/logging/loki/server-certificate.yaml', 'loki-server')
           alloy = cert('workloads/logging/alloy/client-certificate.yaml', 'alloy-client')
           graf = cert('workloads/grafana/loki-client-certificate.yaml', 'grafana-loki-client')
+          prom = cert('workloads/logging/loki/metrics-client-certificate.yaml', 'prometheus-client')
           selfsigned = next(d for d in pki if d.get('kind') == 'ClusterIssuer' and d['metadata']['name'] == 'logging-selfsigned')
           caissuer = next(d for d in pki if d.get('kind') == 'ClusterIssuer' and d['metadata']['name'] == 'logging-ca')
           cp = copy.deepcopy
           put('issuers.yaml', selfsigned, caissuer)
           put('root.yaml', root); put('loki.yaml', loki)
           put('alloy.yaml', alloy); put('graf.yaml', graf)
+          put('prom.yaml', prom)
           put('ci-self.yaml', selfsigned)
           m = cp(root); m['metadata']['namespace'] = 'logging'
           put('d-root-in-logging.yaml', m)
@@ -880,6 +908,10 @@ jobs:
           put('d-selfsigned-leaf.yaml', m)
           m = cp(loki); m['metadata']['namespace'] = 'grafana'
           put('d-loki-wrong-ns.yaml', m)
+          m = cp(prom); m['spec']['usages'] = ['server auth']
+          put('d-prom-server-auth.yaml', m)
+          m = cp(prom); m['metadata']['namespace'] = 'grafana'
+          put('d-prom-wrong-ns.yaml', m)
           m = cp(caissuer); m['spec']['ca']['secretName'] = 'evil-ca-secret'
           put('d-ci-ca.yaml', m)
           m = cp(selfsigned); m['spec'] = {'ca': {'secretName': 'evil-ca-secret'}}
@@ -914,18 +946,19 @@ jobs:
           CIMSG="Logging PKI ClusterIssuers"
           IMGMSG="Logging PKI Issuers"
           CSRMSG="built-in CertificateSigningRequest path is disabled"
-          for f in issuers root loki alloy graf; do ok --as="$ARGO" create -f "$A/$f.yaml"; done
+          for f in issuers root loki alloy graf prom; do ok --as="$ARGO" create -f "$A/$f.yaml"; done
           ROOT_UID=$(K get certificate -n cert-manager logging-root-ca -o jsonpath='{.metadata.uid}')
           LOKI_UID=$(K get certificate -n logging loki-server -o jsonpath='{.metadata.uid}')
           ALLOY_UID=$(K get certificate -n logging alloy-client -o jsonpath='{.metadata.uid}')
           GRAF_UID=$(K get certificate -n grafana grafana-loki-client -o jsonpath='{.metadata.uid}')
-          [ -n "$ROOT_UID" ] && [ -n "$LOKI_UID" ] && [ -n "$ALLOY_UID" ] && [ -n "$GRAF_UID" ] \
+          PROM_UID=$(K get certificate -n logging prometheus-client -o jsonpath='{.metadata.uid}')
+          [ -n "$ROOT_UID" ] && [ -n "$LOKI_UID" ] && [ -n "$ALLOY_UID" ] && [ -n "$GRAF_UID" ] && [ -n "$PROM_UID" ] \
             || fail "could not read fixture Certificate UIDs from the CI kind API"
-          python - "$W" "$ROOT_UID" "$LOKI_UID" "$ALLOY_UID" "$GRAF_UID" <<'EOF'
-          import base64, sys, yaml
+          python - "$W" "$ROOT_UID" "$LOKI_UID" "$ALLOY_UID" "$GRAF_UID" "$PROM_UID" <<'EOF'
+          import base64, copy, sys, yaml
           from pathlib import Path
           w = Path(sys.argv[1]); adm = w / 'adm-cr'; adm.mkdir(exist_ok=True)
-          root_uid, loki_uid, alloy_uid, graf_uid = sys.argv[2:6]
+          root_uid, loki_uid, alloy_uid, graf_uid, prom_uid = sys.argv[2:7]
           req = base64.b64encode((w / 'adm.csr').read_bytes()).decode()
           CA = {'name': 'logging-ca', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}
           SELF = {'name': 'logging-selfsigned', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}
@@ -940,6 +973,12 @@ jobs:
           put('cr-root.yaml', crq('ci-cr-root', 'cert-manager', 'logging-root-ca', root_uid, SELF, ['signing', 'cert sign', 'crl sign'], isca=True))
           put('cr-alloy.yaml', crq('ci-cr-alloy', 'logging', 'alloy-client', alloy_uid, CA, ['client auth']))
           put('cr-graf.yaml', crq('ci-cr-graf', 'grafana', 'grafana-loki-client', graf_uid, CA, ['client auth']))
+          put('cr-prom.yaml', crq('ci-cr-prom', 'logging', 'prometheus-client', prom_uid, CA, ['client auth']))
+          put('d-cr-prom-server-auth.yaml', crq('ci-cr-psa', 'logging', 'prometheus-client', prom_uid, CA, ['server auth']))
+          put('d-cr-prom-wrong-owner.yaml', crq('ci-cr-pwo', 'grafana', 'prometheus-client', prom_uid, CA, ['client auth']))
+          m = crq('ci-cr-pbt', 'logging', 'prometheus-client', prom_uid, CA, ['client auth'])
+          m['metadata']['ownerReferences'][0]['kind'] = 'Issuer'
+          put('d-cr-prom-bad-type.yaml', m)
           put('d-cr-noncontrolling.yaml', crq('ci-cr-nc', 'logging', 'loki-server', loki_uid, CA, ['server auth'], controller=False))
           put('d-cr-server-client-auth.yaml', crq('ci-cr-sca', 'logging', 'loki-server', loki_uid, CA, ['client auth']))
           put('d-cr-wrong-owner.yaml', crq('ci-cr-wo', 'grafana', 'grafana-loki-client', graf_uid, CA, ['server auth']))
@@ -954,6 +993,7 @@ jobs:
           ok --as="$CM" create -f "$AC/cr-root.yaml"
           ok --as="$CM" create -f "$AC/cr-alloy.yaml"
           ok --as="$CM" create -f "$AC/cr-graf.yaml"
+          ok --as="$CM" create -f "$AC/cr-prom.yaml"
           ok --as="$CM" annotate certificaterequest -n logging ci-cr-loki ci=kept
           ok --as="$U" annotate certificate -n logging loki-server ci=metadata-only
           ok --as="$U" annotate clusterissuer logging-ca ci=metadata-only
@@ -963,6 +1003,7 @@ jobs:
           ok --as="$U" create -f "$A/c-csr-other.yaml"
           ok --as="$U" delete clusterissuer logging-selfsigned
           denied "$CERTMSG" --as="$U" create -f "$A/loki.yaml"
+          denied "$CERTMSG" --as="$U" create -f "$A/prom.yaml"
           for spec in \
           '{"spec":{"commonName":"evil.logging.svc"}}' \
           '{"spec":{"secretName":"evil-secret"}}' \
@@ -979,6 +1020,8 @@ jobs:
           denied "$CERTMSG" --as="$ARGO" create -f "$A/d-root-always.yaml"
           denied "$CERTMSG" --as="$ARGO" create -f "$A/d-selfsigned-leaf.yaml"
           denied "$CERTMSG" --as="$ARGO" create -f "$A/d-loki-wrong-ns.yaml"
+          denied "$CERTMSG" --as="$ARGO" replace -f "$A/d-prom-server-auth.yaml"
+          denied "$CERTMSG" --as="$ARGO" create -f "$A/d-prom-wrong-ns.yaml"
           denied "$CIMSG" --as="$U" create -f "$A/ci-self.yaml"
           ok --as="$ARGO" create -f "$A/ci-self.yaml"
           denied "$CIMSG" --as="$U" replace -f "$A/d-ci-ca.yaml"
@@ -988,7 +1031,8 @@ jobs:
           denied "$IMGMSG" --as="$ARGO" create -f "$A/d-issuer-alias.yaml"
           denied "$IMGMSG" --as="$U" create -f "$A/d-issuer-alias.yaml"
           denied "$CRMSG" --as="$U" create -f "$AC/cr-loki.yaml"
-          for f in d-cr-noncontrolling d-cr-server-client-auth d-cr-wrong-owner d-cr-bad-usages d-cr-root-not-ca d-cr-root-dup; do
+          denied "$CRMSG" --as="$U" create -f "$AC/cr-prom.yaml"
+          for f in d-cr-noncontrolling d-cr-server-client-auth d-cr-wrong-owner d-cr-bad-usages d-cr-root-not-ca d-cr-root-dup d-cr-prom-server-auth d-cr-prom-wrong-owner d-cr-prom-bad-type; do
           denied "$CRMSG" --as="$CM" create -f "$AC/$f.yaml"
           done
           denied "$CSRMSG" --as="$ARGO" create -f "$A/d-csr-ca.yaml"
