@@ -1,12 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+# loki-datasource.yaml and loki-client-certificate.yaml stay authored but
+# intentionally unregistered until the logging activation PR; see
+# operators/cert-manager/logging-admission.yaml.
 resources:
   - grafana.yaml
   - grafana-service-account.yaml
   - grafana-mcpserver.yaml
   - datasource.yaml
-  - loki-datasource.yaml
-  - loki-client-certificate.yaml
   - arc-dashboard.yaml
   - opencode-dashboard.yaml
   - status-grafana.yaml

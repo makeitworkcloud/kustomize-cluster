@@ -1,0 +1,19 @@
+---
+# Activation-only Kustomize patch for the logging rollout, intentionally NOT
+# referenced by operators/reloader/kustomization.yaml yet. The activation PR
+# registers it after native admission deny proof, extending the Reloader
+# namespace watch list for the Loki/Alloy TLS leaf renewal reloads.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: reloader
+  namespace: argocd
+spec:
+  source:
+    helm:
+      valuesObject:
+        reloader:
+          namespaces:
+            - grafana
+            - opencode
+            - logging
