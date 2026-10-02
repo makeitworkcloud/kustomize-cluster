@@ -80,6 +80,9 @@ spec:
         has(object.spec.commonName) && object.spec.commonName == 'logging-root-ca' &&
         has(object.spec.usages) && size(object.spec.usages) == 3 &&
         object.spec.usages.all(u, u in ['signing', 'cert sign', 'crl sign']) &&
+        object.spec.usages.exists(u, u == 'signing') &&
+        object.spec.usages.exists(u, u == 'cert sign') &&
+        object.spec.usages.exists(u, u == 'crl sign') &&
         has(object.spec.duration) && object.spec.duration == '87600h' &&
         has(object.spec.renewBefore) && object.spec.renewBefore == '720h' &&
         has(object.spec.privateKey) && has(object.spec.privateKey.algorithm) && object.spec.privateKey.algorithm == 'ECDSA' &&
@@ -199,7 +202,10 @@ spec:
         (variables.controlledByRoot &&
          has(object.spec.isCA) && object.spec.isCA == true &&
          has(object.spec.usages) && size(object.spec.usages) == 3 &&
-         object.spec.usages.all(u, u in ['signing', 'cert sign', 'crl sign'])) ||
+         object.spec.usages.all(u, u in ['signing', 'cert sign', 'crl sign']) &&
+         object.spec.usages.exists(u, u == 'signing') &&
+         object.spec.usages.exists(u, u == 'cert sign') &&
+         object.spec.usages.exists(u, u == 'crl sign')) ||
         (variables.controlledByServer &&
          (!has(object.spec.isCA) || object.spec.isCA == false) &&
          has(object.spec.usages) && size(object.spec.usages) == 1 &&
