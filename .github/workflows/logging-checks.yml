@@ -367,10 +367,11 @@ jobs:
           check(base == ['grafana', 'opencode'], 'base-2 watchlist, got %s' % base)
           adm = [x for x in yaml.safe_load_all( Path('operators/cert-manager/logging-admission.yaml').read_text()) if isinstance(x, dict)]
           pols = {x['metadata']['name']: x for x in adm if x.get('kind') == 'ValidatingAdmissionPolicy'}
-          check(set(pols) == {'logging-certificate', 'logging-certificaterequest', 'logging-clusterissuer', 'logging-csr'}, 'four policies, got %s' % sorted(pols))
+          check(set(pols) == {'logging-certificate', 'logging-certificaterequest', 'logging-clusterissuer', 'logging-issuer', 'logging-csr'}, 'five policies, got %s' % sorted(pols))
           check(all(x.get('apiVersion') == 'admissionregistration.k8s.io/v1' and x['spec'].get('failurePolicy') == 'Fail' for x in pols.values()), 'v1 Fail')
           bs = {x['metadata']['name']: x for x in adm if x.get('kind') == 'ValidatingAdmissionPolicyBinding'}
           check(all(b['spec'].get('policyName') in pols and b['spec'].get('validationActions') == ['Deny'] for b in bs.values()), 'bindings Deny')
+          check({b['spec'].get('policyName') for b in bs.values()} == set(pols), 'bindings exactly cover the five policies, got %s' % sorted({b['spec'].get('policyName') for b in bs.values()}))
           pt = Path('operators/cert-manager/logging-admission.yaml').read_text()
           check('system:serviceaccount:argocd:argocd-argocd-application-controller' in pt, 'argo principal')
           check('system:serviceaccount:cert-manager:cert-manager' in pt, 'cm principal')
@@ -721,7 +722,7 @@ jobs:
           docker cp "$W/cm.crds.yaml" logging-adm-control-plane:/tmp/cm.crds.yaml
           K apply --server-side -f /tmp/cm.crds.yaml >/dev/null
           K apply -f - < operators/cert-manager/logging-admission.yaml >/dev/null
-          for pol in logging-certificate logging-certificaterequest logging-clusterissuer logging-csr; do
+          for pol in logging-certificate logging-certificaterequest logging-clusterissuer logging-issuer logging-csr; do
           [ "$(K get validatingadmissionpolicy "$pol" \
                 -o jsonpath='{.spec.failurePolicy}')" = Fail ] \
             || fail "$pol must be failurePolicy Fail"
@@ -778,19 +779,10 @@ jobs:
             return {'apiVersion': 'cert-manager.io/v1', 'kind': 'Certificate', 'metadata': {'name': name, 'namespace': ns}, 'spec': {'secretName': name, 'commonName': name, 'issuerRef': issuer}}
           put('controls.yaml', certdict('ci-unrelated', 'untrusted', {'name': 'unrelated-issuer'}), certdict('ci-other-group', 'untrusted', {'name': 'logging-ca', 'kind': 'ClusterIssuer', 'group': 'other.example.io'}), certdict('logging-root-ca', 'untrusted', {'name': 'unrelated-issuer'}), {'apiVersion': 'cert-manager.io/v1', 'kind': 'Issuer', 'metadata': {'name': 'logging-ca', 'namespace': 'untrusted'}, 'spec': {'selfSigned': {}}})
           req = base64.b64encode((w / 'adm.csr').read_bytes()).decode()
-          CA = {'name': 'logging-ca', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}
-          SELF = {'name': 'logging-selfsigned', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}
-          def crq(name, ns, owner, issuer, usages, isca=None, controller=True):
-            d = {'apiVersion': 'cert-manager.io/v1', 'kind': 'CertificateRequest', 'metadata': {'name': name, 'namespace': ns, 'ownerReferences': [{ 'apiVersion': 'cert-manager.io/v1', 'kind': 'Certificate', 'name': owner, 'controller': controller}]}, 'spec': {'request': req, 'issuerRef': issuer, 'usages': usages}}
-            if isca is not None:
-                d['spec']['isCA'] = isca
-            return d
-          put('cr-loki.yaml', crq('ci-cr-loki', 'logging', 'loki-server', CA, ['server auth']))
-          put('cr-root.yaml', crq('ci-cr-root', 'cert-manager', 'logging-root-ca', SELF, ['signing', 'cert sign', 'crl sign'], isca=True))
-          put('d-cr-noncontrolling.yaml', crq('ci-cr-nc', 'logging', 'loki-server', CA, ['server auth'], controller=False))
-          put('d-cr-wrong-owner.yaml', crq('ci-cr-wo', 'logging', 'grafana-loki-client', CA, ['server auth']))
-          put('d-cr-bad-usages.yaml', crq('ci-cr-bu', 'logging', 'loki-server', CA, ['server auth', 'client auth']))
-          put('d-cr-root-not-ca.yaml', crq('ci-cr-rn', 'cert-manager', 'logging-root-ca', SELF, ['signing'], isca=False))
+          put('d-issuer-alias.yaml', {'apiVersion': 'cert-manager.io/v1', 'kind': 'Issuer', 'metadata': {'name': 'ci-issuer-alias', 'namespace': 'cert-manager'}, 'spec': {'ca': {'secretName': 'logging-root-ca'}}})
+          put('d-alias-clusterissuer.yaml', {'apiVersion': 'cert-manager.io/v1', 'kind': 'ClusterIssuer', 'metadata': {'name': 'ci-alias-root'}, 'spec': {'ca': {'secretName': 'logging-root-ca'}}})
+          put('c-issuer-unrelated.yaml', {'apiVersion': 'cert-manager.io/v1', 'kind': 'Issuer', 'metadata': {'name': 'ci-issuer-unrelated', 'namespace': 'untrusted'}, 'spec': {'ca': {'secretName': 'logging-root-ca'}}})
+          put('c-issuer-other-root.yaml', {'apiVersion': 'cert-manager.io/v1', 'kind': 'Issuer', 'metadata': {'name': 'ci-issuer-other-root', 'namespace': 'cert-manager'}, 'spec': {'ca': {'secretName': 'ci-other-root-secret'}}})
           def csr(name, signer):
             return {'apiVersion': 'certificates.k8s.io/v1', 'kind': 'CertificateSigningRequest', 'metadata': {'name': name}, 'spec': {'request': req, 'signerName': signer, 'usages': ['client auth']}}
           put('d-csr-ca.yaml', csr('ci-csr-ca', 'clusterissuers.cert-manager.io/logging-ca'))
@@ -811,14 +803,54 @@ jobs:
           CERTMSG="Logging PKI Certificates"
           CRMSG="Logging PKI CertificateRequests"
           CIMSG="Logging PKI ClusterIssuers"
+          IMGMSG="Logging PKI Issuers"
           CSRMSG="built-in CertificateSigningRequest path is disabled"
           for f in issuers root loki alloy graf; do ok --as="$ARGO" create -f "$A/$f.yaml"; done
-          ok --as="$CM" create -f "$A/cr-loki.yaml"
-          ok --as="$CM" create -f "$A/cr-root.yaml"
+          ROOT_UID=$(K get certificate -n cert-manager logging-root-ca -o jsonpath='{.metadata.uid}')
+          LOKI_UID=$(K get certificate -n logging loki-server -o jsonpath='{.metadata.uid}')
+          ALLOY_UID=$(K get certificate -n logging alloy-client -o jsonpath='{.metadata.uid}')
+          GRAF_UID=$(K get certificate -n grafana grafana-loki-client -o jsonpath='{.metadata.uid}')
+          [ -n "$ROOT_UID" ] && [ -n "$LOKI_UID" ] && [ -n "$ALLOY_UID" ] && [ -n "$GRAF_UID" ] \
+            || fail "could not read fixture Certificate UIDs from the CI kind API"
+          python - "$W" "$ROOT_UID" "$LOKI_UID" "$ALLOY_UID" "$GRAF_UID" <<'EOF'
+          import base64, sys, yaml
+          from pathlib import Path
+          w = Path(sys.argv[1]); adm = w / 'adm-cr'; adm.mkdir(exist_ok=True)
+          root_uid, loki_uid, alloy_uid, graf_uid = sys.argv[2:6]
+          req = base64.b64encode((w / 'adm.csr').read_bytes()).decode()
+          CA = {'name': 'logging-ca', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}
+          SELF = {'name': 'logging-selfsigned', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}
+          F = {}
+          def put(n, *docs): F[n] = yaml.safe_dump_all(list(docs))
+          def crq(name, ns, owner, owner_uid, issuer, usages, isca=None, controller=True):
+            d = {'apiVersion': 'cert-manager.io/v1', 'kind': 'CertificateRequest', 'metadata': {'name': name, 'namespace': ns, 'ownerReferences': [{ 'apiVersion': 'cert-manager.io/v1', 'kind': 'Certificate', 'name': owner, 'uid': owner_uid, 'controller': controller}]}, 'spec': {'request': req, 'issuerRef': issuer, 'usages': usages}}
+            if isca is not None:
+                d['spec']['isCA'] = isca
+            return d
+          put('cr-loki.yaml', crq('ci-cr-loki', 'logging', 'loki-server', loki_uid, CA, ['server auth']))
+          put('cr-root.yaml', crq('ci-cr-root', 'cert-manager', 'logging-root-ca', root_uid, SELF, ['signing', 'cert sign', 'crl sign'], isca=True))
+          put('cr-alloy.yaml', crq('ci-cr-alloy', 'logging', 'alloy-client', alloy_uid, CA, ['client auth']))
+          put('cr-graf.yaml', crq('ci-cr-graf', 'grafana', 'grafana-loki-client', graf_uid, CA, ['client auth']))
+          put('d-cr-noncontrolling.yaml', crq('ci-cr-nc', 'logging', 'loki-server', loki_uid, CA, ['server auth'], controller=False))
+          put('d-cr-server-client-auth.yaml', crq('ci-cr-sca', 'logging', 'loki-server', loki_uid, CA, ['client auth']))
+          put('d-cr-wrong-owner.yaml', crq('ci-cr-wo', 'grafana', 'grafana-loki-client', graf_uid, CA, ['server auth']))
+          put('d-cr-bad-usages.yaml', crq('ci-cr-bu', 'logging', 'loki-server', loki_uid, CA, ['server auth', 'client auth']))
+          put('d-cr-root-not-ca.yaml', crq('ci-cr-rn', 'cert-manager', 'logging-root-ca', root_uid, SELF, ['signing'], isca=False))
+          put('d-cr-root-dup.yaml', crq('ci-cr-rd', 'cert-manager', 'logging-root-ca', root_uid, SELF, ['signing', 'cert sign', 'crl sign', 'signing', 'cert sign', 'crl sign'], isca=True))
+          for n, t in F.items(): (adm / n).write_text(t)
+          EOF
+          docker cp "$W/adm-cr" logging-adm-control-plane:/tmp/adm-cr
+          AC=/tmp/adm-cr
+          ok --as="$CM" create -f "$AC/cr-loki.yaml"
+          ok --as="$CM" create -f "$AC/cr-root.yaml"
+          ok --as="$CM" create -f "$AC/cr-alloy.yaml"
+          ok --as="$CM" create -f "$AC/cr-graf.yaml"
           ok --as="$CM" annotate certificaterequest -n logging ci-cr-loki ci=kept
           ok --as="$U" annotate certificate -n logging loki-server ci=metadata-only
           ok --as="$U" annotate clusterissuer logging-ca ci=metadata-only
           ok --as="$U" create -f "$A/controls.yaml"
+          ok --as="$U" create -f "$A/c-issuer-unrelated.yaml"
+          ok --as="$U" create -f "$A/c-issuer-other-root.yaml"
           ok --as="$U" create -f "$A/c-csr-other.yaml"
           ok --as="$U" delete clusterissuer logging-selfsigned
           denied "$CERTMSG" --as="$U" create -f "$A/loki.yaml"
@@ -842,9 +874,13 @@ jobs:
           ok --as="$ARGO" create -f "$A/ci-self.yaml"
           denied "$CIMSG" --as="$U" replace -f "$A/d-ci-ca.yaml"
           denied "$CIMSG" --as="$U" replace -f "$A/d-ci-self.yaml"
-          denied "$CRMSG" --as="$U" create -f "$A/cr-loki.yaml"
-          for f in d-cr-noncontrolling d-cr-wrong-owner d-cr-bad-usages d-cr-root-not-ca; do
-          denied "$CRMSG" --as="$CM" create -f "$A/$f.yaml"
+          denied "$CIMSG" --as="$ARGO" create -f "$A/d-alias-clusterissuer.yaml"
+          denied "$CIMSG" --as="$U" create -f "$A/d-alias-clusterissuer.yaml"
+          denied "$IMGMSG" --as="$ARGO" create -f "$A/d-issuer-alias.yaml"
+          denied "$IMGMSG" --as="$U" create -f "$A/d-issuer-alias.yaml"
+          denied "$CRMSG" --as="$U" create -f "$AC/cr-loki.yaml"
+          for f in d-cr-noncontrolling d-cr-server-client-auth d-cr-wrong-owner d-cr-bad-usages d-cr-root-not-ca d-cr-root-dup; do
+          denied "$CRMSG" --as="$CM" create -f "$AC/$f.yaml"
           done
           denied "$CSRMSG" --as="$ARGO" create -f "$A/d-csr-ca.yaml"
           for a in "$ARGO" "$CM" "$U"; do
