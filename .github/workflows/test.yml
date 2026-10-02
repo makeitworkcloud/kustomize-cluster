@@ -170,7 +170,7 @@ jobs:
           dash_doc = yaml.safe_load(
               Path("workloads/grafana/opencode-dashboard.yaml").read_text())
           check(dash_doc.get("kind") == "GrafanaDashboard", "dashboard kind")
-          check(dash_doc["metadata"].get("name"] == "opencode-sessions",
+          check(dash_doc["metadata"].get("name") == "opencode-sessions",
                 "dashboard name must be opencode-sessions")
           dash = json.loads(dash_doc["spec"]["json"])
           check(dash.get("uid") == "opencode-sessions",
@@ -557,7 +557,7 @@ jobs:
                   self.assertEqual((state["usage_totals"]["input"],
                                     state["usage_totals"]["output"]), (40.0, 15.0))
                   state = self.scan(FakeUsageApi(
-                      [make_row("synthetic-a", base + 900, input=95, output=65,
+                      [make_row("synthetic-a", base + 900, input=95, output=65),
                        make_row("synthetic-b", base + 600, input=130)]))
                   self.assertEqual((state["usage_totals"]["input"],
                                     state["usage_totals"]["output"]), (55.0, 15.0))
@@ -717,7 +717,7 @@ jobs:
           docs = [d for d in yaml.safe_load_all(
               Path("workloads/opencode/session-metrics.yaml").read_text()) if isinstance(d, dict)]
           exporter = next((d for d in docs if d.get("kind") == "Deployment"
-                           and d.get("metadata", {}).get("name"] == "opencode-session-metrics"), None)
+                           and d.get("metadata", {}).get("name") == "opencode-session-metrics"), None)
           if exporter is None:
               sys.exit("opencode-session-metrics Deployment missing from session-metrics.yaml")
           revision_key = "opencode.makeitwork.cloud/config-revision"
