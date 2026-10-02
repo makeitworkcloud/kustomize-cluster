@@ -377,9 +377,9 @@ jobs:
               def assert_incomplete(self, api, before):
                   self.assert_down(self.scan(api), before, 1, 0)
               def test_configured_bounds_fail_incomplete_atomic(self):
-                  cases = [("tie-group-too-large", {"MAX_USAGE_SCAN_SESSIONS": "1500"}, True, 2500),
-                           ("unique-session-bound", {"MAX_USAGE_SCAN_SESSIONS": "100"}, False, 150),
-                           ("page-bound", {"MAX_USAGE_SCAN_PAGES": "2"}, False, 2500)]
+                  cases = [("tie-group-too-large", {"MAX_USAGE_SCAN_SESSIONS": 1500}, True, 2500),
+                           ("unique-session-bound", {"MAX_USAGE_SCAN_SESSIONS": 100}, False, 150),
+                           ("page-bound", {"MAX_USAGE_SCAN_PAGES": 2}, False, 2500)]
                   for name, overrides, tie, count in cases:
                       with self.subTest(bound=name):
                           self.setUp()
