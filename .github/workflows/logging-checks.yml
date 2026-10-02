@@ -380,7 +380,7 @@ jobs:
             check(root['spec'].get('issuerRef') == {'name': 'logging-selfsigned', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}, 'root CA selfsigned issuer')
             check(root['spec'].get('duration') == '87600h' and root['spec'].get('renewBefore') == '720h', 'root 10y/720h')
             check(root['spec'].get('privateKey') == {'algorithm': 'ECDSA', 'size': 256, 'rotationPolicy': 'Never'}, 'root key Never')
-          lci = next((x for x in pki if x.get('kind') == 'ClusterIssuer' and x['metadata']['name'] == 'logging-ca'), None)
+          lci = next((x for x in pki if x.get('kind') == 'ClusterIssuer' and x['metadata'].get('name') == 'logging-ca'), None)
           check(lci is not None and lci.get('spec', {}).get('ca', {}).get('secretName') == 'logging-root-ca', 'ca<-root')
           exp = {'autoReloadAll': False, 'watchGlobally': False, 'namespaces': ['grafana', 'opencode'], 'reloadOnCreate': True, 'reloadOnDelete': True, 'syncAfterRestart': True}
           check(reloader_values.get('reloader') == exp, 'reloader values == canonical base-2 contract, got %s' % reloader_values.get('reloader'))
