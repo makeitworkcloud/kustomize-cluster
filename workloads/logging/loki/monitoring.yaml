@@ -12,6 +12,15 @@ metadata:
     app.kubernetes.io/instance: loki
     app.kubernetes.io/component: single-binary
     logging.makeitwork.cloud/job: loki
+  annotations:
+    # KubeLinter dangling-service exception (canonical ownership exception,
+    # not live-pod proof): the backing pods are owned and rendered by the
+    # upstream Loki Helm chart (Argo app loki, release "loki", single-binary
+    # chart), which is not present in this repo, so the selector below
+    # intentionally matches chart-rendered pod labels that repo KubeLinter
+    # cannot see. The selector is native and verified by the Helm render in
+    # logging-checks.yml.
+    ignore-check.kube-linter.io/dangling-service: "pods owned by upstream Loki Helm chart (Argo app loki, release loki), not by this repo"
 spec:
   type: ClusterIP
   ports:

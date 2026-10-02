@@ -166,16 +166,24 @@ spec:
                     sizeLimit: 256Mi
 
           # Minimal RBAC: pod discovery and pod log reads only.
+          # rbac.rules and rbac.clusterRules must BOTH be non-empty with the
+          # pinned chart 1.13.0: its ClusterRole template appends
+          # `rbac.rules | toYaml` AND `clusterRules | toYaml` into one list,
+          # so an empty clusterRules renders a standalone `[]` after the rule
+          # items and breaks YAML parsing. With rbac.namespaces empty the two
+          # lists merge into a single ClusterRole, so the split below grants
+          # exactly the same permissions as one combined list. Ref:
+          # https://github.com/grafana/alloy/blob/helm-chart/1.13.0/operations/helm/charts/alloy/templates/rbac.yaml
           rbac:
             create: true
             rules:
               - apiGroups: [""]
-                resources: ["pods"]
-                verbs: ["get", "list", "watch"]
-              - apiGroups: [""]
                 resources: ["pods/log"]
                 verbs: ["get"]
-            clusterRules: []
+            clusterRules:
+              - apiGroups: [""]
+                resources: ["pods"]
+                verbs: ["get", "list", "watch"]
 
           serviceAccount:
             create: true
