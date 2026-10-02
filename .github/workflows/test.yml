@@ -1213,18 +1213,6 @@ jobs:
           test -d /app/node_modules/discord.js
           test ! -d /app/node_modules/.bin/vitest
 
-  # Logging gates for feat/cluster-loki-logging (loki + alloy).
-  # ci-logging-charts renders the pinned official vendor charts with the
-  # REAL values extracted from workloads/apps/{loki,alloy}-app.yaml at run
-  # time (no duplicated config fixture, no Secrets decryption, no
-  # kustomize/KSOPS build) and asserts the chart plus companion-manifest
-  # contract, including the fail-closed log-collection privacy rules.
-  # ci-logging-native validates the actual runtime configuration with the
-  # native vendor CLIs (alloy validate, loki -verify-config) and proves the
-  # mTLS auth boundary against an isolated Loki container using throwaway
-  # CI-only certificates (openssl standard CLI, umask 077, never printed,
-  # never uploaded; no production key material is generated or read).
-  # Neither job touches a live cluster or real application traffic.
   ci-logging-charts:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -1239,8 +1227,6 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          # Latest published stable helm/helm release at authoring time
-          # (v4.3.0, published 2026-09-09, not a prerelease).
           version: v4.3.0
 
       - name: Setup Python
@@ -1318,8 +1304,6 @@ jobs:
                  shlex.quote(alloy_src["repoURL"]), shlex.quote(alloy_src["targetRevision"]),
                  shlex.quote(reloader_src["repoURL"]), shlex.quote(reloader_src["targetRevision"]),
                  shlex.quote(reloader_namespace)))
-          print("OK: Applications pin loki 18.13.7 / alloy 1.13.0 / reloader 2.2.16; "
-                "values extracted verbatim")
           EOF
           . "$RENDER/sources.env"
           helm repo add loki-vendor "$LOKI_REPO_URL"
@@ -1362,7 +1346,6 @@ jobs:
           reloader_values = reloader_app["spec"]["source"]["helm"]["valuesObject"]
           reloader_namespace = reloader_app["spec"]["destination"]["namespace"]
 
-          # Loki workload: exactly one monolithic StatefulSet, 1 replica.
           stss = [d for d in loki_docs if d.get("kind") == "StatefulSet"]
           check(len(stss) == 1, "loki render must contain exactly one StatefulSet")
           sts = stss[0] if stss else None
@@ -1427,8 +1410,6 @@ jobs:
                             and http.get("scheme") == "HTTP",
                             "%s must probe /ready on the internal HTTP port 3101" % probe)
 
-          # The rendered runtime config must equal loki.structuredConfig
-          # verbatim: structuredConfig replaces (not merges) the chart config.
           config_docs = []
           for d in loki_docs:
               if d.get("kind") in ("Secret", "ConfigMap"):
@@ -1488,8 +1469,6 @@ jobs:
                     and compactor.get("delete_request_store") == "filesystem",
                     "compactor retention must use the filesystem store")
 
-          # No gateway, no ingress, and the chart ServiceMonitor stays off
-          # (metrics are scraped from 3101 via companion manifests).
           gateway_named = [d["metadata"]["name"] for d in loki_docs
                            if "gateway" in d["metadata"]["name"]]
           check(not gateway_named, "gateway resources must not render: %s" % gateway_named)
@@ -1498,7 +1477,6 @@ jobs:
           check(not [d for d in loki_docs if d.get("kind") == "ServiceMonitor"],
                 "chart ServiceMonitor must stay disabled for loki")
 
-          # Alloy workload: exactly one Deployment, 1 replica, hardened.
           deps = [d for d in alloy_docs if d.get("kind") == "Deployment"]
           check(len(deps) == 1, "alloy render must contain exactly one Deployment")
           alloy_container = None
@@ -1539,11 +1517,6 @@ jobs:
                     and client_tls_mount.get("readOnly") is True,
                     "client-tls must be mounted read-only at /etc/alloy/client-tls")
 
-          # Minimal read-only RBAC. Clusterwide pod discovery necessarily
-          # binds a read-only ClusterRole (rbac.namespaces is unset);
-          # clusterRules=[] means no EXTRA cluster permissions, not the
-          # absence of the object. Assert the union granted across every
-          # rendered Role and ClusterRole instead of the object kinds.
           rbac_objects = [d for d in alloy_docs if d.get("kind") in ("Role", "ClusterRole")]
           check(len(rbac_objects) >= 1, "alloy render must include RBAC objects for discovery")
           granted = set()
@@ -1573,7 +1546,6 @@ jobs:
                   check("secrets" not in (rule.get("resources") or []),
                         "no RBAC rule may touch Secrets")
 
-          # The chart must wire the Application River config verbatim.
           config_maps = [d for d in alloy_docs if d.get("kind") == "ConfigMap"
                          and d["metadata"]["name"] == "alloy"]
           check(len(config_maps) == 1, "alloy ConfigMap expected")
@@ -1582,7 +1554,6 @@ jobs:
                     == alloy_values["alloy"]["configMap"]["content"],
                     "rendered ConfigMap config.alloy must equal the Application River verbatim")
 
-          # Alloy chart ServiceMonitor: real ports and selections.
           monitors = [d for d in alloy_docs if d.get("kind") == "ServiceMonitor"]
           check(len(monitors) == 1, "alloy chart ServiceMonitor must render exactly once")
           services = [d for d in alloy_docs if d.get("kind") == "Service"]
@@ -1606,7 +1577,6 @@ jobs:
                   check(ports.get(port_name) == 12345,
                         "alloy metrics Service port must be 12345")
 
-          # Companion certificates (plain git files; no SOPS, no status).
           server_cert = yaml.safe_load(
               Path("workloads/logging/loki/server-certificate.yaml").read_text())
           client_cert = yaml.safe_load(
@@ -1640,8 +1610,6 @@ jobs:
               "loki-headless.logging.svc", "loki-headless.logging.svc.cluster.local"],
               "server cert dnsNames must cover the in-cluster service names")
 
-          # Companion monitoring: loki-internal Service on 3101 plus the
-          # ServiceMonitor that selects it (main service only, not gateway).
           monitoring = [d for d in yaml.safe_load_all(
               Path("workloads/logging/loki/monitoring.yaml").read_text())
               if isinstance(d, dict)]
@@ -1674,10 +1642,82 @@ jobs:
           check(any(d.get("kind") == "PrometheusRule" for d in monitoring),
                 "logging PrometheusRule must remain present")
 
-          # Reloader operator contract: the canonical Application keeps the
-          # scoped watchlist (grafana, opencode, logging), stays off global
-          # watching and auto-reload-all, and keeps the default reload
-          # strategy, so only named Secret opt-in annotations roll workloads.
+          datasource = yaml.safe_load(
+              Path("workloads/grafana/loki-datasource.yaml").read_text())
+          check(datasource.get("kind") == "GrafanaDatasource"
+                and datasource["metadata"].get("namespace") == "grafana",
+                "grafana-loki must be a GrafanaDatasource in grafana")
+          check(datasource["spec"].get("uid") == "loki",
+                "datasource uid must be loki")
+          check(datasource["spec"].get("instanceSelector")
+                == {"matchLabels": {"dashboards": "grafana"}},
+                "datasource must select exactly the main Grafana only")
+          ds = datasource["spec"].get("datasource", {})
+          check(ds.get("type") == "loki" and ds.get("access") == "proxy"
+                and ds.get("isDefault") is False
+                and ds.get("url") == "https://loki.logging.svc:3100",
+                "datasource must proxy, non-default, the mTLS Loki main port 3100")
+          json_data = ds.get("jsonData", {})
+          check(json_data.get("tlsAuth") is True
+                and json_data.get("tlsAuthWithCACert") is True
+                and json_data.get("tlsSkipVerify") is False
+                and json_data.get("serverName") == "loki.logging.svc",
+                "datasource must do verified mTLS with the Loki server name")
+          expected_values_from = [
+              {"targetPath": "secureJsonData.%s" % part,
+               "valueFrom": {"secretKeyRef": {"name": "loki-grafana-client", "key": key}}}
+              for part, key in (("tlsClientCert", "tls.crt"), ("tlsClientKey", "tls.key"),
+                                ("tlsCACert", "ca.crt"))]
+          check(datasource["spec"].get("valuesFrom") == expected_values_from,
+                "datasource client TLS material must come from exactly the three "
+                "loki-grafana-client Secret keys in the same namespace")
+          grafana_cert = yaml.safe_load(
+              Path("workloads/grafana/loki-client-certificate.yaml").read_text())
+          check(grafana_cert["metadata"].get("name") == "grafana-loki-client"
+                and grafana_cert["metadata"].get("namespace") == "grafana"
+                and grafana_cert["spec"].get("secretName") == "loki-grafana-client",
+                "grafana-loki-client must issue the loki-grafana-client Secret")
+          check(grafana_cert["spec"].get("usages") == ["client auth"],
+                "grafana client cert must be client-auth only")
+          check(grafana_cert["spec"].get("duration") == "2160h"
+                and grafana_cert["spec"].get("renewBefore") == "360h",
+                "grafana client leaf must be a 90d certificate renewed 15d early")
+          check(grafana_cert["spec"].get("privateKey")
+                == {"algorithm": "ECDSA", "size": 256, "rotationPolicy": "Always"},
+                "grafana client leaf must rotate ECDSA P-256 keys on renewal")
+          check(grafana_cert["spec"].get("issuerRef")
+                == {"name": "logging-ca", "kind": "ClusterIssuer",
+                    "group": "cert-manager.io"},
+                "grafana client leaf must chain to the dedicated logging CA")
+          pki_docs = [d for d in yaml.safe_load_all(
+              Path("operators/cert-manager/logging-pki.yaml").read_text())
+              if isinstance(d, dict)]
+          root_ca = next((d for d in pki_docs if d.get("kind") == "Certificate"
+                          and d["metadata"].get("name") == "logging-root-ca"), None)
+          check(root_ca is not None, "logging-root-ca Certificate must exist")
+          if root_ca:
+              check(root_ca["metadata"].get("namespace") == "cert-manager"
+                    and root_ca["spec"].get("isCA") is True
+                    and root_ca["spec"].get("secretName") == "logging-root-ca",
+                    "root CA must live in cert-manager and own its Secret")
+              check(root_ca["spec"].get("issuerRef")
+                    == {"name": "logging-selfsigned", "kind": "ClusterIssuer",
+                        "group": "cert-manager.io"},
+                    "root CA must be signed by the logging-selfsigned ClusterIssuer")
+              check(root_ca["spec"].get("duration") == "87600h"
+                    and root_ca["spec"].get("renewBefore") == "720h",
+                    "root CA must be a 10-year certificate renewed 30d early")
+              check(root_ca["spec"].get("privateKey")
+                    == {"algorithm": "ECDSA", "size": 256, "rotationPolicy": "Never"},
+                    "root CA key must never auto-rotate")
+          logging_ca_issuer = next(
+              (d for d in pki_docs if d.get("kind") == "ClusterIssuer"
+               and d["metadata"].get("name") == "logging-ca"), None)
+          check(logging_ca_issuer is not None
+                and logging_ca_issuer.get("spec", {}).get("ca", {})
+                .get("secretName") == "logging-root-ca",
+                "logging-ca ClusterIssuer must sign from the root CA Secret")
+
           reloader_expected = {
               "autoReloadAll": False, "watchGlobally": False,
               "namespaces": ["grafana", "opencode", "logging"],
@@ -1687,9 +1727,6 @@ jobs:
           check(reloader_values.get("reloader") == reloader_expected,
                 "operators/reloader values must stay exactly the canonical scoped "
                 "contract %s, got %s" % (reloader_expected, reloader_values.get("reloader")))
-          # The chart always adds the release namespace to the scoped watch
-          # set (meta-info ConfigMap, HA leases, events), so Roles, bindings
-          # and the --namespaces flag cover the requested list plus it.
           watch_namespaces = sorted(set(reloader_expected["namespaces"]) | {reloader_namespace})
           roles = [d for d in reloader_docs if d.get("kind") == "Role"]
           bindings = [d for d in reloader_docs if d.get("kind") == "RoleBinding"]
@@ -1736,10 +1773,6 @@ jobs:
           check(not any(a.startswith("--reload-strategy") for a in reloader_args),
                 "the default reload strategy (named annotations) must stay")
 
-          # Reloader and ArgoCD ignore-differences contract: the named-secret
-          # reload annotations must stay scoped to the two owned controllers,
-          # and the only ignored drift is controller-generated: the Reloader
-          # env hash in the mounting container plus last-reloaded-from.
           for path, kind, name, container, env_name in (
                   ("workloads/apps/loki-app.yaml", "StatefulSet", "loki", "loki",
                    "STAKATER_LOKI_SERVER_TLS_SECRET"),
@@ -1794,8 +1827,6 @@ jobs:
           source = next(s for s in app["spec"]["sources"] if "chart" in s)
           river = yaml.safe_load(source["helm"]["values"])["alloy"]["configMap"]["content"]
 
-          # Structural wiring: discovery feeds the relabelled targets into
-          # the log source, then the processor, then the mTLS writer.
           check(re.search(r"targets\s*=\s*discovery\.kubernetes\.pods\.targets", river)
                 is not None, "discovery.relabel must consume discovery.kubernetes targets")
           check(re.search(r"targets\s*=\s*discovery\.relabel\.approved_pods\.output", river)
@@ -1807,8 +1838,6 @@ jobs:
           check(river.index("discovery.kubernetes") < river.index("loki.source.kubernetes"),
                 "hard-denies must run in relabeling before any log source starts")
 
-          # The four gating rules are the privacy contract; parse them from
-          # the real River so the fixtures below evaluate the shipped regexes.
           rules = []
           for block in re.findall(r"rule\s*\{([^{}]*)\}", river):
               def field(name):
@@ -1840,16 +1869,9 @@ jobs:
                 and [v.strip().strip('"') for v in keep.group(1).split(",")]
                 == ["namespace", "application", "container"],
                 "stage.label_keep must pin indexed labels to namespace/application/container")
-          # The three kept labels plus the static cluster label are the four
-          # stable indexed labels. Internal target attributes (pod name and
-          # UID) must survive to loki.source.kubernetes for API tailing, so
-          # no labeldrop rule may strip them.
           check(re.search(r"action\s*=\s*\"labeldrop\"", river) is None,
                 "no labeldrop rule may strip the internal pod name/UID target attributes")
 
-          # Semantic fixtures over the extracted fixed regexes ONLY (native
-          # `alloy validate` in ci-logging-native covers real syntax); the
-          # default is deny: nothing is collected without an explicit keep.
           def evaluate(labels):
               for rule in gating:
                   joined = ";".join(labels.get(sl, "") for sl in rule["source_labels"])
@@ -1893,14 +1915,10 @@ jobs:
                 == {"namespace": "team-a", "application": "web", "container": "web"},
                 "positive fixture must map exactly the three indexed labels")
 
-          # Writer contract: mTLS to the Loki main port with exact backoff
-          # and batching parameters, plus the static cluster label.
           expected_strings = {
-              "url": "https://loki.logging.svc:3100/loki/api/v1/push",
-              "batch_wait": "1s", "batch_size": "64KiB", "remote_timeout": "10s",
-              "min_backoff_period": "500ms", "max_backoff_period": "30s",
-              "server_name": "loki.logging.svc",
-          }
+              "url": "https://loki.logging.svc:3100/loki/api/v1/push", "batch_wait": "1s",
+              "batch_size": "64KiB", "remote_timeout": "10s", "min_backoff_period": "500ms",
+              "max_backoff_period": "30s", "server_name": "loki.logging.svc"}
           for key, expected in expected_strings.items():
               match = re.search(r"\b%s\s*=\s*\"([^\"]*)\"" % key, river)
               check(match is not None and match.group(1) == expected,
@@ -1932,18 +1950,6 @@ jobs:
           print("OK: fail-closed privacy contract verified against the shipped River rules")
           EOF
 
-  # Native-behavior gates for the logging stack. Renders the same pinned
-  # charts with the real Application values, then (1) runs `alloy validate`
-  # on the shipped River configuration with the same stability level the
-  # chart passes at runtime, (2) runs `loki -verify-config` on the actual
-  # rendered runtime config with negative controls proving the check bites,
-  # and (3) starts the real Loki image with throwaway CI certificates on an
-  # isolated docker network to prove the mTLS auth boundary: no client
-  # certificate and wrong-CA clients are denied, a valid client can push and
-  # query a known synthetic line, the internal 3101 server serves only
-  # ready/metrics, and the loopback-bound gRPC and memberlist listeners
-  # (plus the unconfigured 9096) refuse direct off-loopback connections to
-  # the container bridge IP. No live cluster, no production key material.
   ci-logging-native:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -1958,8 +1964,6 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          # Latest published stable helm/helm release at authoring time
-          # (v4.3.0, published 2026-09-09, not a prerelease).
           version: v4.3.0
 
       - name: Setup Python
@@ -1999,7 +2003,6 @@ jobs:
               entries.append("%s_CHART_VERSION=%s"
                              % (name.upper(), shlex.quote(source["targetRevision"])))
           (out / "sources.env").write_text("\n".join(entries) + "\n")
-          print("OK: chart values extracted verbatim from both Applications")
           EOF
           . "$RENDER/sources.env"
           helm repo add loki-vendor "$LOKI_REPO_URL"
@@ -2050,13 +2053,6 @@ jobs:
                             if c["name"] == "loki")
           check(loki_image.endswith("grafana/loki:3.7.8"),
                 "loki image must be grafana/loki:3.7.8, got %s" % loki_image)
-          # Command-flag fidelity gate: the native container below mirrors ONLY
-          # -config.file. -target=all equals the Loki binary default, and the
-          # chart's -memberlist.advertise-addr=$(POD_IP) (a kubelet env swap of
-          # the pod IP) is inert here: the ring is in-memory, join_members is
-          # empty, and bind_addr is loopback. Any other chart flag fails this
-          # gate instead of silently not being mirrored; this does NOT claim
-          # the unmodified chart command line itself was executed.
           loki_args = next(c.get("args") or []
                            for c in sts["spec"]["template"]["spec"]["containers"]
                            if c["name"] == "loki")
@@ -2090,20 +2086,16 @@ jobs:
                  shlex.quote(stability), shlex.quote(tls["cert_file"]),
                  shlex.quote(tls["key_file"]), shlex.quote(tls["client_ca_file"])))
 
-          # CI-only certificate shapes: the server leaf mirrors the real
-          # dnsNames from the git Certificate; the client mirrors its CN.
           server_cert = yaml.safe_load(
               Path("workloads/logging/loki/server-certificate.yaml").read_text())
           client_cert = yaml.safe_load(
               Path("workloads/logging/alloy/client-certificate.yaml").read_text())
           san = ",".join("DNS:%s" % d for d in server_cert["spec"]["dnsNames"])
           (work / "pki-server.ext").write_text(
-              "basicConstraints=critical,CA:FALSE\n"
-              "keyUsage=critical,digitalSignature,keyEncipherment\n"
+              "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\n"
               "extendedKeyUsage=serverAuth\nsubjectAltName=%s\n" % san)
           (work / "pki-client.ext").write_text(
-              "basicConstraints=critical,CA:FALSE\n"
-              "keyUsage=critical,digitalSignature,keyEncipherment\n"
+              "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\n"
               "extendedKeyUsage=clientAuth\n")
           print("OK: native inputs extracted (config, River, images, TLS paths, SANs)")
           EOF
@@ -2135,9 +2127,6 @@ jobs:
           fi
           echo "OK: alloy validate rejects an invalid River file"
 
-      # Throwaway CI-only PKI. umask 077; key and cert bytes are never
-      # printed, echoed, or uploaded, and nothing here touches production
-      # key material (the repo only references secret names).
       - name: Generate synthetic CI PKI with openssl (never printed)
         run: |
           set -euo pipefail
@@ -2172,12 +2161,7 @@ jobs:
                    client.crt client.key wrong-client.crt wrong-client.key; do
             test -s "$PKI/$f" || { echo "synthetic PKI generation failed for $f"; exit 1; }
           done
-          echo "OK: synthetic CI PKI generated under umask 077 (10 files, contents never printed)"
 
-      # The real rendered config (not a copy) is verified by the pinned
-      # native Loki image, with the TLS files bound at their real configured
-      # mount paths and ephemeral data under /var/loki, running as the CI
-      # uid so the 0600 synthetic key stays owner-readable only.
       - name: Verify the real rendered Loki config natively
         run: |
           set -euo pipefail
@@ -2192,7 +2176,6 @@ jobs:
             --volume "$W/pki/ca.crt:$LOKI_TLS_CA:ro" \
             --volume "$RT/var-loki:/var/loki" \
             "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml -verify-config=true
-          echo "OK: native loki -verify-config accepted the real rendered config"
 
       - name: Negative controls for native Loki verify-config
         run: |
@@ -2229,7 +2212,6 @@ jobs:
               exit 1
             fi
           done
-          echo "OK: -verify-config rejects unknown-schema and malformed configs"
 
       - name: Prove the mTLS auth boundary with a live isolated Loki
         run: |
@@ -2275,14 +2257,63 @@ jobs:
           [ "$(code -G --data-urlencode 'query={ci="x"}' http://127.0.0.1:31001/loki/api/v1/query_range)" = "404" ] \
             || fail "query API must not exist on the internal server"
 
-          plain=$(code http://127.0.0.1:31000/ready)
-          [ "$plain" != "200" ] || fail "plain HTTP must be denied on the TLS main port"
-          nocert=$(code --resolve loki.logging.svc:31000:127.0.0.1 --cacert "$PKI/ca.crt" https://loki.logging.svc:31000/ready)
-          [ "$nocert" != "200" ] || fail "main port must deny clients without a certificate"
-          wrongca=$(code --resolve loki.logging.svc:31000:127.0.0.1 --cacert "$PKI/ca.crt" --cert "$PKI/wrong-client.crt" --key "$PKI/wrong-client.key" https://loki.logging.svc:31000/ready)
-          [ "$wrongca" != "200" ] || fail "main port must deny certificates from the wrong CA"
+          tls_rejected() {
+            [ "$2" = "000" ] || return 1
+            case "$1" in
+              35|56) ;;
+              *) return 1 ;;
+            esac
+            case "$3" in
+              *SSL*|*TLS*|*tls*|*certificate*|*alert*) ;;
+              *) return 1 ;;
+            esac
+            return 0
+          }
+          not_rej() { if tls_rejected "$@"; then fail "$4"; fi; }
+          is_rej() { if tls_rejected "$@"; then :; else fail "$4"; fi; }
+          not_rej 0 403 "" "oracle: rc=0 http=403 is not a TLS rejection"
+          not_rej 0 404 "" "oracle: rc=0 http=404 is not a TLS rejection"
+          not_rej 0 500 "" "oracle: rc=0 http=500 is not a TLS rejection"
+          not_rej 0 000 "" "oracle: rc=0 http=000 is not a TLS rejection"
+          not_rej 7 000 "curl: (7) Connection refused" "oracle: refused is not a TLS rejection"
+          not_rej 28 000 "curl: (28) Operation timed out" "oracle: timeout is not a TLS rejection"
+          not_rej 60 000 "curl: (60) SSL certificate problem" "oracle: server-CA failure is not client-auth rejection"
+          is_rej 35 000 "curl: (35) tlsv13 alert certificate required" "oracle: a TLS alert must count"
+          is_rej 56 000 "curl: (56) SSL_read: Connection reset by peer" "oracle: TLS recv failure must count"
+
+          probe_client() {
+            local rc=0 http
+            http=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
+              --resolve loki.logging.svc:31000:127.0.0.1 --cacert "$PKI/ca.crt" \
+              "$@" https://loki.logging.svc:31000/ready 2>"$W/tls-probe.err") || rc=$?
+            printf '%s %s' "$rc" "$http"
+          }
+
           valid=$(code --resolve loki.logging.svc:31000:127.0.0.1 --cacert "$PKI/ca.crt" --cert "$PKI/client.crt" --key "$PKI/client.key" https://loki.logging.svc:31000/ready)
-          [ "$valid" = "200" ] || fail "valid mTLS client must reach /ready on the main port"
+          [ "$valid" = "200" ] || fail "valid mTLS client must reach /ready before the negatives"
+
+          plain_rc=0
+          plain_http=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
+            http://127.0.0.1:31000/ready 2>/dev/null) || plain_rc=$?
+          if [ "$plain_http" != "400" ]; then
+            [ "$plain_http" = "000" ] && [ "$plain_rc" -ne 0 ] \
+              || fail "plain HTTP must be TLS-rejected (400 or transport failure): rc=$plain_rc http=$plain_http"
+          fi
+
+          read nocert_rc nocert_http <<< "$(probe_client)"
+          nocert_err=$(cat "$W/tls-probe.err")
+          if tls_rejected "$nocert_rc" "$nocert_http" "$nocert_err"; then :; else
+            fail "no client certificate must be rejected in the TLS handshake (rc=$nocert_rc http=$nocert_http err=$nocert_err)"
+          fi
+
+          read wrongca_rc wrongca_http <<< "$(probe_client --cert "$PKI/wrong-client.crt" --key "$PKI/wrong-client.key")"
+          wrongca_err=$(cat "$W/tls-probe.err")
+          if tls_rejected "$wrongca_rc" "$wrongca_http" "$wrongca_err"; then :; else
+            fail "wrong-CA client certificate must be rejected in the TLS handshake (rc=$wrongca_rc http=$wrongca_http err=$wrongca_err)"
+          fi
+
+          valid=$(code --resolve loki.logging.svc:31000:127.0.0.1 --cacert "$PKI/ca.crt" --cert "$PKI/client.crt" --key "$PKI/client.key" https://loki.logging.svc:31000/ready)
+          [ "$valid" = "200" ] || fail "valid mTLS client must reach /ready after the negatives"
 
           TOKEN="ci-synthetic-line-$(date +%s)-$$"
           TIMESTAMP=$(date +%s%N)
@@ -2302,16 +2333,6 @@ jobs:
           echo "$QUERY" | grep -q "$TOKEN" \
             || fail "the pushed synthetic line must be returned by the LogQL query"
 
-          # Off-loopback listener proof: connect DIRECTLY to the container's
-          # bridge IP (docker inspect on the synthetic ephemeral CI network;
-          # no Node IP involved). gRPC 9095 and memberlist 7946 bind
-          # 127.0.0.1 inside the container, and nothing is configured on
-          # 9096 (no grpc_lb), so all three must actively REFUSE direct
-          # off-loopback connections. The published-port HTTP/2 preface
-          # probe this replaces could false-pass through the Docker port
-          # proxy against an open-but-invalid listener; here an explicit
-          # connection refusal is required and an ambiguous timeout or any
-          # other network error also fails.
           CONTAINER_IP=$(docker inspect -f \
             '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' loki-ci)
           [ -n "$CONTAINER_IP" ] || fail "could not resolve the loki-ci bridge IP"
@@ -2320,12 +2341,11 @@ jobs:
             probe_err=$(timeout 3 bash -c \
               "exec 3<>/dev/tcp/$CONTAINER_IP/$refused_port" 2>&1 >/dev/null) || probe_rc=$?
             [ "$probe_rc" -ne 124 ] \
-              || fail "port $refused_port probe timed out (ambiguous network failure, not refusal)"
+              || fail "port $refused_port probe timed out (ambiguous network failure)"
             case "$probe_err" in
               *"Connection refused"*) ;;
               *) fail "port $refused_port must refuse direct bridge connections, got rc=$probe_rc err=$probe_err" ;;
             esac
           done
 
-          echo "OK: isolated Loki proved the mTLS boundary (deny no-cert, deny wrong CA,"
-          echo "valid client push+query, 3101 operational only, 9095/7946/9096 refuse off-loopback)"
+          echo "OK: mTLS boundary proven: deny no-cert/wrong-CA, valid push+query, 3101 ops-only, 9095/7946/9096 refused"
