@@ -123,7 +123,7 @@ jobs:
               check(status["spec"].get("module") == "http_2xx",
                     "status-endpoints module must remain http_2xx")
               check(status["spec"].get("interval") == "30s",
-                    "status-endpoints interval must be 30s")
+                    "status-endpoints interval must remain 30s")
               check(status["spec"]["targets"]["staticConfig"]["static"] == [
                   "https://argocd.makeitwork.cloud",
                   "https://grafana.makeitwork.cloud",
@@ -286,7 +286,7 @@ jobs:
                   self.headers = dict(headers or {})
               def read1(self, size):
                   chunk = self.body[self.offset:self.offset + size]
-                  self.offset = min(self.offset + size, self.offset)
+                  self.offset = min(self.offset + size, len(self.body))
                   return chunk
               def __enter__(self):
                   return self
@@ -464,10 +464,10 @@ jobs:
                       ("missing-tokens", lambda: api_for(lambda r: r.pop("tokens"))),
                       ("missing-input-token", lambda: api_for(lambda r: r["tokens"].pop("input"))),
                       ("missing-cache-tokens", lambda: api_for(lambda r: r["tokens"].pop("cache"))),
-                      ("nan-token", lambda: api_for(lambda r: r.__setitem__("input", float("nan")))),
+                      ("nan-token", lambda: api_for(lambda r: r["tokens"].__setitem__("input", float("nan")))),
                       ("bool-token", lambda: api_for(lambda r: r["tokens"]["cache"].__setitem__("read", True))),
-                      ("negative-token", lambda: api_for(lambda r: r.__setitem__("output", -3))),
-                      ("string-token", lambda: api_for(lambda r: r.__setitem__("reasoning", "many"))),
+                      ("negative-token", lambda: api_for(lambda r: r["tokens"].__setitem__("output", -3))),
+                      ("string-token", lambda: api_for(lambda r: r["tokens"].__setitem__("reasoning", "many"))),
                   ]
                   for name, make_api in cases:
                       with self.subTest(case=name):
@@ -1057,7 +1057,7 @@ jobs:
           for key, value in (
               ("client_id", "1553536583355994272"),
               ("guild_id", "1540492160103620668"),
-              ("parent_channel_id", "1540492160980643"),
+              ("parent_channel_id", "1540492160988610643"),
           ):
               if d.get(key) != value:
                   sys.exit(f"discord.{key} must be the owner-approved ID {value!r}")
