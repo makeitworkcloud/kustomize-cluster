@@ -49,8 +49,9 @@ spec:
           test:
             enabled: false
 
-          # Chart ServiceMonitor is tied to the mTLS port 3100; metrics are
-          # scraped from the internal server via companion manifests instead.
+          # Chart ServiceMonitor is disabled; metrics are scraped from the
+          # mTLS port 3100 via companion manifests (workloads/logging/loki)
+          # using the dedicated prometheus-client certificate instead.
           monitoring:
             dashboards:
               enabled: false
@@ -98,15 +99,26 @@ spec:
                 grpc_listen_address: 127.0.0.1
                 grpc_listen_port: 9095
                 log_level: info
+                # register_instrumentation defaults to true on the main
+                # server and is pinned explicitly here: /metrics is wanted
+                # on the mTLS port 3100 (RequireAndVerifyClientCert below)
+                # for the Prometheus client-certificate scrape.
+                register_instrumentation: true
                 http_tls_config:
                   cert_file: /etc/loki/server-tls/tls.crt
                   key_file: /etc/loki/server-tls/tls.key
                   client_ca_file: /etc/loki/server-tls/ca.crt
                   client_auth_type: RequireAndVerifyClientCert
-              # Native operational-only listener: ready/metrics/buildinfo/
-              # rings, no log query/push API (Loki docs, internal_server).
+              # Native operational-only listener: ready/buildinfo/rings, no
+              # log query/push API (Loki docs, internal_server).
+              # register_instrumentation: false is mandatory on 3101: for
+              # the internal server this single flag gates BOTH /metrics
+              # AND /debug/pprof (pinned Loki 3.7.8 vendor server.go), and
+              # 3101 has no TLS/client auth, so instrumenting it would
+              # expose unauthenticated profiling. Probes use /ready only.
               internal_server:
                 enable: true
+                register_instrumentation: false
                 http_listen_address: 0.0.0.0
                 http_listen_port: 3101
               common:

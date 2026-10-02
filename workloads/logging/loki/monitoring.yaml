@@ -1,17 +1,23 @@
 ---
-# Operational-only scrape path for Loki: the chart Service exposes only the
-# mTLS port 3100, while the native internal server (3101) serves /ready and
-# /metrics with no log query/push API. Plain HTTP, in-cluster only.
+# Metrics scrape path for Loki over the existing mTLS boundary: the main
+# server (3100) requires and verifies client certificates
+# (RequireAndVerifyClientCert) and serves /metrics behind it. The native
+# internal server (3101) stays operational-only (probes hit /ready) with
+# register_instrumentation: false and is intentionally NOT exposed by any
+# Service: on the internal server that single flag gates BOTH /metrics AND
+# /debug/pprof (pinned Loki 3.7.8 vendor server.go), so instrumenting 3101
+# would expose unauthenticated profiling.
 apiVersion: v1
 kind: Service
 metadata:
-  name: loki-internal
+  name: loki-metrics
   namespace: logging
   labels:
     app.kubernetes.io/name: loki
     app.kubernetes.io/instance: loki
     app.kubernetes.io/component: single-binary
     logging.makeitwork.cloud/job: loki
+    logging.makeitwork.cloud/metrics: mtls
   annotations:
     # KubeLinter dangling-service exception (canonical ownership exception,
     # not live-pod proof): the backing pods are owned and rendered by the
@@ -24,9 +30,9 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - name: http-internal
-      port: 3101
-      targetPort: 3101
+    - name: https-metrics
+      port: 3100
+      targetPort: 3100
       protocol: TCP
   # Matches the chart-rendered pod labels (release name "loki").
   selector:
@@ -34,6 +40,12 @@ spec:
     app.kubernetes.io/instance: loki
     app.kubernetes.io/component: single-binary
 ---
+# Scraped by the cluster Prometheus (kube-prometheus-stack) over HTTPS with
+# the dedicated prometheus-client certificate (metrics-client-certificate.yaml,
+# Secret loki-prometheus-client in this same namespace; the Prometheus
+# Operator resolves same-namespace Secret references natively). The operator
+# watches its ServiceMonitor TLS Secret references and rolls the scrape
+# config itself, so no Reloader involvement for this client Secret.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -45,11 +57,26 @@ spec:
   jobLabel: logging.makeitwork.cloud/job
   selector:
     matchLabels:
-      logging.makeitwork.cloud/job: loki
+      logging.makeitwork.cloud/metrics: mtls
   endpoints:
-    - port: http-internal
+    - port: https-metrics
+      scheme: https
       path: /metrics
       interval: 30s
+      tlsConfig:
+        ca:
+          secret:
+            name: loki-prometheus-client
+            key: ca.crt
+        cert:
+          secret:
+            name: loki-prometheus-client
+            key: tls.crt
+        keySecret:
+          name: loki-prometheus-client
+          key: tls.key
+        serverName: loki.logging.svc
+        insecureSkipVerify: false
 ---
 # Informational signals only: no automatic mutation is configured; response is
 # a manual source opt-out or retention review per the runbook (owner action).
@@ -91,7 +118,7 @@ spec:
             severity: critical
           annotations:
             summary: Loki metrics endpoint is down or missing
-            description: The Loki internal server (port 3101) is not being scraped.
+            description: The Loki mTLS metrics endpoint (port 3100) is not being scraped.
     - name: logging.collector
       rules:
         # job="alloy" is the prometheus-operator default from the chart
