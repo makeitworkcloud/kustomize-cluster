@@ -101,6 +101,7 @@ spec:
                 storage:
                   filesystem:
                     chunks_directory: /var/loki/chunks
+                    rules_directory: /var/loki/rules
                 ring:
                   kvstore:
                     store: inmemory
@@ -141,6 +142,8 @@ spec:
                 wal:
                   enabled: true
                   dir: /var/loki/wal
+              ruler:
+                rule_path: /var/loki/rules-tmp
               frontend_worker:
                 frontend_address: 127.0.0.1:9095
               querier:
