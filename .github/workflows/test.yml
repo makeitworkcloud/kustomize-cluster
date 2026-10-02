@@ -1486,16 +1486,35 @@ jobs:
                     and client_tls_mount.get("readOnly") is True,
                     "client-tls must be mounted read-only at /etc/alloy/client-tls")
 
-          # Minimal RBAC: pod discovery and pod log reads only.
-          roles = [d for d in alloy_docs if d.get("kind") == "Role"]
-          check(len(roles) == 1, "exactly one namespaced Role expected for alloy")
-          if roles:
-              check(roles[0]["rules"] == [
-                  {"apiGroups": [""], "resources": ["pods"], "verbs": ["get", "list", "watch"]},
-                  {"apiGroups": [""], "resources": ["pods/log"], "verbs": ["get"]},
-              ], "Role rules must be pods get/list/watch plus pods/log get only")
-          check(not [d for d in alloy_docs if d.get("kind") == "ClusterRole"],
-                "no ClusterRole may render (clusterRules=[])")
+          # Minimal read-only RBAC. Clusterwide pod discovery necessarily
+          # binds a read-only ClusterRole (rbac.namespaces is unset);
+          # clusterRules=[] means no EXTRA cluster permissions, not the
+          # absence of the object. Assert the union granted across every
+          # rendered Role and ClusterRole instead of the object kinds.
+          rbac_objects = [d for d in alloy_docs if d.get("kind") in ("Role", "ClusterRole")]
+          check(len(rbac_objects) >= 1, "alloy render must include RBAC objects for discovery")
+          granted = set()
+          for d in rbac_objects:
+              for rule in d.get("rules") or []:
+                  resources = rule.get("resources") or []
+                  verbs = rule.get("verbs") or []
+                  check(rule.get("apiGroups") == [""],
+                        "%s rules must stay in the core API group" % d["metadata"]["name"])
+                  check("secrets" not in resources and "nodes" not in resources
+                        and "*" not in resources,
+                        "%s must not read Secrets, nodes, or wildcard resources"
+                        % d["metadata"]["name"])
+                  check(not ({"create", "update", "patch", "delete", "deletecollection", "*"}
+                             & set(verbs)),
+                        "%s must stay read-only (no mutation or wildcard verbs)"
+                        % d["metadata"]["name"])
+                  for resource in resources:
+                      for verb in verbs:
+                          granted.add((resource, verb))
+          check(granted == {("pods", "get"), ("pods", "list"), ("pods", "watch"),
+                            ("pods/log", "get")},
+                "RBAC must grant exactly pods get/list/watch plus pods/log get, got %s"
+                % sorted(granted))
           for d in alloy_docs:
               for rule in d.get("rules") or []:
                   check("secrets" not in (rule.get("resources") or []),
@@ -1670,6 +1689,12 @@ jobs:
                 and [v.strip().strip('"') for v in keep.group(1).split(",")]
                 == ["namespace", "application", "container"],
                 "stage.label_keep must pin indexed labels to namespace/application/container")
+          # The three kept labels plus the static cluster label are the four
+          # stable indexed labels. Internal target attributes (pod name and
+          # UID) must survive to loki.source.kubernetes for API tailing, so
+          # no labeldrop rule may strip them.
+          check(re.search(r"action\s*=\s*\"labeldrop\"", river) is None,
+                "no labeldrop rule may strip the internal pod name/UID target attributes")
 
           # Semantic fixtures over the extracted fixed regexes ONLY (native
           # `alloy validate` in ci-logging-native covers real syntax); the
