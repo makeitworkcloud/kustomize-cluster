@@ -102,13 +102,37 @@ jobs:
                 print('LOKI-NATIVE-INVALID: %s' % e)
             sys.exit('LOKI-NATIVE-INVALID: no rendered loki config found')
           config_text, config = config_docs[0]
-          check(config == loki_values['loki']['structuredConfig'], 'rendered config must equal loki.structuredConfig verbatim')
+          def struct_diff_names(rendered, structured, path=''):
+            # Names-only diagnostics: report which field NAMES differ when
+            # the rendered template cannot reproduce structuredConfig
+            # exactly; never print config values (no credential material).
+            if isinstance(rendered, dict) and isinstance(structured, dict):
+              for k in sorted(set(rendered) | set(structured)):
+                if k not in rendered or k not in structured:
+                  yield '%s%s' % (path, k)
+                else:
+                  for name in struct_diff_names(rendered[k], structured[k], '%s%s.' % (path, k)):
+                    yield name
+            elif rendered != structured:
+              yield path.rstrip('.') or '(root)'
+          check(config == loki_values['loki']['structuredConfig'], 'rendered config must equal loki.structuredConfig verbatim; differing field names (names only, values never printed): %s' % sorted(set(struct_diff_names(config, loki_values['loki']['structuredConfig']))))
           (work / 'loki-config.yaml').write_text(config_text)
           sts = next(d for d in loki_docs if d.get('kind') == 'StatefulSet')
           loki_image = next(c['image'] for c in sts['spec']['template']['spec']['containers'] if c['name'] == 'loki')
           check(loki_image.endswith('grafana/loki:3.7.8'), 'loki image must be grafana/loki:3.7.8, got %s' % loki_image)
           loki_args = next(c.get('args') or [] for c in sts['spec']['template']['spec']['containers'] if c['name'] == 'loki')
-          check(all(a.startswith(('-config.file=', '-target=', '-memberlist.advertise-addr=')) for a in loki_args), 'native run mirrors only -config.file; other chart args need explicit ' 'mirroring or a documented gate first: %s' % loki_args)
+          # -config.expand-env=true: vendor-native Loki flag the pinned chart
+          # 18.13.7 always passes; allowed EXACTLY as =true only, never
+          # =false or arbitrary values. The rendered config is free of ${ENV}
+          # interpolation strings, so expansion cannot change any value; the
+          # native docker runs mirror the same flag. -target=all is the chart
+          # default. -memberlist.advertise-addr=$(POD_IP) stays allowed as a
+          # documented limitation: unused with the in-memory single-binary
+          # ring and a runtime pod-IP placeholder, not statically evaluable.
+          # -config.file keeps a prefix rule because the chart path is
+          # configurable.
+          check('-config.expand-env=true' in loki_args, 'chart must pass -config.expand-env=true so the native docker mirror stays faithful')
+          check(all(a == '-config.expand-env=true' or a.startswith(('-config.file=', '-target=', '-memberlist.advertise-addr=')) for a in loki_args), 'native run mirrors only -config.file plus the documented exact flags; other chart ' 'args need explicit mirroring or a documented gate first: %s' % loki_args)
           dep = next(d for d in alloy_docs if d.get('kind') == 'Deployment')
           alloy_container = next(c for c in dep['spec']['template']['spec']['containers'] if c['name'] == 'alloy')
           check(alloy_container['image'].endswith('grafana/alloy:v1.20.0'), 'alloy image must be grafana/alloy:v1.20.0, got %s' % alloy_container['image'])
@@ -164,7 +188,8 @@ jobs:
                 check(ports == {3100, 9095, 7946}, 'pod ports exactly 3100/9095/7946 (no 9096), got %s' % sorted(ports))
                 args = loki_container.get('args') or []
                 check('-target=all' in args, 'chart runs -target=all')
-                check(all(a.startswith(('-config.file=', '-target=', '-memberlist.advertise-addr=')) for a in args), 'loki args outside allowed set: %s' % args)
+                check('-config.expand-env=true' in args, 'chart runs -config.expand-env=true exactly (never =false)')
+                check(all(a == '-config.expand-env=true' or a.startswith(('-config.file=', '-target=', '-memberlist.advertise-addr=')) for a in args), 'loki args outside allowed set (expand-env must be exactly =true): %s' % args)
             vcts = sts['spec'].get('volumeClaimTemplates', [])
             check(len(vcts) == 1, 'one volumeClaimTemplate')
             if vcts:
@@ -547,7 +572,7 @@ jobs:
           --volume "$W/pki/server.key:$LOKI_TLS_KEY:ro" \
           --volume "$W/pki/ca.crt:$LOKI_TLS_CA:ro" \
           --volume "$RT/var-loki:/var/loki" \
-          "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml -verify-config=true
+          "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml -config.expand-env=true -verify-config=true
           python - "$W" <<'EOF'
           import sys, yaml
           from pathlib import Path
@@ -566,7 +591,7 @@ jobs:
             --volume "$W/pki/server.key:$LOKI_TLS_KEY:ro" \
             --volume "$W/pki/ca.crt:$LOKI_TLS_CA:ro" \
             --volume "$RT/var-loki:/var/loki" \
-            "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml -verify-config=true \
+            "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml -config.expand-env=true -verify-config=true \
             >/dev/null 2>&1
           rc=$?
           set -e
@@ -601,7 +626,7 @@ jobs:
           --volume "$W/pki/ca.crt:$LOKI_TLS_CA:ro" \
           --volume "$RT/var-loki:/var/loki" \
           --publish 127.0.0.1:31000:3100 --publish 127.0.0.1:31001:3101 \
-          "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml >/dev/null
+          "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml -config.expand-env=true >/dev/null
           U="https://loki.logging.svc:31000"
           R=(--resolve loki.logging.svc:31000:127.0.0.1)
           code() { curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$@" || true; }

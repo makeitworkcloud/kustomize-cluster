@@ -71,8 +71,23 @@ spec:
             server:
               http_listen_port: 3100
               grpc_listen_port: 9095
-            # structuredConfig fully replaces the chart-templated config (it
-            # is NOT merged), so this is the complete native Loki config.
+            # The pinned chart's calculatedConfig helper MERGES config
+            # sources - mergeOverwrite(fromYaml(tpl(.Values.loki.config)),
+            # .Values.loki.structuredConfig) - loki chart 18.13.7, exact
+            # source:
+            # https://github.com/grafana-community/helm-charts/blob/loki-18.13.7/charts/loki/templates/_helpers.tpl
+            # structuredConfig alone therefore does NOT replace the
+            # chart-default loki.config: unreviewed upstream defaults would
+            # be merged into the rendered ConfigMap. Setting loki.config to
+            # the vendor-supported template below derives both the
+            # unstructured and structured sources from this one canonical
+            # reviewed map, so the merged render is exactly structuredConfig
+            # (no extra upstream default fields, no duplicated literal).
+            # Neither the template nor structuredConfig contains ${ENV}
+            # interpolation strings, so the chart's -config.expand-env=true
+            # flag cannot alter any rendered value.
+            config: '{{- toYaml .Values.loki.structuredConfig -}}'
+            # structuredConfig is the complete reviewed native Loki config.
             structuredConfig:
               # Authentication is the mTLS client certificate below; Loki
               # multi-tenancy stays off behind the TLS boundary.
