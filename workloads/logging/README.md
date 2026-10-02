@@ -188,15 +188,27 @@ collector's permissions.
 The reusable validation workflow is now published: `.github/workflows/test.yml`
 calls `.github/workflows/logging-checks.yml` at the same committed revision; the
 existing test jobs are retained. The reusable workflow is `workflow_call`-only
-with `contents: read` and no Secret exchange. PR #274 is open. CI run
+with `contents: read` and no Secret exchange. PR #274 is open and unmerged.
+As of 2026-10-02, CI run
+[37055002290](https://github.com/makeitworkcloud/kustomize-cluster/actions/runs/37055002290)
+succeeded at commit `213567a97c0bc34c1c18d57d2bf9c1e899f23e1e` with all four jobs
+(`test`, `discode-static`, `discode-build` and `ci-logging`) green; the native
+`ci-logging` job passed all five steps — render, contract, native Alloy/Loki CLI
+validation, synthetic mTLS authorized push/query and `/metrics` on 3100 after a
+healthy valid-client anchor, and the isolated Kind 1.31 admission suite. These
+results come from hosted GitHub Actions runners only; no local or server-side
+checks were run and this documentation update dispatches no workflow. The
+earlier CI run
 [37047181304](https://github.com/makeitworkcloud/kustomize-cluster/actions/runs/37047181304)
-failed: native startup and readiness on 3101 succeeded, but the old expectation
-that `/metrics` on 3101 returned 200 failed with 404. The core fix at
-`d9ff612ad2eca773cff5ce0e4e7f292ebb7344ce` stages metrics behind mTLS on 3100;
-the child checks now follow that contract. This authoring update runs no local
-or native checks and dispatches no workflow. Passing CI for the revised workflow
-is not yet established; final reviews and passing CI remain required before
-calling this branch CI-ready.
+failed because the obsolete expectation was that `/metrics` on 3101 returned 200
+(actual 404); that historical failure is recorded as resolved by staging metrics
+behind mTLS on 3100 at `d9ff612ad2eca773cff5ce0e4e7f292ebb7344ce`. Positive
+authorization and metrics native fixtures, wrong-CA and missing-client TLS
+denials, 3101 metrics/profiling 404s and the certificate role cases are proven
+only within that CI environment, not against any production system. Passing CI
+does not merge the PR; final reviews and owner merge approval remain required
+before calling this branch ready, and merge/rollout remain separate approval
+gates.
 
 The intended checks render pinned Loki, Alloy and prospective Reloader values;
 validate native Alloy/Loki configuration; test synthetic mTLS authorized
