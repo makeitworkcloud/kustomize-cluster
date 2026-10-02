@@ -4,10 +4,15 @@
 # Kubernetes 1.30 (cluster runs k3s v1.31.13). Reference:
 #   https://kubernetes.io/docs/reference/access-authn-authz/validating-admission-policy/
 # Scope is ONLY the dedicated logging issuers (logging-selfsigned, logging-ca)
-# and the logging-root-ca trust anchor; unrelated cert-manager issuers,
-# Certificates, CertificateRequests and other CSR signers never match.
-# "Spec unchanged" (metadata-only update) is detected via metadata.generation:
-# the API server increments it only on non-metadata, non-status writes.
+# and the logging-root-ca trust anchor in namespace cert-manager; unrelated
+# cert-manager issuers, Certificates, CertificateRequests and other CSR
+# signers never match. issuerRef.kind absent means a namespaced Issuer
+# (cert-manager default) and therefore does NOT match the protected
+# ClusterIssuers; issuerRef.group absent defaults to cert-manager.io.
+# Match conditions consider the OLD object on UPDATE so a protected object
+# cannot escape the policy by changing its issuerRef away from the logging
+# issuers. "Metadata-only update" is verified by explicit deep spec equality
+# (object.spec == oldObject.spec), not by generation semantics.
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -27,17 +32,26 @@ spec:
       expression: >-
         (has(object.spec.issuerRef) && has(object.spec.issuerRef.name) &&
          (object.spec.issuerRef.name == 'logging-ca' || object.spec.issuerRef.name == 'logging-selfsigned') &&
-         (!has(object.spec.issuerRef.kind) || object.spec.issuerRef.kind == 'ClusterIssuer') &&
+         has(object.spec.issuerRef.kind) && object.spec.issuerRef.kind == 'ClusterIssuer' &&
          (!has(object.spec.issuerRef.group) || object.spec.issuerRef.group == 'cert-manager.io')) ||
-        (has(object.spec.secretName) && object.spec.secretName == 'logging-root-ca') ||
-        object.metadata.name == 'logging-root-ca'
+        (request.namespace == 'cert-manager' &&
+         ((has(object.spec.secretName) && object.spec.secretName == 'logging-root-ca') ||
+          object.metadata.name == 'logging-root-ca')) ||
+        (request.operation == 'UPDATE' && oldObject != null &&
+         ((has(oldObject.spec.issuerRef) && has(oldObject.spec.issuerRef.name) &&
+           (oldObject.spec.issuerRef.name == 'logging-ca' || oldObject.spec.issuerRef.name == 'logging-selfsigned') &&
+           has(oldObject.spec.issuerRef.kind) && oldObject.spec.issuerRef.kind == 'ClusterIssuer' &&
+           (!has(oldObject.spec.issuerRef.group) || oldObject.spec.issuerRef.group == 'cert-manager.io')) ||
+          (request.namespace == 'cert-manager' &&
+           ((has(oldObject.spec.secretName) && oldObject.spec.secretName == 'logging-root-ca') ||
+            oldObject.metadata.name == 'logging-root-ca'))))
   variables:
     - name: isArgo
       expression: >-
         request.userInfo.username == 'system:serviceaccount:argocd:argocd-argocd-application-controller'
     - name: metadataOnlyUpdate
       expression: >-
-        request.operation == 'UPDATE' && object.metadata.generation == oldObject.metadata.generation
+        request.operation == 'UPDATE' && oldObject != null && object.spec == oldObject.spec
     - name: refSelfSigned
       expression: >-
         has(object.spec.issuerRef) && object.spec.issuerRef.name == 'logging-selfsigned' &&
@@ -106,13 +120,15 @@ spec:
         Logging PKI Certificates: spec create/change requires the Argo CD
         application controller identity and one of the approved profiles
         (logging-root-ca, loki-server, alloy-client, grafana-loki-client);
-        metadata-only updates stay permitted for controller renewal and
-        finalizer bookkeeping.
+        metadata-only updates (spec deep-equal to the old object) stay
+        permitted for controller renewal and finalizer bookkeeping.
 ---
 # CertificateRequests are created by the cert-manager controller on behalf of
 # a Certificate; the raw CSR bytes are operator-produced and not parsed here.
 # Trust is bounded by: controller identity + controlling ownerReference to an
 # approved Certificate + namespace/issuer/usages/isCA profile consistency.
+# The OLD object is matched on UPDATE for defense even though the spec is
+# immutable upstream.
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -130,17 +146,22 @@ spec:
   matchConditions:
     - name: logging-pki-scope
       expression: >-
-        has(object.spec.issuerRef) && has(object.spec.issuerRef.name) &&
-        (object.spec.issuerRef.name == 'logging-ca' || object.spec.issuerRef.name == 'logging-selfsigned') &&
-        (!has(object.spec.issuerRef.kind) || object.spec.issuerRef.kind == 'ClusterIssuer') &&
-        (!has(object.spec.issuerRef.group) || object.spec.issuerRef.group == 'cert-manager.io')
+        (has(object.spec.issuerRef) && has(object.spec.issuerRef.name) &&
+         (object.spec.issuerRef.name == 'logging-ca' || object.spec.issuerRef.name == 'logging-selfsigned') &&
+         has(object.spec.issuerRef.kind) && object.spec.issuerRef.kind == 'ClusterIssuer' &&
+         (!has(object.spec.issuerRef.group) || object.spec.issuerRef.group == 'cert-manager.io')) ||
+        (request.operation == 'UPDATE' && oldObject != null &&
+         has(oldObject.spec.issuerRef) && has(oldObject.spec.issuerRef.name) &&
+         (oldObject.spec.issuerRef.name == 'logging-ca' || oldObject.spec.issuerRef.name == 'logging-selfsigned') &&
+         has(oldObject.spec.issuerRef.kind) && oldObject.spec.issuerRef.kind == 'ClusterIssuer' &&
+         (!has(oldObject.spec.issuerRef.group) || oldObject.spec.issuerRef.group == 'cert-manager.io'))
   variables:
     - name: isCertManager
       expression: >-
         request.userInfo.username == 'system:serviceaccount:cert-manager:cert-manager'
     - name: metadataOnlyUpdate
       expression: >-
-        request.operation == 'UPDATE' && object.metadata.generation == oldObject.metadata.generation
+        request.operation == 'UPDATE' && oldObject != null && object.spec == oldObject.spec
     - name: controlledByApprovedCertificate
       expression: >-
         has(object.metadata.ownerReferences) &&
@@ -168,11 +189,11 @@ spec:
         (variables.metadataOnlyUpdate ||
          (variables.controlledByApprovedCertificate && variables.requestProfile))
       message: >-
-        Logging PKI CertificateRequests: only the cert-manager controller may
-        create or change them, and only with a controlling ownerReference to
-        the matching approved Certificate plus a profile-consistent
-        usages/isCA; a forged ownerReference does not help a different
-        requester.
+        Logging PKI CertificateRequests: every operation requires the
+        cert-manager controller identity; create/spec-change additionally
+        requires a controlling ownerReference to the matching approved
+        Certificate plus a profile-consistent usages/isCA. A forged
+        ownerReference does not help a different requester.
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
@@ -198,7 +219,7 @@ spec:
         request.userInfo.username == 'system:serviceaccount:argocd:argocd-argocd-application-controller'
     - name: metadataOnlyUpdate
       expression: >-
-        request.operation == 'UPDATE' && object.metadata.generation == oldObject.metadata.generation
+        request.operation == 'UPDATE' && oldObject != null && object.spec == oldObject.spec
   validations:
     - expression: >-
         variables.metadataOnlyUpdate ||
@@ -210,7 +231,8 @@ spec:
         Logging PKI ClusterIssuers: spec create/change requires the Argo CD
         application controller identity and the fixed scheme
         (selfSigned {} for logging-selfsigned; ca.secretName logging-root-ca
-        for logging-ca); metadata-only updates stay permitted.
+        for logging-ca); metadata-only updates (spec deep-equal to the old
+        object) stay permitted.
 ---
 # cert-manager's use of built-in CertificateSigningRequest resources is
 # experimental and not enabled in this deployment; these policies keep the
