@@ -174,3 +174,36 @@ v2 Page envelope. See the pinned [upstream handler](https://github.com/anomalyco
 A separately reviewed Git revert restores the prior collector/dashboard behavior;
 exporter replacement resets in-memory baselines and counters. Source, static CI,
 reconciliation, pod health, and observed token growth remain separate proof stages.
+
+The exporter now speaks both protocol generations behind an explicit
+`OPENCODE_API_VERSION` selector (`1` default, `2` opt-in) and never
+auto-detects or downgrades between them. Version 1 keeps OpenCode 1.18.29's
+`/session/status` and `/experimental/session` array responses with the integer
+timestamp continuation header described above. Version 2 targets OpenCode
+2.0.22 per the pinned [session
+group](https://github.com/anomalyco/opencode/blob/527f0b931d1f9b3ebd34e106c51b31ce5db5b075/packages/protocol/src/groups/session.ts)
+and
+[handler](https://github.com/anomalyco/opencode/blob/527f0b931d1f9b3ebd34e106c51b31ce5db5b075/packages/server/src/handlers/session.ts):
+`/api/session` returns the `{data, cursor:{previous, next}}` envelope with an
+opaque base64url cursor, emits `cursor.next` exactly on non-empty pages, and a
+complete scan terminates on the first empty page with cursor-cycle detection.
+`time.updated` remains an integer epoch-millisecond number
+(`DateTimeUtcFromMillis` decodes from a finite number, never an ISO string),
+token field names are unchanged, and the global list has no archived or
+project filter, so session history is never filtered away. With version 2,
+`/api/session/active` maps its `running` entries onto
+`opencode_active_sessions{state="busy"}`; V2 exposes no retry aggregate, so
+the `state="retry"` series is absent rather than zero while version 2 is
+selected.
+
+V2 release gate: the Deployment pins `OPENCODE_API_VERSION: "1"` and cluster
+CI asserts that pin, so this change is compatibility-ready but behavior-neutral
+until the selector is flipped. Flipping it to `"2"` must be one reviewed
+commit coordinated with the chart pin pull request that moves the `opencode`
+Application's `targetRevision` to the published 2.0.22-based chart revision —
+ideally inside that generated pin PR before it merges, because the chart
+post-publish automation only pins `targetRevision` and the main sync then
+rolls the server and exporter selector together. Selecting 2 while the V1
+runtime is still deployed fails both poll loops closed (`..._up 0`, no
+partial usage updates), so do not flip before the pin merge. After the flip,
+re-run the exporter verification above and expect the absent `retry` series.

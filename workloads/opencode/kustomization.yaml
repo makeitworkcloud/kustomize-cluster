@@ -25,4 +25,4 @@ patches:
         template:
           metadata:
             annotations:
-              opencode.makeitwork.cloud/config-revision: token-telemetry-v1
+              opencode.makeitwork.cloud/config-revision: token-telemetry-v2

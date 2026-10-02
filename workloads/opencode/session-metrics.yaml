@@ -18,8 +18,12 @@ data:
     import urllib.request
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+    API_VERSION = os.environ.get("OPENCODE_API_VERSION", "1")
+    if API_VERSION not in ("1", "2"):
+        raise RuntimeError("OPENCODE_API_VERSION must be 1 or 2")
     STATUS_URL = os.environ.get("OPENCODE_STATUS_URL", "http://opencode.opencode.svc:4096/session/status")
     API_BASE_URL = os.environ.get("OPENCODE_API_BASE_URL", "http://opencode.opencode.svc:4096").rstrip("/")
+    ACTIVE_URL = os.environ.get("OPENCODE_ACTIVE_URL", f"{API_BASE_URL}/api/session/active")
     USERNAME = os.environ.get("OPENCODE_STATUS_USERNAME", "opencode")
     PASSWORD = os.environ.get("OPENCODE_STATUS_PASSWORD", "")
     POLL_INTERVAL_SECONDS = max(float(os.environ.get("POLL_INTERVAL_SECONDS", "5")), 1.0)
@@ -65,10 +69,29 @@ data:
             url,
             headers={"Accept": "application/json", "Authorization": authorization_header()},
         )
-        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+        deadline = time.monotonic() + REQUEST_TIMEOUT_SECONDS
+
+        def budget_check():
+            if time.monotonic() >= deadline:
+                raise RuntimeError("status response time bound exceeded")
+
+        with usage_opener.open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             if response.status != 200:
                 raise RuntimeError("unexpected status response")
-            return json.load(response)
+            body = bytearray()
+            read_chunk = getattr(response, "read1", None)
+            while True:
+                budget_check()
+                chunk = read_chunk(65536) if read_chunk is not None else response.read(65536)
+                budget_check()
+                if not chunk:
+                    break
+                body.extend(chunk)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise RuntimeError("status response body exceeded bound")
+            payload = json.loads(bytes(body))
+            budget_check()
+        return payload
 
     class _NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -155,6 +178,47 @@ data:
             raise UsageProtocolError("unexpected usage payload")
         return payload, next_cursor
 
+    def fetch_usage_page_v2(limit, cursor, budget_check):
+        query = {"limit": str(limit)}
+        if cursor is not None:
+            query["cursor"] = cursor
+        url = f"{API_BASE_URL}/api/session?{urllib.parse.urlencode(query)}"
+        request = urllib.request.Request(
+            url,
+            headers={"Accept": "application/json", "Authorization": authorization_header()},
+        )
+        with usage_opener.open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            if response.status != 200:
+                raise UsageProtocolError("unexpected usage response status")
+            body = bytearray()
+            read_chunk = getattr(response, "read1", None)
+            while True:
+                budget_check()
+                chunk = read_chunk(65536) if read_chunk is not None else response.read(65536)
+                budget_check()
+                if not chunk:
+                    break
+                body.extend(chunk)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise UsageProtocolError("usage response body exceeded bound")
+            payload = json.loads(bytes(body))
+            budget_check()
+        if not isinstance(payload, dict):
+            raise UsageProtocolError("unexpected usage payload")
+        data = payload.get("data")
+        envelope = payload.get("cursor")
+        if not isinstance(data, list) or not isinstance(envelope, dict):
+            raise UsageProtocolError("unexpected usage envelope")
+        next_cursor = envelope.get("next")
+        if next_cursor is None:
+            if data:
+                raise UsageProtocolError("usage page missing continuation cursor")
+        elif not isinstance(next_cursor, str) or not next_cursor:
+            raise UsageProtocolError("malformed usage page cursor")
+        if not data and next_cursor is not None:
+            raise UsageProtocolError("usage continuation on empty page")
+        return data, next_cursor
+
     def scan_usage(budget_check):
         base_limit = min(SESSION_LIST_LIMIT, MAX_USAGE_SCAN_SESSIONS)
         limit = base_limit
@@ -209,6 +273,41 @@ data:
         budget_check()
         return pages, observed, projects
 
+    def scan_usage_v2(budget_check):
+        # V2 (OpenCode 2.0.22) /api/session contract per packages/protocol/src/groups/session.ts and
+        # packages/server/src/handlers/session.ts @
+        # https://github.com/anomalyco/opencode/tree/527f0b931d1f9b3ebd34e106c51b31ce5db5b075 :
+        # opaque base64url cursor pages with cursor.next exactly on non-empty pages, integer epoch-millis
+        # timestamps, and no archived or project filter on the global list.
+        limit = min(SESSION_LIST_LIMIT, MAX_USAGE_SCAN_SESSIONS)
+        cursor = None
+        pages = 0
+        observed = {}
+        projects = set()
+        seen_cursors = set()
+        while True:
+            if pages >= MAX_USAGE_SCAN_PAGES:
+                raise IncompleteScan("usage scan page bound reached")
+            budget_check()
+            data, next_cursor = fetch_usage_page_v2(limit, cursor, budget_check)
+            if len(data) > limit:
+                raise UsageProtocolError("usage page exceeded requested limit")
+            for entry in data:
+                session_id, project_id, updated, values = parse_usage_entry(entry)
+                observed[session_id] = values
+                projects.add(project_id)
+                if len(observed) > MAX_USAGE_SCAN_SESSIONS:
+                    raise IncompleteScan("usage scan session bound reached")
+            pages += 1
+            if next_cursor is None:
+                break
+            if next_cursor in seen_cursors:
+                raise UsageProtocolError("usage pagination cycle detected")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+        budget_check()
+        return pages, observed, projects
+
     def apply_usage_scan(pages, observed, projects, duration):
         now = time.time()
         with state_lock:
@@ -260,7 +359,8 @@ data:
                     raise IncompleteScan("usage scan time bound reached")
 
             try:
-                pages, observed, projects = scan_usage(budget_check)
+                scan = scan_usage_v2 if API_VERSION == "2" else scan_usage
+                pages, observed, projects = scan(budget_check)
                 budget_check()
                 apply_usage_scan(pages, observed, projects, time.monotonic() - started)
             except IncompleteScan:
@@ -283,13 +383,25 @@ data:
 
     def poll_status():
         try:
-            payload = fetch_json(STATUS_URL)
-            if not isinstance(payload, dict):
-                raise RuntimeError("unexpected status payload")
-            counts = {"busy": 0, "retry": 0}
-            for session in payload.values():
-                if isinstance(session, dict) and session.get("type") in counts:
-                    counts[session["type"]] += 1
+            if API_VERSION == "2":
+                payload = fetch_json(ACTIVE_URL)
+                if not isinstance(payload, dict):
+                    raise RuntimeError("unexpected active payload")
+                active = payload.get("data")
+                if not isinstance(active, dict):
+                    raise RuntimeError("unexpected active data")
+                for session in active.values():
+                    if not isinstance(session, dict) or session.get("type") != "running":
+                        raise RuntimeError("unexpected active session state")
+                counts = {"busy": len(active), "retry": 0}
+            else:
+                payload = fetch_json(STATUS_URL)
+                if not isinstance(payload, dict):
+                    raise RuntimeError("unexpected status payload")
+                counts = {"busy": 0, "retry": 0}
+                for session in payload.values():
+                    if isinstance(session, dict) and session.get("type") in counts:
+                        counts[session["type"]] += 1
             with state_lock:
                 state.update(up=1, busy=counts["busy"], retry=counts["retry"], last_success=time.time())
         except Exception:
@@ -335,7 +447,7 @@ data:
             "# HELP opencode_session_usage_scan_up Whether the most recent complete OpenCode session-usage scan succeeded.",
             "# TYPE opencode_session_usage_scan_up gauge",
             f"opencode_session_usage_scan_up {snapshot['usage_up']}",
-            "# HELP opencode_session_usage_scan_last_success_timestamp_seconds Unix timestamp of the last complete OpenCode session-usage scan.",
+            "# HELP opencode_session_usage_scan_last_success_timestamp_seconds Unix timestamp of the last complete session-usage scan.",
             "# TYPE opencode_session_usage_scan_last_success_timestamp_seconds gauge",
             f"opencode_session_usage_scan_last_success_timestamp_seconds {snapshot['usage_last_success']}",
             "# HELP opencode_session_usage_scan_errors_total Failed OpenCode session-usage scans.",
@@ -361,6 +473,8 @@ data:
             f"opencode_session_usage_scan_duration_seconds {snapshot['usage_scan_duration']}",
             "",
         ])
+        if API_VERSION == "2":
+            lines.remove(f"opencode_active_sessions{{state=\"retry\"}} {snapshot['retry']}")
         return "\n".join(lines).encode()
 
     class Handler(BaseHTTPRequestHandler):
@@ -405,7 +519,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/opencode-session-metrics: 785966ebb24aeaf5bcebcdeeceea0d0f3549ad5ea46a524cac7411e7382f0843
+        checksum/opencode-session-metrics: 81db916b5ac84450912393537f51e4feeb83d5e1cea86e24ae6c6bc14faea396
       labels:
         app.kubernetes.io/name: opencode-session-metrics
     spec:
@@ -425,6 +539,8 @@ spec:
               value: http://opencode.opencode.svc:4096/session/status
             - name: OPENCODE_API_BASE_URL
               value: http://opencode.opencode.svc:4096
+            - name: OPENCODE_API_VERSION
+              value: "1"
             - name: OPENCODE_STATUS_USERNAME
               value: opencode
             - name: OPENCODE_STATUS_PASSWORD
