@@ -1,12 +1,8 @@
 ---
-# Dedicated PKI for the logging stack. A self-signed bootstrap ClusterIssuer
-# issues a root CA (Secret logging-root-ca in namespace cert-manager), which
-# backs the dedicated logging CA ClusterIssuer. cert-manager creates the
-# private keys at deploy time only; they are never read, copied or exposed.
-#
-# The root CA key uses rotationPolicy: Never (10-year lifetime). Root CA
-# rotation is a MANUAL, documented procedure (see workloads/logging/README.md):
-# there is no automatic CA trust rotation.
+# Dedicated PKI for the logging stack. cert-manager creates the private keys
+# at deploy time only; they are never read, copied or exposed. Root CA key
+# uses rotationPolicy: Never (10-year lifetime): root CA rotation is a MANUAL
+# documented procedure — there is no automatic CA trust rotation.
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -27,12 +23,21 @@ spec:
   isCA: true
   commonName: logging-root-ca
   secretName: logging-root-ca
+  usages:
+    - signing
+    - cert sign
+    - crl sign
   duration: 87600h # 10 years
   renewBefore: 720h
   privateKey:
     algorithm: ECDSA
     size: 256
     rotationPolicy: Never
+  # cert-manager copies secretTemplate metadata onto the issued Secret so the
+  # GitOps controller never prunes/deletes the root CA key material.
+  secretTemplate:
+    annotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
   issuerRef:
     name: logging-selfsigned
     kind: ClusterIssuer

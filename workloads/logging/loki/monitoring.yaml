@@ -1,9 +1,7 @@
 ---
-# Operational-only scrape path for Loki. The internal server (port 3101)
-# serves /ready and /metrics with NO log query/push API. Plain HTTP,
-# in-cluster only. This Service/ServiceMonitor pair is the canonical
-# integration: the chart ServiceMonitor cannot be used because the chart
-# Service only exposes the mTLS port 3100.
+# Operational-only scrape path for Loki: the chart Service exposes only the
+# mTLS port 3100, while the native internal server (3101) serves /ready and
+# /metrics with no log query/push API. Plain HTTP, in-cluster only.
 apiVersion: v1
 kind: Service
 metadata:
@@ -13,7 +11,7 @@ metadata:
     app.kubernetes.io/name: loki
     app.kubernetes.io/instance: loki
     app.kubernetes.io/component: single-binary
-    logging.makeitwork.cloud/metrics: internal
+    logging.makeitwork.cloud/job: loki
 spec:
   type: ClusterIP
   ports:
@@ -21,8 +19,7 @@ spec:
       port: 3101
       targetPort: 3101
       protocol: TCP
-  # Matches the chart-rendered pod labels (loki.selectorLabels +
-  # app.kubernetes.io/component=single-binary, release name "loki").
+  # Matches the chart-rendered pod labels (release name "loki").
   selector:
     app.kubernetes.io/name: loki
     app.kubernetes.io/instance: loki
@@ -36,17 +33,17 @@ metadata:
   labels:
     release: kube-prometheus-stack
 spec:
+  jobLabel: logging.makeitwork.cloud/job
   selector:
     matchLabels:
-      logging.makeitwork.cloud/metrics: internal
+      logging.makeitwork.cloud/job: loki
   endpoints:
     - port: http-internal
       path: /metrics
       interval: 30s
 ---
-# Disk headroom and ingest-pressure signals. Alerts are informational only:
-# no automatic mutation is configured; response is a manual source opt-out
-# or retention review per the runbook.
+# Informational signals only: no automatic mutation is configured; response is
+# a manual source opt-out or retention review per the runbook (owner action).
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -60,8 +57,8 @@ spec:
       rules:
         - alert: LoggingStorageHeadroomLow
           expr: |
-            node_filesystem_avail_bytes{mountpoint="/var/lib/rancher/k3s/storage"}
-              / node_filesystem_size_bytes{mountpoint="/var/lib/rancher/k3s/storage"} < 0.2
+            node_filesystem_avail_bytes{mountpoint="/var/lib/rancher"}
+              / node_filesystem_size_bytes{mountpoint="/var/lib/rancher"} < 0.2
           for: 15m
           labels:
             severity: warning
@@ -79,10 +76,23 @@ spec:
             description: Ingest rate, stream-count or line-size limits are dropping data. Review sources and consider opting out noisy producers.
         - alert: LoggingLokiDown
           expr: |
-            up{namespace="logging", job="loki-internal"} == 0
+            absent(up{namespace="logging", job="loki"}) or sum(up{namespace="logging", job="loki"}) == 0
           for: 10m
           labels:
             severity: critical
           annotations:
-            summary: Loki metrics endpoint is down
+            summary: Loki metrics endpoint is down or missing
             description: The Loki internal server (port 3101) is not being scraped.
+    - name: logging.collector
+      rules:
+        # job="alloy" is the prometheus-operator default from the chart
+        # Service name; Alloy component metric names are CI/live-discovery gated.
+        - alert: LoggingAlloyDown
+          expr: |
+            absent(up{namespace="logging", job="alloy"}) or sum(up{namespace="logging", job="alloy"}) == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: Alloy collector is down or not scraped
+            description: The Alloy metrics endpoint (port 12345) is not being scraped.

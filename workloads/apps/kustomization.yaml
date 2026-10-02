@@ -13,4 +13,6 @@ resources:
   - gotenberg-app.yaml
   - opencode-app.yaml
   - discode-app.yaml
+  - loki-app.yaml
+  - alloy-app.yaml
   - ../argocd

@@ -5,6 +5,8 @@ resources:
   - grafana-service-account.yaml
   - grafana-mcpserver.yaml
   - datasource.yaml
+  - loki-datasource.yaml
+  - loki-client-certificate.yaml
   - arc-dashboard.yaml
   - opencode-dashboard.yaml
   - status-grafana.yaml

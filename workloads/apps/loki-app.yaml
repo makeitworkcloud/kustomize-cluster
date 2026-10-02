@@ -1,8 +1,7 @@
 ---
-# Loki log aggregation (monolithic, SingleBinary) for opt-in cluster logging.
+# Loki log aggregation (Monolithic) for opt-in cluster logging.
 # Helm source renders the pinned upstream chart; the git source applies the
-# companion manifests under workloads/logging/loki (server Certificate,
-# internal-metrics Service/ServiceMonitor, alerting rules).
+# companion manifests under workloads/logging/loki.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -20,10 +19,9 @@ spec:
         releaseName: loki
         skipCrds: true
         values: |
-          deploymentMode: SingleBinary
+          deploymentMode: Monolithic
           fullnameOverride: loki
 
-          # Monolithic only: no scalable/distributed components.
           write:
             replicas: 0
           read:
@@ -32,19 +30,16 @@ spec:
             replicas: 0
 
           # No gateway/reverse proxy: clients reach Loki directly on the
-          # mTLS-protected service port 3100.
+          # mTLS-protected port 3100.
           gateway:
             enabled: false
           ingress:
             enabled: false
 
-          # Filesystem storage on the local-path PVC: no object storage.
           minio:
             enabled: false
           rollout_operator:
             enabled: false
-
-          # Single-process deployment: no caches, canary or helm test pods.
           chunksCache:
             enabled: false
           resultsCache:
@@ -54,9 +49,8 @@ spec:
           test:
             enabled: false
 
-          # In-chart monitoring is disabled: metrics are scraped from the
-          # operational-only internal server (port 3101) via the companion
-          # Service/ServiceMonitor in workloads/logging/loki/monitoring.yaml.
+          # Chart ServiceMonitor is tied to the mTLS port 3100; metrics are
+          # scraped from the internal server via companion manifests instead.
           monitoring:
             dashboards:
               enabled: false
@@ -72,18 +66,17 @@ spec:
                 installOperator: false
 
           loki:
-            # Authentication is the mTLS client certificate (see
-            # structuredConfig.server.http_tls_config). Loki multi-tenancy
-            # stays off: single implicit tenant behind the TLS boundary.
-            auth_enabled: false
             storage:
               type: filesystem
             server:
               http_listen_port: 3100
               grpc_listen_port: 9095
-            ui:
-              enabled: false
+            # structuredConfig fully replaces the chart-templated config (it
+            # is NOT merged), so this is the complete native Loki config.
             structuredConfig:
+              # Authentication is the mTLS client certificate below; Loki
+              # multi-tenancy stays off behind the TLS boundary.
+              auth_enabled: false
               server:
                 http_listen_address: 0.0.0.0
                 http_listen_port: 3100
@@ -95,9 +88,8 @@ spec:
                   key_file: /etc/loki/server-tls/tls.key
                   client_ca_file: /etc/loki/server-tls/ca.crt
                   client_auth_type: RequireAndVerifyClientCert
-              # Operational-only listener (ready, metrics, build info, rings).
-              # It serves NO log query/push API. Plain HTTP, in-cluster only,
-              # scraped via workloads/logging/loki/monitoring.yaml.
+              # Native operational-only listener: ready/metrics/buildinfo/
+              # rings, no log query/push API (Loki docs, internal_server).
               internal_server:
                 enable: true
                 http_listen_address: 0.0.0.0
@@ -147,13 +139,11 @@ spec:
               querier:
                 max_concurrent: 4
               limits_config:
-                # 30-day retention target (nominal; the 100Gi PVC is not a
-                # quota and node-local storage is the real ceiling).
+                # 30-day retention target is nominal: the 100Gi PVC is not a
+                # quota and node-local storage is the real ceiling.
                 retention_period: 720h
                 max_query_lookback: 720h
                 split_queries_by_interval: 24h
-                # Conservative accepted ingest: ~0.02 MiB/s sustained with
-                # 1 MiB burst (~51 Gi/30d raw ceiling + index/WAL margin).
                 ingestion_rate_mb: 0.02
                 ingestion_burst_size_mb: 1
                 per_stream_rate_limit: 20KiB
@@ -164,36 +154,22 @@ spec:
                 max_query_series: 500
                 reject_old_samples: true
                 reject_old_samples_max_age: 168h
-                volume_enabled: false
 
           singleBinary:
             replicas: 1
+            # Reloader reads controller (StatefulSet) annotations, not pod
+            # annotations: roll on mounted leaf TLS secret renewal.
+            annotations:
+              reloader.stakater.com/auto: "true"
             persistence:
               enabled: true
               size: 100Gi
               storageClass: local-path
-              # Retain PVCs when the StatefulSet is deleted or scaled.
               enableStatefulSetAutoDeletePVC: true
               whenDeleted: Retain
               whenScaled: Retain
               annotations:
                 argocd.argoproj.io/sync-options: Prune=false,Delete=false
-            podAnnotations:
-              # Roll the pod when the mounted leaf TLS secret is renewed.
-              reloader.stakater.com/auto: "true"
-            podSecurityContext:
-              runAsNonRoot: true
-              runAsUser: 10001
-              runAsGroup: 10001
-              fsGroup: 10001
-              seccompProfile:
-                type: RuntimeDefault
-            containerSecurityContext:
-              allowPrivilegeEscalation: false
-              readOnlyRootFilesystem: true
-              capabilities:
-                drop:
-                  - ALL
             extraVolumes:
               - name: server-tls
                 secret:
@@ -203,7 +179,6 @@ spec:
               - name: server-tls
                 mountPath: /etc/loki/server-tls
                 readOnly: true
-            # Probes hit the operational-only internal server (plain HTTP).
             startupProbe:
               httpGet:
                 path: /ready
@@ -228,11 +203,6 @@ spec:
               periodSeconds: 30
               timeoutSeconds: 5
               failureThreshold: 3
-            # Requests only: no CPU limits per single-node policy.
-            resources:
-              requests:
-                cpu: 100m
-                memory: 512Mi
     - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
       targetRevision: main
       path: workloads/logging/loki

@@ -1,8 +1,7 @@
 ---
 # Grafana mTLS client certificate for querying Loki, issued by the dedicated
-# logging CA. 90-day leaf with private key rotation on every renewal. The
-# Grafana operator re-reads the Secret on GrafanaDatasource reconcile, so the
-# datasource picks up renewed leafs without manual edits.
+# logging CA (operators/cert-manager/logging-pki.yaml). 90-day leaf with
+# private key rotation on every renewal.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:

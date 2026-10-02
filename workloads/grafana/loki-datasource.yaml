@@ -1,8 +1,8 @@
 ---
-# Loki datasource for the main Grafana instance. mTLS client authentication
-# against the dedicated logging CA; the client certificate comes from the
-# loki-grafana-client Secret (see loki-client-certificate.yaml). Selected
-# onto the main Grafana only, via the matching `dashboards: grafana` label.
+# Loki datasource for the main Grafana instance: mTLS client authentication
+# via the dedicated logging CA. Selected onto the main Grafana only, via the
+# matching `dashboards: grafana` label. The Grafana operator re-reads the
+# client Secret on datasource reconcile, so renewed leafs need no edits.
 apiVersion: grafana.integreatly.org/v1beta1
 kind: GrafanaDatasource
 metadata:

@@ -1,7 +1,7 @@
 ---
 # Alloy mTLS client certificate for pushing to Loki, issued by the dedicated
-# logging CA. 90-day leaf with private key rotation on every renewal;
-# Reloader rolls the Deployment.
+# logging CA (operators/cert-manager/logging-pki.yaml). 90-day leaf with
+# private key rotation on every renewal; Reloader rolls the Deployment.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
