@@ -890,7 +890,7 @@ jobs:
                                    if c["name"] == "exporter")
                   env = {item["name"]: item.get("value")
                          for item in container["env"] if "value" in item}
-                  for name, value in (("OPENCODE_API_VERSION", "1"),
+                  for name, value in (("OPENCODE_API_VERSION", "2"),
                                       ("SESSION_LIST_LIMIT", "1000"),
                                       ("REQUEST_TIMEOUT_SECONDS", "5"),
                                       ("MAX_USAGE_SCAN_PAGES", "20"),
