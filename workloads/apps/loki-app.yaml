@@ -209,6 +209,17 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
+  # Reloader (controller reloadStrategy=annotations) stamps the system-managed
+  # reloader.stakater.com/last-reloaded-from annotation onto the pod template
+  # when a mounted TLS secret renews; ArgoCD must not treat that legitimate
+  # controller-generated annotation as drift. Nothing else is ignored.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: loki
+      namespace: logging
+      jqPathExpressions:
+        - '.spec.template.metadata.annotations["reloader.stakater.com/last-reloaded-from"]'
   syncPolicy:
     automated:
       prune: true
@@ -216,6 +227,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:
