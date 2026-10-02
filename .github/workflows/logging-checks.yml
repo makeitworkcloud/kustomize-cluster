@@ -380,7 +380,7 @@ jobs:
             check(root['spec'].get('issuerRef') == {'name': 'logging-selfsigned', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}, 'root CA selfsigned issuer')
             check(root['spec'].get('duration') == '87600h' and root['spec'].get('renewBefore') == '720h', 'root 10y/720h')
             check(root['spec'].get('privateKey') == {'algorithm': 'ECDSA', 'size': 256, 'rotationPolicy': 'Never'}, 'root key Never')
-          lci = next((x for x in pki if x.get('kind') == 'ClusterIssuer' and x['metadata'].get('name') == 'logging-ca'), None)
+          lci = next((x for x in pki if x.get('kind') == 'ClusterIssuer' and x['metadata']['name'] == 'logging-ca'), None)
           check(lci is not None and lci.get('spec', {}).get('ca', {}).get('secretName') == 'logging-root-ca', 'ca<-root')
           exp = {'autoReloadAll': False, 'watchGlobally': False, 'namespaces': ['grafana', 'opencode'], 'reloadOnCreate': True, 'reloadOnDelete': True, 'syncAfterRestart': True}
           check(reloader_values.get('reloader') == exp, 'reloader values == canonical base-2 contract, got %s' % reloader_values.get('reloader'))
@@ -846,16 +846,47 @@ jobs:
           kindest/node:v1.31.2@sha256:18fbefc20a7113353c7b75b5c869d7145a6abd6269154825872dc59c1329912e \
           >/dev/null
           trap 'kind delete cluster --name logging-adm >/dev/null 2>&1 || true' EXIT
-          K() { docker exec -i logging-adm-control-plane \
-          kubectl --kubeconfig=/etc/kubernetes/admin.conf "$@"; }
+          K() {
+          local source="" leaf
+          local args=()
+          while [ "$#" -gt 0 ]; do
+            case "$1" in
+              -f)
+                if [ "$#" -lt 2 ] || [ -n "$source" ] || [ -z "$2" ]; then
+                  printf '%s\n' 'K transport requires one -f source' >&2; return 2
+                fi
+                source="$2"; args+=(-f -); shift 2 ;;
+              -f?*|--filename*|-k|--kustomize*|-R|--recursive*)
+                printf '%s\n' 'K transport supports only a single -f source or stdin' >&2; return 2 ;;
+              *) args+=("$1"); shift ;;
+            esac
+          done
+          if [ -n "$source" ] && [ "$source" != "-" ]; then
+            leaf="${source##*/}"
+            if [ "$source" != "$W/cm.crds.yaml" ]; then
+              if ! [[ "$leaf" =~ ^[a-z0-9-]+\.yaml$ ]] ||
+                 { [ "$source" != "$W/adm/$leaf" ] && [ "$source" != "$W/adm-cr/$leaf" ]; }; then
+                printf '%s\n' 'K transport source is not approved public admission YAML' >&2; return 2
+              fi
+            fi
+            if [ ! -f "$source" ] || [ ! -r "$source" ] || [ -L "$source" ]; then
+              printf '%s\n' 'K transport requires a readable regular public YAML file' >&2; return 2
+            fi
+            # Only public CRDs/fixtures cross stdin; keys and kubeconfig stay out.
+            docker exec -i logging-adm-control-plane \
+              kubectl --kubeconfig=/etc/kubernetes/admin.conf "${args[@]}" < "$source"
+          else
+            docker exec -i logging-adm-control-plane \
+              kubectl --kubeconfig=/etc/kubernetes/admin.conf "${args[@]}"
+          fi
+          }
           K version | grep -q 'Server Version: v1\.31' || fail "need 1.31"
           curl -fsSL -o "$W/cm.crds.yaml" \
           https://github.com/cert-manager/cert-manager/releases/download/v1.20.3/cert-manager.crds.yaml
           printf '%s  %s\n' \
           8c2aea21520854c8c05f4b39909d0be6e2c1ea71544d5c4e2c4ba4f75a223ccc "$W/cm.crds.yaml" \
           | sha256sum -c - >/dev/null || fail "cert-manager v1.20.3 CRD digest mismatch"
-          docker cp "$W/cm.crds.yaml" logging-adm-control-plane:/tmp/cm.crds.yaml
-          K apply --server-side -f /tmp/cm.crds.yaml >/dev/null
+          K apply --server-side -f "$W/cm.crds.yaml" >/dev/null
           K apply -f - < operators/cert-manager/logging-admission.yaml >/dev/null
           for pol in logging-certificate logging-certificaterequest logging-clusterissuer logging-issuer logging-csr; do
           [ "$(K get validatingadmissionpolicy "$pol" \
@@ -931,8 +962,7 @@ jobs:
           put('c-csr-other.yaml', csr('ci-csr-other', 'kubernetes.io/kube-apiserver-client'))
           for n, t in F.items(): (adm / n).write_text(t)
           EOF
-          docker cp "$W/adm" logging-adm-control-plane:/tmp/adm
-          A=/tmp/adm
+          A="$W/adm"
           ok() { K "$@" >/dev/null 2>"$W/adm.err" || fail "allow failed: $*"; }
           denied() {
           local m="$1"; shift
@@ -987,8 +1017,7 @@ jobs:
           put('d-cr-root-dup.yaml', crq('ci-cr-rd', 'cert-manager', 'logging-root-ca', root_uid, SELF, ['signing', 'cert sign', 'crl sign', 'signing', 'cert sign', 'crl sign'], isca=True))
           for n, t in F.items(): (adm / n).write_text(t)
           EOF
-          docker cp "$W/adm-cr" logging-adm-control-plane:/tmp/adm-cr
-          AC=/tmp/adm-cr
+          AC="$W/adm-cr"
           ok --as="$CM" create -f "$AC/cr-loki.yaml"
           ok --as="$CM" create -f "$AC/cr-root.yaml"
           ok --as="$CM" create -f "$AC/cr-alloy.yaml"
