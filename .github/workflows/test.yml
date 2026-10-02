@@ -640,6 +640,60 @@ jobs:
                   self.assertEqual(names, METRIC_NAMES)
                   self.assertEqual(labels, {"kind", "state"})
 
+          class TestStatusReader(ExporterTestCase):
+              def poll(self, response):
+                  opener = RecordingOpener(response)
+                  self.module.usage_opener = opener
+                  self.module.poll_status()
+                  return opener
+              def test_v1_status_counts_through_bounded_reader(self):
+                  opener = self.poll(StaticResponse(json.dumps(
+                      {"synthetic-busy": {"type": "busy"},
+                       "synthetic-retry": {"type": "retry"}}).encode()))
+                  self.assertEqual((self.module.state["up"], self.module.state["busy"],
+                                    self.module.state["retry"]), (1, 1, 1))
+                  self.assertEqual(len(opener.requests), 1)
+                  url, headers = opener.requests[0]
+                  self.assertEqual(url, "http://opencode.opencode.svc:4096/session/status")
+                  self.assertTrue({k.lower(): v for k, v in headers.items()}
+                                  .get("authorization", "").startswith("Basic "))
+              def test_redirect_rejected_without_credential_replay(self):
+                  opener = self.poll(StaticResponse(b"{}", status=302, headers={
+                      "Location": "http://synthetic-elsewhere/status"}))
+                  self.assertEqual(len(opener.requests), 1)
+                  self.assertEqual((self.module.state["up"], self.module.state["busy"],
+                                    self.module.state["retry"],
+                                    self.module.state["poll_errors"]), (0, 0, 0, 1))
+                  body = self.module.metrics_body().decode()
+                  self.assertNotIn("synthetic-elsewhere", body)
+                  self.assertNotIn("Basic ", body)
+                  handler_request = urllib.request.Request("http://opencode.opencode.svc:4096/session")
+                  self.assertIsNone(self.module._NoRedirect().redirect_request(
+                      handler_request, None, 302, "Found", {},
+                      "http://synthetic-elsewhere/status"))
+              def test_non200_malformed_oversize_fail_closed(self):
+                  cases = [("non-200", StaticResponse(b"{}", status=503), None),
+                           ("malformed-json", StaticResponse(b"{"), None),
+                           ("empty-body", StaticResponse(b""), None),
+                           ("body-cap", StaticResponse(b"z" * 4096), 1024)]
+                  for name, response, cap in cases:
+                      with self.subTest(case=name):
+                          self.setUp()
+                          if cap is not None:
+                              self.module.MAX_RESPONSE_BYTES = cap
+                          self.poll(response)
+                          self.assertEqual((self.module.state["up"], self.module.state["busy"],
+                                            self.module.state["retry"],
+                                            self.module.state["poll_errors"]), (0, 0, 0, 1))
+              def test_time_bound_fail_closed(self):
+                  self.poll(TrickleResponse(self.clock))
+                  self.assertEqual((self.module.state["up"], self.module.state["busy"],
+                                    self.module.state["poll_errors"]), (0, 0, 1))
+              def test_status_failure_preserves_usage_state(self):
+                  before = self.seed()
+                  self.poll(StaticResponse(b"{}", status=503))
+                  self.assertEqual(snapshot(self.module), before)
+
           class ExporterV2TestCase(unittest.TestCase):
               def setUp(self):
                   self.module = build_module({"OPENCODE_API_VERSION": "2"})
@@ -776,6 +830,23 @@ jobs:
               def test_invalid_api_version_fails_closed_at_startup(self):
                   with self.assertRaises(RuntimeError):
                       build_module({"OPENCODE_API_VERSION": "3"})
+              def test_v2_active_uses_bounded_no_redirect_reader(self):
+                  opener = RecordingOpener(StaticResponse(json.dumps(
+                      {"data": {"synthetic-run-a": {"type": "running"}}}).encode()))
+                  self.module.usage_opener = opener
+                  self.module.poll_status()
+                  self.assertEqual((self.module.state["up"], self.module.state["busy"]), (1, 1))
+                  self.assertEqual(len(opener.requests), 1)
+                  url, headers = opener.requests[0]
+                  self.assertEqual(url, "http://opencode.opencode.svc:4096/api/session/active")
+                  self.assertTrue({k.lower(): v for k, v in headers.items()}
+                                  .get("authorization", "").startswith("Basic "))
+              def test_v2_active_reader_bounds_fail_closed(self):
+                  self.module.MAX_RESPONSE_BYTES = 1024
+                  self.module.usage_opener = RecordingOpener(StaticResponse(b"z" * 4096))
+                  self.module.poll_status()
+                  self.assertEqual((self.module.state["up"], self.module.state["busy"],
+                                    self.module.state["poll_errors"]), (0, 0, 1))
 
           class TestV2Guards(ExporterV2TestCase):
               def test_v2_url_and_basic_auth_shape(self):
@@ -788,6 +859,30 @@ jobs:
                   self.assertTrue(authorization.startswith("Basic "))
                   self.assertEqual((self.module.state["usage_up"],
                                     self.module.state["usage_sessions"]), (1, 0))
+              def test_v2_usage_reader_transport_guards(self):
+                  cases = [("redirect", StaticResponse(b"{}", status=302, headers={
+                                "Location": "http://synthetic-elsewhere/session"}), None),
+                           ("non-200", StaticResponse(b"{}", status=500), None),
+                           ("body-cap", StaticResponse(b"z" * 4096), 1024)]
+                  for name, response, cap in cases:
+                      with self.subTest(case=name):
+                          self.setUp()
+                          before = self.seed()
+                          if cap is not None:
+                              self.module.MAX_RESPONSE_BYTES = cap
+                          self.module.fetch_usage_page_v2 = self.real_fetch_usage_page_v2
+                          opener = RecordingOpener(response)
+                          self.module.usage_opener = opener
+                          self.module.poll_usage()
+                          self.assert_down(self.module.state, before, 0, 1)
+                          self.assertEqual(len(opener.requests), 1)
+                  with self.subTest(case="time-bound"):
+                      self.setUp()
+                      before = self.seed()
+                      self.module.fetch_usage_page_v2 = self.real_fetch_usage_page_v2
+                      self.module.usage_opener = RecordingOpener(TrickleResponse(self.clock))
+                      self.module.poll_usage()
+                      self.assert_down(self.module.state, before, 1, 0)
 
           class TestContracts(unittest.TestCase):
               def test_deployment_and_checksum_contract(self):
