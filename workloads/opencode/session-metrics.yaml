@@ -69,10 +69,29 @@ data:
             url,
             headers={"Accept": "application/json", "Authorization": authorization_header()},
         )
-        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+        deadline = time.monotonic() + REQUEST_TIMEOUT_SECONDS
+
+        def budget_check():
+            if time.monotonic() >= deadline:
+                raise RuntimeError("status response time bound exceeded")
+
+        with usage_opener.open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             if response.status != 200:
                 raise RuntimeError("unexpected status response")
-            return json.load(response)
+            body = bytearray()
+            read_chunk = getattr(response, "read1", None)
+            while True:
+                budget_check()
+                chunk = read_chunk(65536) if read_chunk is not None else response.read(65536)
+                budget_check()
+                if not chunk:
+                    break
+                body.extend(chunk)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise RuntimeError("status response body exceeded bound")
+            payload = json.loads(bytes(body))
+            budget_check()
+        return payload
 
     class _NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -410,10 +429,7 @@ data:
             "# HELP opencode_active_sessions Current active OpenCode sessions by non-idle status.",
             "# TYPE opencode_active_sessions gauge",
             f"opencode_active_sessions{{state=\"busy\"}} {snapshot['busy']}",
-        ]
-        if API_VERSION == "1":
-            lines.append(f"opencode_active_sessions{{state=\"retry\"}} {snapshot['retry']}")
-        lines.extend([
+            f"opencode_active_sessions{{state=\"retry\"}} {snapshot['retry']}",
             "# HELP opencode_session_status_last_success_timestamp_seconds Unix timestamp of the last successful OpenCode session-status poll.",
             "# TYPE opencode_session_status_last_success_timestamp_seconds gauge",
             f"opencode_session_status_last_success_timestamp_seconds {snapshot['last_success']}",
@@ -422,7 +438,7 @@ data:
             f"opencode_session_status_poll_errors_total {snapshot['poll_errors']}",
             "# HELP opencode_llm_tokens_total Aggregate token deltas observed after the exporter initial baseline. Observed deltas only, not provider billing; token history before first observation is excluded.",
             "# TYPE opencode_llm_tokens_total counter",
-        ])
+        ]
         lines.extend(
             f"opencode_llm_tokens_total{{kind=\"{kind}\"}} {snapshot['usage_totals'][kind]}"
             for kind in TOKEN_KINDS
@@ -457,6 +473,8 @@ data:
             f"opencode_session_usage_scan_duration_seconds {snapshot['usage_scan_duration']}",
             "",
         ])
+        if API_VERSION == "2":
+            lines.remove(f"opencode_active_sessions{{state=\"retry\"}} {snapshot['retry']}")
         return "\n".join(lines).encode()
 
     class Handler(BaseHTTPRequestHandler):
@@ -501,7 +519,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/opencode-session-metrics: 2d79a7844e86ec2e749216c9a4dddf9d90c3ce73c21370994c088a611272d5d3
+        checksum/opencode-session-metrics: 81db916b5ac84450912393537f51e4feeb83d5e1cea86e24ae6c6bc14faea396
       labels:
         app.kubernetes.io/name: opencode-session-metrics
     spec:
