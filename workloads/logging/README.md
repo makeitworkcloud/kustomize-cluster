@@ -23,8 +23,13 @@ an authorized control. Use explicitly approved, non-persisting server-side dry-r
 requests from an approved client; do not retrieve keys or use malformed requests
 whose schema/webhook rejection could masquerade as policy enforcement. Inventory
 unexpected existing logging PKI resources by metadata only: admission is not
-retroactive. API version, resource acceptance, sync waves and CI success are not
-proof of effective denial in the target cluster.
+retroactive. That inventory must explicitly name every ClusterIssuer of any name
+whose CA secret reference is `logging-root-ca` and every namespaced Issuer in
+`cert-manager` referencing that root Secret — configuration references only,
+never Secret data. Any such alias must be absent or resolved before the CA
+exists, because the policies are not retroactive against issuers that already
+reference the root Secret at activation. API version, resource acceptance, sync
+waves and CI success are not proof of effective denial in the target cluster.
 
 The observed target is k3s v1.31.13, compatible with the GA policy API introduced
 in Kubernetes 1.30. The MCP identity cannot list ValidatingAdmissionPolicies;
@@ -43,7 +48,7 @@ Source opt-ins remain separate owner-reviewed changes after backend acceptance.
 | --- | --- | --- |
 | Loki chart 18.13.7, app 3.7.8 | Loki Application | Published upstream; pin authored, Application unregistered |
 | Alloy chart 1.13.0, app v1.20.0 | Alloy Application | Published upstream; pin authored, Application unregistered |
-| Native admission policies and bindings | Target API server | Registered in operator desired state; not deployed or verified |
+| Native admission policies (5) and bindings (5) | Target API server | Registered in operator desired state; not deployed or verified |
 | Dedicated cert-manager PKI | Workload Certificates | Staged, unregistered; no logging keys generated |
 | Logging overlays | Chart-backed workloads in namespace `logging` | Staged; certificate and monitoring integration |
 | Grafana datasource/client Certificate | Main authenticated Grafana | Staged, unregistered; public status Grafana excluded |
@@ -74,7 +79,13 @@ application-controller identity and fixed profiles. CertificateRequests require
 the cert-manager controller and the matching Certificate owner/profile. Direct
 built-in CSR paths for the logging signers are denied. Protected issuer/root
 changes cannot escape via a changed issuer reference. Metadata-only updates use
-deep spec equality, not a mutable generation counter. Unrelated PKI is out of
+deep spec equality, not a mutable generation counter. The policies also close the
+alternate-issuer path to the same root Secret: any ClusterIssuer, under any name,
+whose `ca.secretName` is `logging-root-ca` is guarded on both new and pre-existing
+objects, with only the approved `logging-ca` ClusterIssuer permitted, and
+namespaced Issuers in `cert-manager` referencing that root Secret, new or
+pre-existing, are denied. The staged set is five ValidatingAdmissionPolicies with
+five bindings and adds no controller. Unrelated PKI is out of
 scope. Existing RBAC remains necessary; these controls do not defend against a
 compromised CA controller or administrator able to alter policy/read the CA key.
 
@@ -151,7 +162,10 @@ collector's permissions.
 The reusable validation workflow is now published: `.github/workflows/test.yml`
 calls `.github/workflows/logging-checks.yml` at the same committed revision; the
 existing test jobs are retained. The reusable workflow is `workflow_call`-only
-with `contents: read` and no Secret exchange. CI has not yet executed on this
+with `contents: read` and no Secret exchange. The child workflow is authored and
+committed with the intended controls — strong-TLS oracle plus positive,
+negative, escape and unrelated-resource cases against the real Kind API,
+including ownerUID/client identity checks — but CI has not yet executed on this
 branch and no PR is open; final reviews and passing CI remain required before
 calling this branch CI-ready.
 
