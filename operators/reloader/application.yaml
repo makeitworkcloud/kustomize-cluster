@@ -1,5 +1,7 @@
-# Reloader is scoped to the Grafana and OpenCode namespaces and restarts only
-# workloads that explicitly opt into a named Secret reload annotation.
+# Reloader is scoped to the Grafana, OpenCode and logging namespaces and
+# restarts only workloads that explicitly opt into a named Secret reload
+# annotation. The logging consumer is the opt-in cluster logging stack
+# (workloads/logging/README.md): TLS leaf renewal rolls Loki/Alloy there.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -25,6 +27,7 @@ spec:
           namespaces:
             - grafana
             - opencode
+            - logging
           # Grafana service-account token rotation replaces its Secret.
           reloadOnCreate: true
           reloadOnDelete: true
