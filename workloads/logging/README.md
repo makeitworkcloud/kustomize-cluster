@@ -1,20 +1,24 @@
 # Cluster logging
 
 The approved design is cluster-wide reviewed-source eligibility, 30-day retention
-and an initial 100Gi node-local allocation. This branch stages the complete Loki,
-Alloy and Grafana configuration. It enables no production log source and does not
-publish a chart or image. Upstream chart pins are already published.
+and an initial 100Gi node-local allocation. This activation branch registers the existing Loki,
+Alloy, PKI and Grafana configuration for review. It enables no production log
+source and does not publish a chart or image. Upstream chart pins are unchanged
+and already published. Preparation is not deployment: keep this PR draft and
+merge-blocked until the target admission and issuer-inventory gates below pass.
 
 Follow [Adding a workload](../../docs/adding-a-workload.md) and
 [Rollout and rollback](../../docs/rollout-and-rollback.md).
 
 ## Two-phase delivery gate
 
-**Phase 1:** register only [native admission policies](../../operators/cert-manager/logging-admission.yaml)
-through the existing cert-manager operator overlay. The logging CA/bootstrap
-issuers, root Certificate, Loki/Alloy Applications, Grafana integration and
-Reloader watch patch are authored but **not registered**. No logging issuer or
-key becomes available merely by applying this phase.
+**Phase 1 is merged:** PR [#274](https://github.com/makeitworkcloud/kustomize-cluster/pull/274)
+registered only [native admission policies](../../operators/cert-manager/logging-admission.yaml)
+through the existing cert-manager operator overlay at `5598546`. All five
+policies and five bindings are reported Synced in the target operator root.
+That verifies reconciliation, not request enforcement. Phase one did not
+register the logging PKI, runtime Applications, Grafana integration or Reloader
+watch extension. No logging issuer or key becomes available merely from that phase.
 
 **Activation is a separate reviewed PR.** Before making the logging CA available,
 verify that the target API accepts the policies and their `Deny` bindings, denies
@@ -32,28 +36,34 @@ reference the root Secret at activation. API version, resource acceptance, sync
 waves and CI success are not proof of effective denial in the target cluster.
 
 The observed target is k3s v1.31.13, compatible with the GA policy API introduced
-in Kubernetes 1.30. The MCP identity cannot list ValidatingAdmissionPolicies;
-no bypass was attempted and live enforcement remains unverified.
+in Kubernetes 1.30. Live policy configuration has been inspected through bounded
+Argo resource reads, but live enforcement remains unverified. The configured
+Kubernetes MCP apply tool exposes neither server-side dry-run nor per-call
+identity selection. The approved controller-Pod client preflight stopped because
+`kubectl` was not found in its PATH; no target admission requests ran. An approved,
+capable test client is still required. Do not substitute persistent apply.
 
-After that gate, activation can register [logging PKI](../../operators/cert-manager/logging-pki.yaml),
+This activation branch registers [logging PKI](../../operators/cert-manager/logging-pki.yaml),
 [Loki](../apps/loki-app.yaml), [Alloy](../apps/alloy-app.yaml), the
 [Grafana client Certificate](../grafana/loki-client-certificate.yaml) and
-[Loki datasource](../grafana/loki-datasource.yaml), and apply the staged
+[Loki datasource](../grafana/loki-datasource.yaml), and applies the
 [Reloader watch patch](../../operators/reloader/logging-watch-patch.yaml).
-Source opt-ins remain separate owner-reviewed changes after backend acceptance.
+These registrations must not reach `main` before the gate passes and the owner
+approves merge and automatic rollout. Source opt-ins remain separate
+owner-reviewed changes after backend acceptance.
 
 ## Ownership and reconciliation
 
-| Producer/integration | Consumer | Current stage |
+| Producer/integration | Consumer | Desired state in this branch; live acceptance |
 | --- | --- | --- |
-| Loki chart 18.13.7, app 3.7.8 | Loki Application | Published upstream; pin authored, Application unregistered |
-| Alloy chart 1.13.0, app v1.20.0 | Alloy Application | Published upstream; pin authored, Application unregistered |
-| Native admission policies (5) and bindings (5) | Target API server | Registered in operator desired state; not deployed or verified |
-| Dedicated cert-manager PKI (5 named Certificate profiles) | Workload Certificates | Staged, unregistered; no logging keys generated |
-| Logging overlays | Chart-backed workloads in namespace `logging` | Staged; server/client Certificates and mTLS metrics integration |
-| Prometheus client Certificate and Loki ServiceMonitor | Cluster Prometheus in `monitoring` | Staged in Loki child overlay; Application still unregistered |
-| Grafana datasource/client Certificate | Main authenticated Grafana | Staged, unregistered; public status Grafana excluded |
-| Reloader chart 2.2.16 | Certificate renewal | Current watch scope unchanged; future `logging` watch patch staged |
+| Loki chart 18.13.7, app 3.7.8 | Loki Application | Published upstream; unchanged pin, Application registered here; not rolled out |
+| Alloy chart 1.13.0, app v1.20.0 | Alloy Application | Published upstream; unchanged pin, Application registered here; not rolled out |
+| Native admission policies (5) and bindings (5) | Target API server | Unchanged; phase one Synced, target request enforcement unproven |
+| Dedicated cert-manager PKI (5 named Certificate profiles) | Workload Certificates | Registered here; issuance unverified, no keys retrieved |
+| Logging overlays | Chart-backed workloads in namespace `logging` | Selected by registered children; runtime health unverified |
+| Prometheus client Certificate and Loki ServiceMonitor | Cluster Prometheus in `monitoring` | Selected by Loki child; actual HTTPS scraping unverified |
+| Grafana datasource/client Certificate | Main authenticated Grafana | Registered here; public status Grafana excluded; live datasource absent in last inventory |
+| Reloader chart 2.2.16 | Certificate renewal | Unchanged pin/strategy; registered patch adds only `logging`; live reload unverified |
 | OpenCode chart, storage, credentials and exporter | OpenCode | Unchanged; no OpenCode log source enabled |
 
 One object has one owner. A repository overlay does not implicitly patch another
@@ -117,7 +127,7 @@ reconciliation handles this client rather than Reloader; actual generation,
 rotation, propagation and successful scraping remain future live acceptance
 proofs, without Secret-data retrieval.
 
-The staged Reloader patch adds only `logging` to the existing namespace scope,
+The registered Reloader patch adds only `logging` to the existing namespace scope,
 without changing chart version or global strategy. Named leaf Secret annotations
 select renewal consumers. Applications ignore only the exact controller-generated
 renewal hash entries and documented annotation, not general environment, Secret
@@ -185,32 +195,30 @@ collector's permissions.
 
 ## Validation and remaining gates
 
-The reusable validation workflow is now published: `.github/workflows/test.yml`
-calls `.github/workflows/logging-checks.yml` at the same committed revision; the
-existing test jobs are retained. The reusable workflow is `workflow_call`-only
-with `contents: read` and no Secret exchange. PR #274 is open and unmerged.
-As of 2026-10-02, CI run
-[37055002290](https://github.com/makeitworkcloud/kustomize-cluster/actions/runs/37055002290)
-succeeded at commit `213567a97c0bc34c1c18d57d2bf9c1e899f23e1e` with all four jobs
-(`test`, `discode-static`, `discode-build` and `ci-logging`) green; the native
-`ci-logging` job passed all five steps — render, contract, native Alloy/Loki CLI
-validation, synthetic mTLS authorized push/query and `/metrics` on 3100 after a
-healthy valid-client anchor, and the isolated Kind 1.31 admission suite. These
-results come from hosted GitHub Actions runners only; no local or server-side
-checks were run and this documentation update dispatches no workflow. The
-earlier CI run
-[37047181304](https://github.com/makeitworkcloud/kustomize-cluster/actions/runs/37047181304)
-failed because the obsolete expectation was that `/metrics` on 3101 returned 200
-(actual 404); that historical failure is recorded as resolved by staging metrics
-behind mTLS on 3100 at `d9ff612ad2eca773cff5ce0e4e7f292ebb7344ce`. Positive
-authorization and metrics native fixtures, wrong-CA and missing-client TLS
-denials, 3101 metrics/profiling 404s and the certificate role cases are proven
-only within that CI environment, not against any production system. Passing CI
-does not merge the PR; final reviews and owner merge approval remain required
-before calling this branch ready, and merge/rollout remain separate approval
-gates.
+The reusable workflow `.github/workflows/logging-checks.yml` is called by
+`.github/workflows/test.yml` at the same revision with `contents: read` and no
+Secret exchange. This branch replaces phase-one staging assertions with exact
+activation-registration checks, renders the effective registered Reloader
+Kustomization, and includes PrometheusRule in the existing workload CRD gate.
+The chart pins, native TLS/configuration tests and isolated admission cases are
+unchanged. Pull-request CI is required for this activation revision; earlier
+results are not evidence that the new revision passed.
 
-The intended checks render pinned Loki, Alloy and prospective Reloader values;
+Phase-one PR [#274](https://github.com/makeitworkcloud/kustomize-cluster/pull/274)
+merged at `5598546`. PR CI
+[37069209541](https://github.com/makeitworkcloud/kustomize-cluster/actions/runs/37069209541)
+passed at `d4857ac`; main CI
+[37069478598](https://github.com/makeitworkcloud/kustomize-cluster/actions/runs/37069478598)
+and automatic root submission
+[37069626619](https://github.com/makeitworkcloud/kustomize-cluster/actions/runs/37069626619)
+passed at `5598546`. Read-only confirmation on 2026-10-02 found the operator
+and workload roots and Grafana Synced/Healthy at that revision, all ten
+admission objects Synced, no Loki/Alloy registration under the workload root,
+and zero Loki datasources in Grafana. Direct Loki/Alloy Application reads were
+permission-denied and Kubernetes null responses were inconclusive; neither
+was treated as proof of absence. No activation or end-to-end success is claimed.
+
+The intended checks render pinned Loki, Alloy and effective Reloader values;
 validate native Alloy/Loki configuration; test synthetic mTLS authorized
 push/query and `/metrics` on 3100 after a healthy valid-client anchor; require
 TLS-level rejection for missing/wrong-CA clients on metrics and missing clients
@@ -234,6 +242,35 @@ growth or 30-day deletion. Those are separate live gates using authorized
 Argo/Kubernetes/Grafana evidence and approved protocol tests, with no implicit
 exec, restart, key dump or paid inference. The target policy denial proof must
 precede logging issuer activation, not merely precede source opt-in.
+
+## End-to-end acceptance after approved activation
+
+1. Before merge, record target policy-specific unauthorized denial, an authorized
+   allowed control and the completed root-issuer alias inventory. Passing CI or
+   policy status is not a substitute. Obtain owner approval for merge and the
+   resulting automatic rollout; do not manually sync to bypass this gate.
+2. Verify the selected chart artifacts and Git revision separately from root
+   submission. Confirm `gitops-operators`, `gitops-workloads`, Loki, Alloy,
+   Grafana and Reloader reconciliation and resource health; independent
+   Applications may retry dependencies and are not ordered by sync waves.
+3. Verify issuer/Certificate readiness, Loki/Alloy Ready workloads, bound storage,
+   the main Grafana Loki datasource health and discovered Prometheus scrape
+   targets. Use status/configuration evidence only; never retrieve key or
+   Secret data. No production source should be opted in at this stage.
+4. Obtain separate approval for an exact synthetic Pod-log source, safe marker,
+   duration and cleanup scope. It must satisfy the existing annotation/application
+   label gate and must not use an excluded namespace/container. A direct Loki
+   push proves Loki access, not Alloy collection.
+5. Verify the approved marker was emitted, collected by Alloy, accepted by Loki
+   and returned through the main authenticated Grafana datasource. Inspect only
+   the approved synthetic marker or bounded aggregate results, not unrelated
+   logs. Record the boundaries separately; healthy Pods or a listed datasource
+   alone do not prove this data path. Verify authenticated metrics and the
+   required unauthenticated rejection/listener-isolation controls separately
+   using an explicitly approved client and operation scope.
+6. Clean up only the approved synthetic source through its authorized owner.
+   Keep renewal/reload, capacity growth, rejection behavior and 30-day retention
+   as later acceptance gates; a short synthetic test does not establish them.
 
 Rollback is a reviewed desired-state change. Remove source opt-ins before
 collector changes and preserve volume/trust material for recovery. Do not
