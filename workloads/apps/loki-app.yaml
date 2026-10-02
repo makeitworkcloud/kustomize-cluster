@@ -171,10 +171,16 @@ spec:
                 split_queries_by_interval: 24h
                 ingestion_rate_mb: 0.02
                 ingestion_burst_size_mb: 1
-                per_stream_rate_limit: 20KiB
-                per_stream_rate_limit_burst: 1MiB
+                # Byte-size fields below are unitless integer BYTES: Loki's
+                # flagext.ByteSize parser rejects KiB/MiB suffixes
+                # (`loki -verify-config` fails with
+                # `strconv.UnmarshalText: parsing "4KIB": invalid syntax`),
+                # unlike Alloy's Base2Bytes which accepts them. Exact byte
+                # values: 20480 = 20KiB, 1048576 = 1MiB, 4096 = 4KiB.
+                per_stream_rate_limit: 20480
+                per_stream_rate_limit_burst: 1048576
                 max_streams_per_user: 1000
-                max_line_size: 4KiB
+                max_line_size: 4096
                 max_entries_limit_per_query: 5000
                 max_query_series: 500
                 reject_old_samples: true
