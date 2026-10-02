@@ -26,827 +26,827 @@ jobs:
           python-version: "3.12"
       - name: Render charts, extract inputs, prospective watch
         run: |
-         set -euo pipefail
-         W="${RUNNER_TEMP}/logging-ci"
-         RENDER="${RUNNER_TEMP}/logging-render"
-         mkdir -p "$W" "$RENDER"
-         command -v docker openssl curl kustomize kind >/dev/null || exit 1
-         python -m pip install --quiet --require-hashes -r .github/requirements-ci.txt
-         python - "$RENDER" <<'EOF'
-         import shlex, sys, yaml
-         from pathlib import Path
-         out = Path(sys.argv[1])
-         errors = []
-         def check(cond, msg): cond or errors.append(msg)
-         def chart_source(path, chart, version, repo, ns='logging'):
-           app = yaml.safe_load(Path(path).read_text())
-           src = next((s for s in app['spec'].get('sources', []) if 'chart' in s), None)
-           helm = (src or {}).get('helm', {})
-           values = helm.get('values')
-           check(src is not None and src.get('repoURL') == repo and src.get('chart') == chart and src.get('targetRevision') == version, '%s must pin %s %s from %s' % (path, chart, version, repo))
-           check(helm.get('releaseName') == chart, '%s releaseName %s' % (path, chart))
-           check(isinstance(values, str) and values.strip(), '%s inline values' % path)
-           check(app['spec']['destination']['namespace'] == ns, '%s ns %s' % (path, ns))
-           return src, values
-         loki_src, loki_values = chart_source( 'workloads/apps/loki-app.yaml', 'loki', '18.13.7', 'https://grafana-community.github.io/helm-charts')
-         alloy_src, alloy_values = chart_source( 'workloads/apps/alloy-app.yaml', 'alloy', '1.13.0', 'https://grafana.github.io/helm-charts')
-         reloader_app = yaml.safe_load( Path('operators/reloader/application.yaml').read_text())
-         reloader_src = reloader_app['spec']['source']
-         reloader_values = reloader_src.get('helm', {}).get('valuesObject')
-         check(reloader_src.get('chart') == 'reloader' and reloader_src.get('repoURL') == 'https://stakater.github.io/stakater-charts' and reloader_src.get('targetRevision') == '2.2.16', 'reloader Application must pin reloader 2.2.16 stakater')
-         check(isinstance(reloader_values, dict), 'reloader Application must carry a helm valuesObject')
-         reloader_namespace = reloader_app['spec']['destination']['namespace']
-         if errors:
-           for e in errors:
-               print('LOGGING-SOURCE-INVALID: %s' % e)
-           sys.exit(1)
-         (out / 'loki-values.yaml').write_text(loki_values)
-         (out / 'alloy-values.yaml').write_text(alloy_values)
-         (out / 'reloader-values.yaml').write_text( yaml.safe_dump(reloader_values, sort_keys=False))
-         (out / 'sources.env').write_text( "LOKI_REPO_URL=%s\nLOKI_CHART_VERSION=%s\nALLOY_REPO_URL=%s\n" "ALLOY_CHART_VERSION=%s\nNAMESPACE=logging\n" "RELOADER_REPO_URL=%s\nRELOADER_CHART_VERSION=%s\nRELOADER_NAMESPACE=%s\n" % (shlex.quote(loki_src['repoURL']), shlex.quote(loki_src['targetRevision']), shlex.quote(alloy_src['repoURL']), shlex.quote(alloy_src['targetRevision']), shlex.quote(reloader_src['repoURL']), shlex.quote(reloader_src['targetRevision']), shlex.quote(reloader_namespace)))
-         EOF
-         . "$RENDER/sources.env"
-         helm repo add loki-vendor "$LOKI_REPO_URL"
-         helm repo add alloy-vendor "$ALLOY_REPO_URL"
-         helm repo add stakater-vendor "$RELOADER_REPO_URL"
-         helm repo update >/dev/null
-         helm template loki loki-vendor/loki --version "$LOKI_CHART_VERSION" \
-         --namespace "$NAMESPACE" --values "$RENDER/loki-values.yaml" \
-         > "$RENDER/loki-rendered.yaml"
-         helm template alloy alloy-vendor/alloy --version "$ALLOY_CHART_VERSION" \
-         --namespace "$NAMESPACE" --values "$RENDER/alloy-values.yaml" \
-         > "$RENDER/alloy-rendered.yaml"
-         helm template reloader stakater-vendor/reloader --version "$RELOADER_CHART_VERSION" \
-         --namespace "$RELOADER_NAMESPACE" --values "$RENDER/reloader-values.yaml" \
-         > "$RENDER/reloader-rendered.yaml"
-         python - "$W" "$RENDER" <<'EOF'
-         import shlex, sys, yaml
-         from pathlib import Path
-         work, render = (Path(sys.argv[1]), Path(sys.argv[2]))
-         errors = []
-         def check(cond, msg): cond or errors.append(msg)
-         loki_docs = [d for d in yaml.safe_load_all((render / 'loki-rendered.yaml').read_text()) if isinstance(d, dict)]
-         alloy_docs = [d for d in yaml.safe_load_all((render / 'alloy-rendered.yaml').read_text()) if isinstance(d, dict)]
-         loki_values = yaml.safe_load((render / 'loki-values.yaml').read_text())
-         alloy_values = yaml.safe_load((render / 'alloy-values.yaml').read_text())
-         config_docs = []
-         for d in loki_docs:
-           if d.get('kind') in ('Secret', 'ConfigMap'):
-               for value in (d.get('data') or {}).values():
-                   parsed = yaml.safe_load(value) if isinstance(value, str) else None
-                   if isinstance(parsed, dict) and 'auth_enabled' in parsed:
-                       config_docs.append((value, parsed))
-         check(len(config_docs) == 1, 'exactly one rendered loki config artifact expected')
-         if not config_docs:
-           for e in errors:
-               print('LOKI-NATIVE-INVALID: %s' % e)
-           sys.exit('LOKI-NATIVE-INVALID: no rendered loki config found')
-         config_text, config = config_docs[0]
-         check(config == loki_values['loki']['structuredConfig'], 'rendered config must equal loki.structuredConfig verbatim')
-         (work / 'loki-config.yaml').write_text(config_text)
-         sts = next(d for d in loki_docs if d.get('kind') == 'StatefulSet')
-         loki_image = next(c['image'] for c in sts['spec']['template']['spec']['containers'] if c['name'] == 'loki')
-         check(loki_image.endswith('grafana/loki:3.7.8'), 'loki image must be grafana/loki:3.7.8, got %s' % loki_image)
-         loki_args = next(c.get('args') or [] for c in sts['spec']['template']['spec']['containers'] if c['name'] == 'loki')
-         check(all(a.startswith(('-config.file=', '-target=', '-memberlist.advertise-addr=')) for a in loki_args), 'native run mirrors only -config.file; other chart args need explicit ' 'mirroring or a documented gate first: %s' % loki_args)
-         dep = next(d for d in alloy_docs if d.get('kind') == 'Deployment')
-         alloy_container = next(c for c in dep['spec']['template']['spec']['containers'] if c['name'] == 'alloy')
-         check(alloy_container['image'].endswith('grafana/alloy:v1.20.0'), 'alloy image must be grafana/alloy:v1.20.0, got %s' % alloy_container['image'])
-         tls = config['server']['http_tls_config']
-         check(tls.get('client_auth_type') == 'RequireAndVerifyClientCert', 'native config must require and verify client certificates')
-         check(config['common']['path_prefix'] == '/var/loki', 'path_prefix must be /var/loki so the ephemeral data mount matches')
-         (work / 'alloy.river').write_text(alloy_values['alloy']['configMap']['content'])
-         stability = next((a for a in alloy_container.get('args', []) if a.startswith('--stability.level=')), '')
-         if errors:
-           for e in errors:
-               print('LOKI-NATIVE-INVALID: %s' % e)
-           sys.exit(1)
-         (work / 'params.env').write_text( "LOKI_IMAGE=%s\nALLOY_IMAGE=%s\nALLOY_STABILITY_ARGS=%s\n" "LOKI_TLS_CERT=%s\nLOKI_TLS_KEY=%s\nLOKI_TLS_CA=%s\n" % (shlex.quote(loki_image), shlex.quote(alloy_container['image']), shlex.quote(stability), shlex.quote(tls['cert_file']), shlex.quote(tls['key_file']), shlex.quote(tls['client_ca_file'])))
-         server_cert = yaml.safe_load( Path('workloads/logging/loki/server-certificate.yaml').read_text())
-         san = ','.join('DNS:%s' % d for d in server_cert['spec']['dnsNames'])
-         (work / 'pki-server.ext').write_text( "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\n" "extendedKeyUsage=serverAuth\nsubjectAltName=%s\n" % san)
-         (work / 'pki-client.ext').write_text( "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\n" "extendedKeyUsage=clientAuth\n")
-         EOF
+          set -euo pipefail
+          W="${RUNNER_TEMP}/logging-ci"
+          RENDER="${RUNNER_TEMP}/logging-render"
+          mkdir -p "$W" "$RENDER"
+          command -v docker openssl curl kustomize kind >/dev/null || exit 1
+          python -m pip install --quiet --require-hashes -r .github/requirements-ci.txt
+          python - "$RENDER" <<'EOF'
+          import shlex, sys, yaml
+          from pathlib import Path
+          out = Path(sys.argv[1])
+          errors = []
+          def check(cond, msg): cond or errors.append(msg)
+          def chart_source(path, chart, version, repo, ns='logging'):
+            app = yaml.safe_load(Path(path).read_text())
+            src = next((s for s in app['spec'].get('sources', []) if 'chart' in s), None)
+            helm = (src or {}).get('helm', {})
+            values = helm.get('values')
+            check(src is not None and src.get('repoURL') == repo and src.get('chart') == chart and src.get('targetRevision') == version, '%s must pin %s %s from %s' % (path, chart, version, repo))
+            check(helm.get('releaseName') == chart, '%s releaseName %s' % (path, chart))
+            check(isinstance(values, str) and values.strip(), '%s inline values' % path)
+            check(app['spec']['destination']['namespace'] == ns, '%s ns %s' % (path, ns))
+            return src, values
+          loki_src, loki_values = chart_source( 'workloads/apps/loki-app.yaml', 'loki', '18.13.7', 'https://grafana-community.github.io/helm-charts')
+          alloy_src, alloy_values = chart_source( 'workloads/apps/alloy-app.yaml', 'alloy', '1.13.0', 'https://grafana.github.io/helm-charts')
+          reloader_app = yaml.safe_load( Path('operators/reloader/application.yaml').read_text())
+          reloader_src = reloader_app['spec']['source']
+          reloader_values = reloader_src.get('helm', {}).get('valuesObject')
+          check(reloader_src.get('chart') == 'reloader' and reloader_src.get('repoURL') == 'https://stakater.github.io/stakater-charts' and reloader_src.get('targetRevision') == '2.2.16', 'reloader Application must pin reloader 2.2.16 stakater')
+          check(isinstance(reloader_values, dict), 'reloader Application must carry a helm valuesObject')
+          reloader_namespace = reloader_app['spec']['destination']['namespace']
+          if errors:
+            for e in errors:
+                print('LOGGING-SOURCE-INVALID: %s' % e)
+            sys.exit(1)
+          (out / 'loki-values.yaml').write_text(loki_values)
+          (out / 'alloy-values.yaml').write_text(alloy_values)
+          (out / 'reloader-values.yaml').write_text( yaml.safe_dump(reloader_values, sort_keys=False))
+          (out / 'sources.env').write_text( "LOKI_REPO_URL=%s\nLOKI_CHART_VERSION=%s\nALLOY_REPO_URL=%s\n" "ALLOY_CHART_VERSION=%s\nNAMESPACE=logging\n" "RELOADER_REPO_URL=%s\nRELOADER_CHART_VERSION=%s\nRELOADER_NAMESPACE=%s\n" % (shlex.quote(loki_src['repoURL']), shlex.quote(loki_src['targetRevision']), shlex.quote(alloy_src['repoURL']), shlex.quote(alloy_src['targetRevision']), shlex.quote(reloader_src['repoURL']), shlex.quote(reloader_src['targetRevision']), shlex.quote(reloader_namespace)))
+          EOF
+          . "$RENDER/sources.env"
+          helm repo add loki-vendor "$LOKI_REPO_URL"
+          helm repo add alloy-vendor "$ALLOY_REPO_URL"
+          helm repo add stakater-vendor "$RELOADER_REPO_URL"
+          helm repo update >/dev/null
+          helm template loki loki-vendor/loki --version "$LOKI_CHART_VERSION" \
+          --namespace "$NAMESPACE" --values "$RENDER/loki-values.yaml" \
+          > "$RENDER/loki-rendered.yaml"
+          helm template alloy alloy-vendor/alloy --version "$ALLOY_CHART_VERSION" \
+          --namespace "$NAMESPACE" --values "$RENDER/alloy-values.yaml" \
+          > "$RENDER/alloy-rendered.yaml"
+          helm template reloader stakater-vendor/reloader --version "$RELOADER_CHART_VERSION" \
+          --namespace "$RELOADER_NAMESPACE" --values "$RENDER/reloader-values.yaml" \
+          > "$RENDER/reloader-rendered.yaml"
+          python - "$W" "$RENDER" <<'EOF'
+          import shlex, sys, yaml
+          from pathlib import Path
+          work, render = (Path(sys.argv[1]), Path(sys.argv[2]))
+          errors = []
+          def check(cond, msg): cond or errors.append(msg)
+          loki_docs = [d for d in yaml.safe_load_all((render / 'loki-rendered.yaml').read_text()) if isinstance(d, dict)]
+          alloy_docs = [d for d in yaml.safe_load_all((render / 'alloy-rendered.yaml').read_text()) if isinstance(d, dict)]
+          loki_values = yaml.safe_load((render / 'loki-values.yaml').read_text())
+          alloy_values = yaml.safe_load((render / 'alloy-values.yaml').read_text())
+          config_docs = []
+          for d in loki_docs:
+            if d.get('kind') in ('Secret', 'ConfigMap'):
+                for value in (d.get('data') or {}).values():
+                    parsed = yaml.safe_load(value) if isinstance(value, str) else None
+                    if isinstance(parsed, dict) and 'auth_enabled' in parsed:
+                        config_docs.append((value, parsed))
+          check(len(config_docs) == 1, 'exactly one rendered loki config artifact expected')
+          if not config_docs:
+            for e in errors:
+                print('LOKI-NATIVE-INVALID: %s' % e)
+            sys.exit('LOKI-NATIVE-INVALID: no rendered loki config found')
+          config_text, config = config_docs[0]
+          check(config == loki_values['loki']['structuredConfig'], 'rendered config must equal loki.structuredConfig verbatim')
+          (work / 'loki-config.yaml').write_text(config_text)
+          sts = next(d for d in loki_docs if d.get('kind') == 'StatefulSet')
+          loki_image = next(c['image'] for c in sts['spec']['template']['spec']['containers'] if c['name'] == 'loki')
+          check(loki_image.endswith('grafana/loki:3.7.8'), 'loki image must be grafana/loki:3.7.8, got %s' % loki_image)
+          loki_args = next(c.get('args') or [] for c in sts['spec']['template']['spec']['containers'] if c['name'] == 'loki')
+          check(all(a.startswith(('-config.file=', '-target=', '-memberlist.advertise-addr=')) for a in loki_args), 'native run mirrors only -config.file; other chart args need explicit ' 'mirroring or a documented gate first: %s' % loki_args)
+          dep = next(d for d in alloy_docs if d.get('kind') == 'Deployment')
+          alloy_container = next(c for c in dep['spec']['template']['spec']['containers'] if c['name'] == 'alloy')
+          check(alloy_container['image'].endswith('grafana/alloy:v1.20.0'), 'alloy image must be grafana/alloy:v1.20.0, got %s' % alloy_container['image'])
+          tls = config['server']['http_tls_config']
+          check(tls.get('client_auth_type') == 'RequireAndVerifyClientCert', 'native config must require and verify client certificates')
+          check(config['common']['path_prefix'] == '/var/loki', 'path_prefix must be /var/loki so the ephemeral data mount matches')
+          (work / 'alloy.river').write_text(alloy_values['alloy']['configMap']['content'])
+          stability = next((a for a in alloy_container.get('args', []) if a.startswith('--stability.level=')), '')
+          if errors:
+            for e in errors:
+                print('LOKI-NATIVE-INVALID: %s' % e)
+            sys.exit(1)
+          (work / 'params.env').write_text( "LOKI_IMAGE=%s\nALLOY_IMAGE=%s\nALLOY_STABILITY_ARGS=%s\n" "LOKI_TLS_CERT=%s\nLOKI_TLS_KEY=%s\nLOKI_TLS_CA=%s\n" % (shlex.quote(loki_image), shlex.quote(alloy_container['image']), shlex.quote(stability), shlex.quote(tls['cert_file']), shlex.quote(tls['key_file']), shlex.quote(tls['client_ca_file'])))
+          server_cert = yaml.safe_load( Path('workloads/logging/loki/server-certificate.yaml').read_text())
+          san = ','.join('DNS:%s' % d for d in server_cert['spec']['dnsNames'])
+          (work / 'pki-server.ext').write_text( "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\n" "extendedKeyUsage=serverAuth\nsubjectAltName=%s\n" % san)
+          (work / 'pki-client.ext').write_text( "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\n" "extendedKeyUsage=clientAuth\n")
+          EOF
       - name: Assert chart and staging contracts
         run: |
-         python - "${RUNNER_TEMP}/logging-render" <<'EOF'
-         import sys, yaml
-         from pathlib import Path
-         render = Path(sys.argv[1])
-         errors = []
-         def check(cond, msg): cond or errors.append(msg)
-         loki_docs = [d for d in yaml.safe_load_all((render / 'loki-rendered.yaml').read_text()) if isinstance(d, dict)]
-         alloy_docs = [d for d in yaml.safe_load_all((render / 'alloy-rendered.yaml').read_text()) if isinstance(d, dict)]
-         loki_values = yaml.safe_load((render / 'loki-values.yaml').read_text())
-         alloy_values = yaml.safe_load((render / 'alloy-values.yaml').read_text())
-         reloader_docs = [d for d in yaml.safe_load_all((render / 'reloader-rendered.yaml').read_text()) if isinstance(d, dict)]
-         reloader_app = yaml.safe_load( Path('operators/reloader/application.yaml').read_text())
-         reloader_values = reloader_app['spec']['source']['helm']['valuesObject']
-         reloader_namespace = reloader_app['spec']['destination']['namespace']
-         stss = [d for d in loki_docs if d.get('kind') == 'StatefulSet']
-         check(len(stss) == 1, 'exactly one loki StatefulSet')
-         sts = stss[0] if stss else None
-         loki_container = None
-         if sts:
-           check(sts['metadata']['name'] == 'loki', 'sts name loki')
-           check(sts['spec'].get('replicas') == 1, 'loki replicas 1')
-           pod_labels = sts['spec']['template']['metadata']['labels']
-           for label, value in (('app.kubernetes.io/name', 'loki'), ('app.kubernetes.io/instance', 'loki'), ('app.kubernetes.io/component', 'single-binary')):
-               check(pod_labels.get(label) == value, 'pod label %s=%s' % (label, value))
-           ann = sts['metadata'].get('annotations', {})
-           check(ann.get('secret.reloader.stakater.com/reload') == 'loki-server-tls', 'sts named-secret reload = loki-server-tls')
-           check('reloader.stakater.com/auto' not in ann, 'no reloader auto on sts')
-           loki_container = next((c for c in sts['spec']['template']['spec']['containers'] if c['name'] == 'loki'), None)
-           check(loki_container is not None, 'loki container missing')
-           if loki_container:
-               check(loki_container['image'].endswith('grafana/loki:3.7.8'), 'loki image 3.7.8, got %s' % loki_container['image'])
-               ports = {p.get('containerPort') for p in loki_container.get('ports') or []}
-               check(ports == {3100, 9095, 7946}, 'pod ports exactly 3100/9095/7946 (no 9096), got %s' % sorted(ports))
-               args = loki_container.get('args') or []
-               check('-target=all' in args, 'chart runs -target=all')
-               check(all(a.startswith(('-config.file=', '-target=', '-memberlist.advertise-addr=')) for a in args), 'loki args outside allowed set: %s' % args)
-           vcts = sts['spec'].get('volumeClaimTemplates', [])
-           check(len(vcts) == 1, 'one volumeClaimTemplate')
-           if vcts:
-               check(vcts[0]['spec']['resources']['requests']['storage'] == '100Gi', 'PVC 100Gi')
-               check(vcts[0]['spec'].get('storageClassName') == 'local-path', 'PVC local-path')
-           pol = sts['spec'].get('persistentVolumeClaimRetentionPolicy', {})
-           check(pol.get('whenDeleted') == 'Retain' and pol.get('whenScaled') == 'Retain', 'PVC Retain/Retain')
-           vols = {v['name']: v for v in sts['spec']['template']['spec'].get('volumes', [])}
-           check(vols.get('server-tls', {}).get('secret', {}).get('secretName') == 'loki-server-tls', 'server-tls volume secret')
-           m = {x['mountPath']: x for x in (loki_container or {}).get('volumeMounts', [])}
-           t = m.get('/etc/loki/server-tls')
-           check(t is not None and t.get('name') == 'server-tls' and t.get('readOnly') is True, 'server-tls ro mount')
-           if loki_container:
-               for probe in ('startupProbe', 'readinessProbe', 'livenessProbe'):
-                   h = loki_container.get(probe, {}).get('httpGet', {})
-                   check(h.get('path') == '/ready' and h.get('port') == 3101 and h.get('scheme') == 'HTTP', '%s probes 3101 /ready' % probe)
-         cds = []
-         for d in loki_docs:
-           if d.get('kind') in ('Secret', 'ConfigMap'):
-               for v in (d.get('data') or {}).values():
-                   p = yaml.safe_load(v) if isinstance(v, str) else None
-                   if isinstance(p, dict) and 'auth_enabled' in p:
-                       cds.append(p)
-         check(len(cds) == 1, 'one rendered loki config artifact')
-         structured = loki_values.get('loki', {}).get('structuredConfig')
-         if cds:
-           cfg = cds[0]
-           check(cfg == structured, 'config == structuredConfig verbatim')
-           for path, want in [ ('auth_enabled', False), ('server.http_listen_address', '0.0.0.0'), ('server.http_listen_port', 3100), ('server.grpc_listen_address', '127.0.0.1'), ('server.grpc_listen_port', 9095), ('server.http_tls_config.client_auth_type', 'RequireAndVerifyClientCert'), ('server.http_tls_config.cert_file', '/etc/loki/server-tls/tls.crt'), ('server.http_tls_config.key_file', '/etc/loki/server-tls/tls.key'), ('server.http_tls_config.client_ca_file', '/etc/loki/server-tls/ca.crt'), ('internal_server.enable', True), ('internal_server.http_listen_address', '0.0.0.0'), ('internal_server.http_listen_port', 3101), ('common.instance_addr', '127.0.0.1'), ('frontend_worker.frontend_address', '127.0.0.1:9095'), ('memberlist.bind_addr', ['127.0.0.1']), ('memberlist.join_members', []), ('limits_config.retention_period', '720h'), ('limits_config.max_query_lookback', '720h'), ('limits_config.ingestion_rate_mb', 0.02), ('limits_config.ingestion_burst_size_mb', 1), ('limits_config.max_streams_per_user', 1000), ('limits_config.max_line_size', '4KiB'), ('compactor.retention_enabled', True), ('compactor.delete_request_store', 'filesystem'), ]:
-               node = cfg
-               for part in path.split('.'):
-                   node = node[part]
-               check(node == want, 'cfg.%s must be %r' % (path, want))
-         gw = [d['metadata']['name'] for d in loki_docs if 'gateway' in d['metadata']['name']]
-         check(not gw, 'no gateway resources: %s' % gw)
-         check(not [d for d in loki_docs if d.get('kind') == 'Ingress'], 'no loki Ingress')
-         check(not [d for d in loki_docs if d.get('kind') == 'ServiceMonitor'], 'loki chart SM off')
-         deps = [d for d in alloy_docs if d.get('kind') == 'Deployment']
-         check(len(deps) == 1, 'one alloy Deployment')
-         alloy_container = None
-         if deps:
-           dep = deps[0]
-           check(dep['metadata']['name'] == 'alloy', 'deployment name alloy')
-           check(dep['spec'].get('replicas') == 1, 'alloy replicas 1')
-           ann = dep['metadata'].get('annotations', {})
-           check(ann.get('secret.reloader.stakater.com/reload') == 'loki-alloy-client', 'deploy named-secret reload = loki-alloy-client')
-           check('reloader.stakater.com/auto' not in ann, 'no reloader auto on deploy')
-           spec = dep['spec']['template']['spec']
-           check(spec.get('securityContext', {}).get('runAsNonRoot') is True and spec.get('securityContext', {}).get('runAsUser') == 473, 'alloy non-root 473')
-           alloy_container = next((c for c in spec['containers'] if c['name'] == 'alloy'), None)
-           check(alloy_container is not None, 'alloy container missing')
-           if alloy_container:
-               check(alloy_container['image'].endswith('grafana/alloy:v1.20.0'), 'alloy image v1.20.0, got %s' % alloy_container['image'])
-               check(not alloy_container.get('resources'), 'alloy no resources')
-               check(alloy_container.get('securityContext', {}) .get('readOnlyRootFilesystem') is True, 'alloy ro rootfs')
-           for v in spec.get('volumes', []):
-               check('hostPath' not in v, 'no hostPath: %s' % v.get('name'))
-           bn = {v['name']: v for v in spec.get('volumes', [])}
-           check(bn.get('client-tls', {}).get('secret', {}).get('secretName') == 'loki-alloy-client', 'client-tls volume secret')
-           m = {x['name']: x for x in (alloy_container or {}).get('volumeMounts', [])}
-           cm = m.get('client-tls')
-           check(cm is not None and cm.get('mountPath') == '/etc/alloy/client-tls' and cm.get('readOnly') is True, 'client-tls ro mount')
-         rb = [d for d in alloy_docs if d.get('kind') in ('Role', 'ClusterRole')]
-         check(len(rb) >= 1, 'alloy RBAC present')
-         granted = set()
-         for d in rb:
-           for r in d.get('rules') or []:
-               res = r.get('resources') or []
-               vs = r.get('verbs') or []
-               check(r.get('apiGroups') == [''], '%s core group only' % d['metadata']['name'])
-               check('secrets' not in res and 'nodes' not in res and '*' not in res, '%s no secrets/nodes/*' % d['metadata']['name'])
-               check(not ({'create', 'update', 'patch', 'delete', 'deletecollection', '*'} & set(vs)), '%s read-only' % d['metadata']['name'])
-               for x in res:
-                   for y in vs:
-                       granted.add((x, y))
-         check(granted == {('pods', 'get'), ('pods', 'list'), ('pods', 'watch'), ('pods/log', 'get')}, 'RBAC grant pods+logs only, got %s' % sorted(granted))
-         for d in alloy_docs:
-           for r in d.get('rules') or []:
-               check('secrets' not in (r.get('resources') or []), 'no RBAC secrets')
-         cmaps = [d for d in alloy_docs if d.get('kind') == 'ConfigMap' and d['metadata']['name'] == 'alloy']
-         check(len(cmaps) == 1, 'alloy ConfigMap')
-         if cmaps:
-           check(cmaps[0]['data'].get('config.alloy') == alloy_values['alloy']['configMap']['content'], 'ConfigMap River verbatim')
-         mons = [d for d in alloy_docs if d.get('kind') == 'ServiceMonitor']
-         check(len(mons) == 1, 'one alloy SM')
-         svcs = [d for d in alloy_docs if d.get('kind') == 'Service']
-         if mons:
-           mo = mons[0]
-           check(mo['metadata'].get('labels', {}).get('release') == 'kube-prometheus-stack', 'alloy SM release label')
-           sel = mo['spec']['selector'].get('matchLabels', {})
-           matched = [s for s in svcs if all(s['metadata'].get('labels', {}).get(k) == v for k, v in sel.items())]
-           check(len(matched) == 1, 'alloy SM selects one Service')
-           pn = mo['spec']['endpoints'][0].get('port')
-           if len(matched) == 1:
-               ps = {p['name']: p.get('port') for p in matched[0]['spec'].get('ports', [])}
-               check(pn in ps, 'SM port %s on Service' % pn)
-               check(ps.get(pn) == 12345, 'alloy metrics port 12345')
-         sc = yaml.safe_load( Path('workloads/logging/loki/server-certificate.yaml').read_text())
-         cc = yaml.safe_load( Path('workloads/logging/alloy/client-certificate.yaml').read_text())
-         for cert, usages in ((sc, ['server auth']), (cc, ['client auth'])):
-           n = cert['metadata']['name']
-           check(cert.get('kind') == 'Certificate', '%s kind' % n)
-           check(cert['spec'].get('usages') == usages, '%s usages' % n)
-           check(cert['spec'].get('issuerRef') == {'name': 'logging-ca', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}, '%s issuer' % n)
-           pk = cert['spec'].get('privateKey', {})
-           check(pk.get('rotationPolicy') == 'Always' and pk.get('algorithm') == 'ECDSA' and pk.get('size') == 256, '%s ECDSA Always' % n)
-           check(cert['spec'].get('duration') == '2160h' and cert['spec'].get('renewBefore') == '360h', '%s 90d/360h' % n)
-           check('status' not in cert, '%s no status in git' % n)
-         check(sc['spec']['secretName'] == 'loki-server-tls', 'server secretName')
-         check(cc['spec']['secretName'] == 'loki-alloy-client', 'client secretName')
-         check(sc['spec'].get('dnsNames') == [ 'loki.logging.svc', 'loki.logging.svc.cluster.local', 'loki-headless.logging.svc', 'loki-headless.logging.svc.cluster.local'], 'server dnsNames')
-         mon = [d for d in yaml.safe_load_all( Path('workloads/logging/loki/monitoring.yaml').read_text()) if isinstance(d, dict)]
-         isvc = next((d for d in mon if d.get('kind') == 'Service' and d['metadata']['name'] == 'loki-internal'), None)
-         imon = next((d for d in mon if d.get('kind') == 'ServiceMonitor'), None)
-         check(isvc is not None and imon is not None, 'loki-internal svc+SM')
-         if isvc and imon and sts:
-           check(isvc['spec']['selector'] == { 'app.kubernetes.io/name': 'loki', 'app.kubernetes.io/instance': 'loki', 'app.kubernetes.io/component': 'single-binary'}, 'internal selector')
-           lab = isvc['metadata'].get('labels', {})
-           sel = imon['spec']['selector'].get('matchLabels', {})
-           check(all(lab.get(k) == v for k, v in sel.items()), 'SM selects internal svc')
-           ps = isvc['spec'].get('ports', [])
-           check(len(ps) == 1 and ps[0].get('name') == 'http-internal' and ps[0].get('port') == 3101 and ps[0].get('targetPort') == 3101, 'internal http-internal/3101')
-           ep = imon['spec']['endpoints'][0]
-           check(ep.get('port') == 'http-internal' and ep.get('path') == '/metrics', 'SM scrapes /metrics http-internal')
-           check(imon['spec'].get('jobLabel') == 'logging.makeitwork.cloud/job', 'jobLabel')
-         check(any(d.get('kind') == 'PrometheusRule' for d in mon), 'PrometheusRule')
-         ds = yaml.safe_load(Path('workloads/grafana/loki-datasource.yaml').read_text())
-         check(ds.get('kind') == 'GrafanaDatasource' and ds['metadata'].get('namespace') == 'grafana', 'grafana-loki GrafanaDatasource in grafana')
-         check(ds['spec'].get('uid') == 'loki', 'datasource uid loki')
-         check(ds['spec'].get('instanceSelector') == {'matchLabels': {'dashboards': 'grafana'}}, 'ds selects main grafana')
-         d = ds['spec'].get('datasource', {})
-         check(d.get('type') == 'loki' and d.get('access') == 'proxy' and d.get('isDefault') is False and d.get('url') == 'https://loki.logging.svc:3100', 'ds proxy 3100')
-         j = d.get('jsonData', {})
-         check(j.get('tlsAuth') is True and j.get('tlsAuthWithCACert') is True and j.get('tlsSkipVerify') is False and j.get('serverName') == 'loki.logging.svc', 'ds mTLS')
-         evf = [ {'targetPath': 'secureJsonData.%s' % p, 'valueFrom': {'secretKeyRef': {'name': 'loki-grafana-client', 'key': k}}} for p, k in (('tlsClientCert', 'tls.crt'), ('tlsClientKey', 'tls.key'), ('tlsCACert', 'ca.crt'))]
-         check(ds['spec'].get('valuesFrom') == evf, 'ds 3 valuesFrom')
-         gc = yaml.safe_load( Path('workloads/grafana/loki-client-certificate.yaml').read_text())
-         check(gc['metadata'].get('name') == 'grafana-loki-client' and gc['metadata'].get('namespace') == 'grafana' and gc['spec'].get('secretName') == 'loki-grafana-client', 'g-cert secret')
-         check(gc['spec'].get('usages') == ['client auth'], 'grafana cert client auth')
-         check(gc['spec'].get('duration') == '2160h' and gc['spec'].get('renewBefore') == '360h', 'grafana leaf 90d/360h')
-         check(gc['spec'].get('privateKey') == {'algorithm': 'ECDSA', 'size': 256, 'rotationPolicy': 'Always'}, 'g ECDSA')
-         check(gc['spec'].get('issuerRef') == {'name': 'logging-ca', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}, 'grafana leaf issuer')
-         pki = [x for x in yaml.safe_load_all( Path('operators/cert-manager/logging-pki.yaml').read_text()) if isinstance(x, dict)]
-         root = next((x for x in pki if x.get('kind') == 'Certificate' and x['metadata'].get('name') == 'logging-root-ca'), None)
-         check(root is not None, 'logging-root-ca exists')
-         if root:
-           check(root['metadata'].get('namespace') == 'cert-manager' and root['spec'].get('isCA') is True and root['spec'].get('secretName') == 'logging-root-ca', 'root ns+secret')
-           check(root['spec'].get('issuerRef') == {'name': 'logging-selfsigned', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}, 'root CA selfsigned issuer')
-           check(root['spec'].get('duration') == '87600h' and root['spec'].get('renewBefore') == '720h', 'root 10y/720h')
-           check(root['spec'].get('privateKey') == {'algorithm': 'ECDSA', 'size': 256, 'rotationPolicy': 'Never'}, 'root key Never')
-         lci = next((x for x in pki if x.get('kind') == 'ClusterIssuer' and x['metadata'].get('name') == 'logging-ca'), None)
-         check(lci is not None and lci.get('spec', {}).get('ca', {}).get('secretName') == 'logging-root-ca', 'ca<-root')
-         exp = {'autoReloadAll': False, 'watchGlobally': False, 'namespaces': ['grafana', 'opencode'], 'reloadOnCreate': True, 'reloadOnDelete': True, 'syncAfterRestart': True}
-         check(reloader_values.get('reloader') == exp, 'reloader values == canonical base-2 contract, got %s' % reloader_values.get('reloader'))
-         watch = sorted(set(exp['namespaces']) | {reloader_namespace})
-         roles = [x for x in reloader_docs if x.get('kind') == 'Role']
-         binds = [x for x in reloader_docs if x.get('kind') == 'RoleBinding']
-         check(not [x for x in reloader_docs if x.get('kind') in ('ClusterRole', 'ClusterRoleBinding')], 'no cluster-scoped RBAC')
-         wr = [r for r in roles if any('secrets' in (ru.get('resources') or []) for ru in r.get('rules') or [])]
-         wn = sorted(r['metadata']['namespace'] for r in wr)
-         check(len(wr) == len(watch) and wn == watch, 'watch Roles exactly %s, got %s' % (watch, wn))
-         for r in roles:
-           for ru in r.get('rules') or []:
-               if 'secrets' in (ru.get('resources') or []):
-                   check(not ({'create', 'update', 'patch', 'delete', 'deletecollection'} & set(ru.get('verbs') or [])), 'watch Role never mutates secrets: %s' % r['metadata']['name'])
-         wb = [b for b in binds if b['metadata']['name'].endswith('-role-binding')]
-         check(sorted(b['metadata']['namespace'] for b in wb) == watch and all(b.get('roleRef', {}).get('kind') == 'Role' for b in wb) and all((b.get('subjects') or [{}])[0].get('namespace') == reloader_namespace for b in wb), 'RoleBindings per watch ns to operator SA')
-         rdep = next(x for x in reloader_docs if x.get('kind') == 'Deployment')
-         rargs = rdep['spec']['template']['spec']['containers'][0].get('args') or []
-         check('--namespaces=%s' % ','.join(watch) in rargs, 'watch flag exact %s' % rargs)
-         for f in ('--reload-on-create=true', '--reload-on-delete=true', '--sync-after-restart=true'):
-           check(f in rargs, 'keep %s' % f)
-         check(not any(a.startswith('--auto-reload-all') for a in rargs), 'no auto-reload-all')
-         check(not any(a.startswith('--reload-strategy') for a in rargs), 'default reload strategy')
-         for path, kind, name, container, env in ( ('workloads/apps/loki-app.yaml', 'StatefulSet', 'loki', 'loki', 'STAKATER_LOKI_SERVER_TLS_SECRET'), ('workloads/apps/alloy-app.yaml', 'Deployment', 'alloy', 'alloy', 'STAKATER_LOKI_ALLOY_CLIENT_SECRET')):
-           app = yaml.safe_load(Path(path).read_text())
-           an = app['metadata']['name']
-           ig = app['spec'].get('ignoreDifferences')
-           check(isinstance(ig, list) and len(ig) == 1, '%s one ignoreDifferences' % an)
-           if isinstance(ig, list) and len(ig) == 1:
-               e = ig[0]
-               check(set(e) == {'group', 'kind', 'name', 'namespace', 'jqPathExpressions'}, '%s entry keys' % an)
-               check(e.get('group') == 'apps' and e.get('kind') == kind and e.get('name') == name and e.get('namespace') == 'logging', '%s -> %s %s' % (an, kind, name))
-               ep = ('.spec.template.spec.containers[] | select(.name == "%s") ' '| .env[] | select(.name == "%s")' % (container, env))
-               check(e.get('jqPathExpressions') == [ ep, '.spec.template.metadata.annotations' '["reloader.stakater.com/last-reloaded-from"]'], '%s env-hash+stamp only' % an)
-               o = app['spec'].get('syncPolicy', {}).get('syncOptions') or []
-               check('RespectIgnoreDifferences=true' in o, '%s RespectIgnore' % an)
-         apps = yaml.safe_load( Path('workloads/apps/kustomization.yaml').read_text()).get('resources') or []
-         check('loki-app.yaml' not in apps and 'alloy-app.yaml' not in apps, 'Phase 1: loki/alloy apps unregistered')
-         gres = yaml.safe_load( Path('workloads/grafana/kustomization.yaml').read_text()).get('resources') or []
-         check('loki-datasource.yaml' not in gres and 'loki-client-certificate.yaml' not in gres, 'Phase 1: grafana logging files unregistered')
-         cmk = yaml.safe_load( Path('operators/cert-manager/kustomization.yaml').read_text())
-         cres = cmk.get('resources') or []
-         check('logging-admission.yaml' in cres, 'admission active')
-         check('logging-pki.yaml' not in cres, 'pki unreferenced')
-         rk = yaml.safe_load(Path('operators/reloader/kustomization.yaml').read_text())
-         refs = (rk.get('resources') or []) + [p.get('path') for p in (rk.get('patches') or []) if isinstance(p, dict)]
-         check('logging-watch-patch.yaml' not in refs, 'patch unreferenced')
-         base = sorted(yaml.safe_load( Path('operators/reloader/application.yaml').read_text()) ['spec']['source']['helm']['valuesObject']['reloader']['namespaces'])
-         check(base == ['grafana', 'opencode'], 'base-2 watchlist, got %s' % base)
-         adm = [x for x in yaml.safe_load_all( Path('operators/cert-manager/logging-admission.yaml').read_text()) if isinstance(x, dict)]
-         pols = {x['metadata']['name']: x for x in adm if x.get('kind') == 'ValidatingAdmissionPolicy'}
-         check(set(pols) == {'logging-certificate', 'logging-certificaterequest', 'logging-clusterissuer', 'logging-csr'}, 'four policies, got %s' % sorted(pols))
-         check(all(x.get('apiVersion') == 'admissionregistration.k8s.io/v1' and x['spec'].get('failurePolicy') == 'Fail' for x in pols.values()), 'v1 Fail')
-         bs = {x['metadata']['name']: x for x in adm if x.get('kind') == 'ValidatingAdmissionPolicyBinding'}
-         check(all(b['spec'].get('policyName') in pols and b['spec'].get('validationActions') == ['Deny'] for b in bs.values()), 'bindings Deny')
-         pt = Path('operators/cert-manager/logging-admission.yaml').read_text()
-         check('system:serviceaccount:argocd:argocd-argocd-application-controller' in pt, 'argo principal')
-         check('system:serviceaccount:cert-manager:cert-manager' in pt, 'cm principal')
-         for f in Path('workloads').rglob('*.yaml'):
-           if f.name == 'alloy-app.yaml':
-               continue
-           check('logging.makeitwork.cloud/approved' not in f.read_text(), 'opt-in leak: %s' % f)
-         if errors:
-           for e in errors:
-               print('LOGGING-CHART-INVALID: %s' % e)
-           sys.exit(1)
-         EOF
-         W="${RUNNER_TEMP}/logging-ci"
-         fail() { echo "PROSPECTIVE-INVALID: $1"; exit 1; }
-         P="$W/prospective"
-         mkdir -p "$P"
-         cp operators/reloader/application.yaml "$P/application.yaml"
-         cp operators/reloader/logging-watch-patch.yaml "$P/logging-watch-patch.yaml"
-         printf 'resources:\n  - application.yaml\npatches:\n  - path: logging-watch-patch.yaml\n' \
-         > "$P/kustomization.yaml"
-         kustomize build "$P" > "$W/reloader-prospective.yaml"
-         python - "$W" <<'EOF'
-         import sys, yaml
-         from pathlib import Path
-         w = Path(sys.argv[1])
-         effective = yaml.safe_load((w / 'reloader-prospective.yaml').read_text())
-         prospective = sorted(effective['spec']['source']['helm']['valuesObject'] ['reloader']['namespaces'])
-         if prospective != ['grafana', 'logging', 'opencode']:
-           sys.exit('PROSPECTIVE-INVALID: activation patch must extend the watch to ' 'grafana+logging+opencode exactly, got %s' % prospective)
-         (w / 'reloader-prospective-values.yaml').write_text(yaml.safe_dump( effective['spec']['source']['helm']['valuesObject'], sort_keys=False))
-         EOF
-         helm template reloader-prospective stakater-vendor/reloader --version 2.2.16 \
-         --namespace reloader --values "$W/reloader-prospective-values.yaml" \
-         > "$W/reloader-prospective-rendered.yaml"
-         python - "$W" <<'EOF'
-         import sys, yaml
-         from pathlib import Path
-         w = Path(sys.argv[1])
-         docs = [d for d in yaml.safe_load_all((w / 'reloader-prospective-rendered.yaml').read_text()) if isinstance(d, dict)]
-         errors = []
-         def check(cond, msg): cond or errors.append(msg)
-         check(not [d for d in docs if d.get('kind') in ('ClusterRole', 'ClusterRoleBinding')], 'prospective render must stay free of cluster-scoped RBAC')
-         roles = [d for d in docs if d.get('kind') == 'Role']
-         watch = sorted({r['metadata']['namespace'] for r in roles if any('secrets' in (rule.get('resources') or []) for rule in r.get('rules') or [])})
-         check(watch == ['grafana', 'logging', 'opencode', 'reloader'], 'prospective watch Roles must cover exactly the three namespaces plus the ' 'release namespace, got %s' % watch)
-         dep = next(d for d in docs if d.get('kind') == 'Deployment')
-         args = dep['spec']['template']['spec']['containers'][0].get('args') or []
-         check('--namespaces=grafana,logging,opencode,reloader' in args, 'prospective Deployment watch flag must be exact, got %s' % args)
-         if errors:
-           for e in errors:
-               print('PROSPECTIVE-INVALID: %s' % e)
-           sys.exit(1)
-         EOF
+          python - "${RUNNER_TEMP}/logging-render" <<'EOF'
+          import sys, yaml
+          from pathlib import Path
+          render = Path(sys.argv[1])
+          errors = []
+          def check(cond, msg): cond or errors.append(msg)
+          loki_docs = [d for d in yaml.safe_load_all((render / 'loki-rendered.yaml').read_text()) if isinstance(d, dict)]
+          alloy_docs = [d for d in yaml.safe_load_all((render / 'alloy-rendered.yaml').read_text()) if isinstance(d, dict)]
+          loki_values = yaml.safe_load((render / 'loki-values.yaml').read_text())
+          alloy_values = yaml.safe_load((render / 'alloy-values.yaml').read_text())
+          reloader_docs = [d for d in yaml.safe_load_all((render / 'reloader-rendered.yaml').read_text()) if isinstance(d, dict)]
+          reloader_app = yaml.safe_load( Path('operators/reloader/application.yaml').read_text())
+          reloader_values = reloader_app['spec']['source']['helm']['valuesObject']
+          reloader_namespace = reloader_app['spec']['destination']['namespace']
+          stss = [d for d in loki_docs if d.get('kind') == 'StatefulSet']
+          check(len(stss) == 1, 'exactly one loki StatefulSet')
+          sts = stss[0] if stss else None
+          loki_container = None
+          if sts:
+            check(sts['metadata']['name'] == 'loki', 'sts name loki')
+            check(sts['spec'].get('replicas') == 1, 'loki replicas 1')
+            pod_labels = sts['spec']['template']['metadata']['labels']
+            for label, value in (('app.kubernetes.io/name', 'loki'), ('app.kubernetes.io/instance', 'loki'), ('app.kubernetes.io/component', 'single-binary')):
+                check(pod_labels.get(label) == value, 'pod label %s=%s' % (label, value))
+            ann = sts['metadata'].get('annotations', {})
+            check(ann.get('secret.reloader.stakater.com/reload') == 'loki-server-tls', 'sts named-secret reload = loki-server-tls')
+            check('reloader.stakater.com/auto' not in ann, 'no reloader auto on sts')
+            loki_container = next((c for c in sts['spec']['template']['spec']['containers'] if c['name'] == 'loki'), None)
+            check(loki_container is not None, 'loki container missing')
+            if loki_container:
+                check(loki_container['image'].endswith('grafana/loki:3.7.8'), 'loki image 3.7.8, got %s' % loki_container['image'])
+                ports = {p.get('containerPort') for p in loki_container.get('ports') or []}
+                check(ports == {3100, 9095, 7946}, 'pod ports exactly 3100/9095/7946 (no 9096), got %s' % sorted(ports))
+                args = loki_container.get('args') or []
+                check('-target=all' in args, 'chart runs -target=all')
+                check(all(a.startswith(('-config.file=', '-target=', '-memberlist.advertise-addr=')) for a in args), 'loki args outside allowed set: %s' % args)
+            vcts = sts['spec'].get('volumeClaimTemplates', [])
+            check(len(vcts) == 1, 'one volumeClaimTemplate')
+            if vcts:
+                check(vcts[0]['spec']['resources']['requests']['storage'] == '100Gi', 'PVC 100Gi')
+                check(vcts[0]['spec'].get('storageClassName') == 'local-path', 'PVC local-path')
+            pol = sts['spec'].get('persistentVolumeClaimRetentionPolicy', {})
+            check(pol.get('whenDeleted') == 'Retain' and pol.get('whenScaled') == 'Retain', 'PVC Retain/Retain')
+            vols = {v['name']: v for v in sts['spec']['template']['spec'].get('volumes', [])}
+            check(vols.get('server-tls', {}).get('secret', {}).get('secretName') == 'loki-server-tls', 'server-tls volume secret')
+            m = {x['mountPath']: x for x in (loki_container or {}).get('volumeMounts', [])}
+            t = m.get('/etc/loki/server-tls')
+            check(t is not None and t.get('name') == 'server-tls' and t.get('readOnly') is True, 'server-tls ro mount')
+            if loki_container:
+                for probe in ('startupProbe', 'readinessProbe', 'livenessProbe'):
+                    h = loki_container.get(probe, {}).get('httpGet', {})
+                    check(h.get('path') == '/ready' and h.get('port') == 3101 and h.get('scheme') == 'HTTP', '%s probes 3101 /ready' % probe)
+          cds = []
+          for d in loki_docs:
+            if d.get('kind') in ('Secret', 'ConfigMap'):
+                for v in (d.get('data') or {}).values():
+                    p = yaml.safe_load(v) if isinstance(v, str) else None
+                    if isinstance(p, dict) and 'auth_enabled' in p:
+                        cds.append(p)
+          check(len(cds) == 1, 'one rendered loki config artifact')
+          structured = loki_values.get('loki', {}).get('structuredConfig')
+          if cds:
+            cfg = cds[0]
+            check(cfg == structured, 'config == structuredConfig verbatim')
+            for path, want in [ ('auth_enabled', False), ('server.http_listen_address', '0.0.0.0'), ('server.http_listen_port', 3100), ('server.grpc_listen_address', '127.0.0.1'), ('server.grpc_listen_port', 9095), ('server.http_tls_config.client_auth_type', 'RequireAndVerifyClientCert'), ('server.http_tls_config.cert_file', '/etc/loki/server-tls/tls.crt'), ('server.http_tls_config.key_file', '/etc/loki/server-tls/tls.key'), ('server.http_tls_config.client_ca_file', '/etc/loki/server-tls/ca.crt'), ('internal_server.enable', True), ('internal_server.http_listen_address', '0.0.0.0'), ('internal_server.http_listen_port', 3101), ('common.instance_addr', '127.0.0.1'), ('frontend_worker.frontend_address', '127.0.0.1:9095'), ('memberlist.bind_addr', ['127.0.0.1']), ('memberlist.join_members', []), ('limits_config.retention_period', '720h'), ('limits_config.max_query_lookback', '720h'), ('limits_config.ingestion_rate_mb', 0.02), ('limits_config.ingestion_burst_size_mb', 1), ('limits_config.max_streams_per_user', 1000), ('limits_config.max_line_size', '4KiB'), ('compactor.retention_enabled', True), ('compactor.delete_request_store', 'filesystem'), ]:
+                node = cfg
+                for part in path.split('.'):
+                    node = node[part]
+                check(node == want, 'cfg.%s must be %r' % (path, want))
+          gw = [d['metadata']['name'] for d in loki_docs if 'gateway' in d['metadata']['name']]
+          check(not gw, 'no gateway resources: %s' % gw)
+          check(not [d for d in loki_docs if d.get('kind') == 'Ingress'], 'no loki Ingress')
+          check(not [d for d in loki_docs if d.get('kind') == 'ServiceMonitor'], 'loki chart SM off')
+          deps = [d for d in alloy_docs if d.get('kind') == 'Deployment']
+          check(len(deps) == 1, 'one alloy Deployment')
+          alloy_container = None
+          if deps:
+            dep = deps[0]
+            check(dep['metadata']['name'] == 'alloy', 'deployment name alloy')
+            check(dep['spec'].get('replicas') == 1, 'alloy replicas 1')
+            ann = dep['metadata'].get('annotations', {})
+            check(ann.get('secret.reloader.stakater.com/reload') == 'loki-alloy-client', 'deploy named-secret reload = loki-alloy-client')
+            check('reloader.stakater.com/auto' not in ann, 'no reloader auto on deploy')
+            spec = dep['spec']['template']['spec']
+            check(spec.get('securityContext', {}).get('runAsNonRoot') is True and spec.get('securityContext', {}).get('runAsUser') == 473, 'alloy non-root 473')
+            alloy_container = next((c for c in spec['containers'] if c['name'] == 'alloy'), None)
+            check(alloy_container is not None, 'alloy container missing')
+            if alloy_container:
+                check(alloy_container['image'].endswith('grafana/alloy:v1.20.0'), 'alloy image v1.20.0, got %s' % alloy_container['image'])
+                check(not alloy_container.get('resources'), 'alloy no resources')
+                check(alloy_container.get('securityContext', {}) .get('readOnlyRootFilesystem') is True, 'alloy ro rootfs')
+            for v in spec.get('volumes', []):
+                check('hostPath' not in v, 'no hostPath: %s' % v.get('name'))
+            bn = {v['name']: v for v in spec.get('volumes', [])}
+            check(bn.get('client-tls', {}).get('secret', {}).get('secretName') == 'loki-alloy-client', 'client-tls volume secret')
+            m = {x['name']: x for x in (alloy_container or {}).get('volumeMounts', [])}
+            cm = m.get('client-tls')
+            check(cm is not None and cm.get('mountPath') == '/etc/alloy/client-tls' and cm.get('readOnly') is True, 'client-tls ro mount')
+          rb = [d for d in alloy_docs if d.get('kind') in ('Role', 'ClusterRole')]
+          check(len(rb) >= 1, 'alloy RBAC present')
+          granted = set()
+          for d in rb:
+            for r in d.get('rules') or []:
+                res = r.get('resources') or []
+                vs = r.get('verbs') or []
+                check(r.get('apiGroups') == [''], '%s core group only' % d['metadata']['name'])
+                check('secrets' not in res and 'nodes' not in res and '*' not in res, '%s no secrets/nodes/*' % d['metadata']['name'])
+                check(not ({'create', 'update', 'patch', 'delete', 'deletecollection', '*'} & set(vs)), '%s read-only' % d['metadata']['name'])
+                for x in res:
+                    for y in vs:
+                        granted.add((x, y))
+          check(granted == {('pods', 'get'), ('pods', 'list'), ('pods', 'watch'), ('pods/log', 'get')}, 'RBAC grant pods+logs only, got %s' % sorted(granted))
+          for d in alloy_docs:
+            for r in d.get('rules') or []:
+                check('secrets' not in (r.get('resources') or []), 'no RBAC secrets')
+          cmaps = [d for d in alloy_docs if d.get('kind') == 'ConfigMap' and d['metadata']['name'] == 'alloy']
+          check(len(cmaps) == 1, 'alloy ConfigMap')
+          if cmaps:
+            check(cmaps[0]['data'].get('config.alloy') == alloy_values['alloy']['configMap']['content'], 'ConfigMap River verbatim')
+          mons = [d for d in alloy_docs if d.get('kind') == 'ServiceMonitor']
+          check(len(mons) == 1, 'one alloy SM')
+          svcs = [d for d in alloy_docs if d.get('kind') == 'Service']
+          if mons:
+            mo = mons[0]
+            check(mo['metadata'].get('labels', {}).get('release') == 'kube-prometheus-stack', 'alloy SM release label')
+            sel = mo['spec']['selector'].get('matchLabels', {})
+            matched = [s for s in svcs if all(s['metadata'].get('labels', {}).get(k) == v for k, v in sel.items())]
+            check(len(matched) == 1, 'alloy SM selects one Service')
+            pn = mo['spec']['endpoints'][0].get('port')
+            if len(matched) == 1:
+                ps = {p['name']: p.get('port') for p in matched[0]['spec'].get('ports', [])}
+                check(pn in ps, 'SM port %s on Service' % pn)
+                check(ps.get(pn) == 12345, 'alloy metrics port 12345')
+          sc = yaml.safe_load( Path('workloads/logging/loki/server-certificate.yaml').read_text())
+          cc = yaml.safe_load( Path('workloads/logging/alloy/client-certificate.yaml').read_text())
+          for cert, usages in ((sc, ['server auth']), (cc, ['client auth'])):
+            n = cert['metadata']['name']
+            check(cert.get('kind') == 'Certificate', '%s kind' % n)
+            check(cert['spec'].get('usages') == usages, '%s usages' % n)
+            check(cert['spec'].get('issuerRef') == {'name': 'logging-ca', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}, '%s issuer' % n)
+            pk = cert['spec'].get('privateKey', {})
+            check(pk.get('rotationPolicy') == 'Always' and pk.get('algorithm') == 'ECDSA' and pk.get('size') == 256, '%s ECDSA Always' % n)
+            check(cert['spec'].get('duration') == '2160h' and cert['spec'].get('renewBefore') == '360h', '%s 90d/360h' % n)
+            check('status' not in cert, '%s no status in git' % n)
+          check(sc['spec']['secretName'] == 'loki-server-tls', 'server secretName')
+          check(cc['spec']['secretName'] == 'loki-alloy-client', 'client secretName')
+          check(sc['spec'].get('dnsNames') == [ 'loki.logging.svc', 'loki.logging.svc.cluster.local', 'loki-headless.logging.svc', 'loki-headless.logging.svc.cluster.local'], 'server dnsNames')
+          mon = [d for d in yaml.safe_load_all( Path('workloads/logging/loki/monitoring.yaml').read_text()) if isinstance(d, dict)]
+          isvc = next((d for d in mon if d.get('kind') == 'Service' and d['metadata']['name'] == 'loki-internal'), None)
+          imon = next((d for d in mon if d.get('kind') == 'ServiceMonitor'), None)
+          check(isvc is not None and imon is not None, 'loki-internal svc+SM')
+          if isvc and imon and sts:
+            check(isvc['spec']['selector'] == { 'app.kubernetes.io/name': 'loki', 'app.kubernetes.io/instance': 'loki', 'app.kubernetes.io/component': 'single-binary'}, 'internal selector')
+            lab = isvc['metadata'].get('labels', {})
+            sel = imon['spec']['selector'].get('matchLabels', {})
+            check(all(lab.get(k) == v for k, v in sel.items()), 'SM selects internal svc')
+            ps = isvc['spec'].get('ports', [])
+            check(len(ps) == 1 and ps[0].get('name') == 'http-internal' and ps[0].get('port') == 3101 and ps[0].get('targetPort') == 3101, 'internal http-internal/3101')
+            ep = imon['spec']['endpoints'][0]
+            check(ep.get('port') == 'http-internal' and ep.get('path') == '/metrics', 'SM scrapes /metrics http-internal')
+            check(imon['spec'].get('jobLabel') == 'logging.makeitwork.cloud/job', 'jobLabel')
+          check(any(d.get('kind') == 'PrometheusRule' for d in mon), 'PrometheusRule')
+          ds = yaml.safe_load(Path('workloads/grafana/loki-datasource.yaml').read_text())
+          check(ds.get('kind') == 'GrafanaDatasource' and ds['metadata'].get('namespace') == 'grafana', 'grafana-loki GrafanaDatasource in grafana')
+          check(ds['spec'].get('uid') == 'loki', 'datasource uid loki')
+          check(ds['spec'].get('instanceSelector') == {'matchLabels': {'dashboards': 'grafana'}}, 'ds selects main grafana')
+          d = ds['spec'].get('datasource', {})
+          check(d.get('type') == 'loki' and d.get('access') == 'proxy' and d.get('isDefault') is False and d.get('url') == 'https://loki.logging.svc:3100', 'ds proxy 3100')
+          j = d.get('jsonData', {})
+          check(j.get('tlsAuth') is True and j.get('tlsAuthWithCACert') is True and j.get('tlsSkipVerify') is False and j.get('serverName') == 'loki.logging.svc', 'ds mTLS')
+          evf = [ {'targetPath': 'secureJsonData.%s' % p, 'valueFrom': {'secretKeyRef': {'name': 'loki-grafana-client', 'key': k}}} for p, k in (('tlsClientCert', 'tls.crt'), ('tlsClientKey', 'tls.key'), ('tlsCACert', 'ca.crt'))]
+          check(ds['spec'].get('valuesFrom') == evf, 'ds 3 valuesFrom')
+          gc = yaml.safe_load( Path('workloads/grafana/loki-client-certificate.yaml').read_text())
+          check(gc['metadata'].get('name') == 'grafana-loki-client' and gc['metadata'].get('namespace') == 'grafana' and gc['spec'].get('secretName') == 'loki-grafana-client', 'g-cert secret')
+          check(gc['spec'].get('usages') == ['client auth'], 'grafana cert client auth')
+          check(gc['spec'].get('duration') == '2160h' and gc['spec'].get('renewBefore') == '360h', 'grafana leaf 90d/360h')
+          check(gc['spec'].get('privateKey') == {'algorithm': 'ECDSA', 'size': 256, 'rotationPolicy': 'Always'}, 'g ECDSA')
+          check(gc['spec'].get('issuerRef') == {'name': 'logging-ca', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}, 'grafana leaf issuer')
+          pki = [x for x in yaml.safe_load_all( Path('operators/cert-manager/logging-pki.yaml').read_text()) if isinstance(x, dict)]
+          root = next((x for x in pki if x.get('kind') == 'Certificate' and x['metadata'].get('name') == 'logging-root-ca'), None)
+          check(root is not None, 'logging-root-ca exists')
+          if root:
+            check(root['metadata'].get('namespace') == 'cert-manager' and root['spec'].get('isCA') is True and root['spec'].get('secretName') == 'logging-root-ca', 'root ns+secret')
+            check(root['spec'].get('issuerRef') == {'name': 'logging-selfsigned', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}, 'root CA selfsigned issuer')
+            check(root['spec'].get('duration') == '87600h' and root['spec'].get('renewBefore') == '720h', 'root 10y/720h')
+            check(root['spec'].get('privateKey') == {'algorithm': 'ECDSA', 'size': 256, 'rotationPolicy': 'Never'}, 'root key Never')
+          lci = next((x for x in pki if x.get('kind') == 'ClusterIssuer' and x['metadata'].get('name') == 'logging-ca'), None)
+          check(lci is not None and lci.get('spec', {}).get('ca', {}).get('secretName') == 'logging-root-ca', 'ca<-root')
+          exp = {'autoReloadAll': False, 'watchGlobally': False, 'namespaces': ['grafana', 'opencode'], 'reloadOnCreate': True, 'reloadOnDelete': True, 'syncAfterRestart': True}
+          check(reloader_values.get('reloader') == exp, 'reloader values == canonical base-2 contract, got %s' % reloader_values.get('reloader'))
+          watch = sorted(set(exp['namespaces']) | {reloader_namespace})
+          roles = [x for x in reloader_docs if x.get('kind') == 'Role']
+          binds = [x for x in reloader_docs if x.get('kind') == 'RoleBinding']
+          check(not [x for x in reloader_docs if x.get('kind') in ('ClusterRole', 'ClusterRoleBinding')], 'no cluster-scoped RBAC')
+          wr = [r for r in roles if any('secrets' in (ru.get('resources') or []) for ru in r.get('rules') or [])]
+          wn = sorted(r['metadata']['namespace'] for r in wr)
+          check(len(wr) == len(watch) and wn == watch, 'watch Roles exactly %s, got %s' % (watch, wn))
+          for r in roles:
+            for ru in r.get('rules') or []:
+                if 'secrets' in (ru.get('resources') or []):
+                    check(not ({'create', 'update', 'patch', 'delete', 'deletecollection'} & set(ru.get('verbs') or [])), 'watch Role never mutates secrets: %s' % r['metadata']['name'])
+          wb = [b for b in binds if b['metadata']['name'].endswith('-role-binding')]
+          check(sorted(b['metadata']['namespace'] for b in wb) == watch and all(b.get('roleRef', {}).get('kind') == 'Role' for b in wb) and all((b.get('subjects') or [{}])[0].get('namespace') == reloader_namespace for b in wb), 'RoleBindings per watch ns to operator SA')
+          rdep = next(x for x in reloader_docs if x.get('kind') == 'Deployment')
+          rargs = rdep['spec']['template']['spec']['containers'][0].get('args') or []
+          check('--namespaces=%s' % ','.join(watch) in rargs, 'watch flag exact %s' % rargs)
+          for f in ('--reload-on-create=true', '--reload-on-delete=true', '--sync-after-restart=true'):
+            check(f in rargs, 'keep %s' % f)
+          check(not any(a.startswith('--auto-reload-all') for a in rargs), 'no auto-reload-all')
+          check(not any(a.startswith('--reload-strategy') for a in rargs), 'default reload strategy')
+          for path, kind, name, container, env in ( ('workloads/apps/loki-app.yaml', 'StatefulSet', 'loki', 'loki', 'STAKATER_LOKI_SERVER_TLS_SECRET'), ('workloads/apps/alloy-app.yaml', 'Deployment', 'alloy', 'alloy', 'STAKATER_LOKI_ALLOY_CLIENT_SECRET')):
+            app = yaml.safe_load(Path(path).read_text())
+            an = app['metadata']['name']
+            ig = app['spec'].get('ignoreDifferences')
+            check(isinstance(ig, list) and len(ig) == 1, '%s one ignoreDifferences' % an)
+            if isinstance(ig, list) and len(ig) == 1:
+                e = ig[0]
+                check(set(e) == {'group', 'kind', 'name', 'namespace', 'jqPathExpressions'}, '%s entry keys' % an)
+                check(e.get('group') == 'apps' and e.get('kind') == kind and e.get('name') == name and e.get('namespace') == 'logging', '%s -> %s %s' % (an, kind, name))
+                ep = ('.spec.template.spec.containers[] | select(.name == "%s") ' '| .env[] | select(.name == "%s")' % (container, env))
+                check(e.get('jqPathExpressions') == [ ep, '.spec.template.metadata.annotations' '["reloader.stakater.com/last-reloaded-from"]'], '%s env-hash+stamp only' % an)
+                o = app['spec'].get('syncPolicy', {}).get('syncOptions') or []
+                check('RespectIgnoreDifferences=true' in o, '%s RespectIgnore' % an)
+          apps = yaml.safe_load( Path('workloads/apps/kustomization.yaml').read_text()).get('resources') or []
+          check('loki-app.yaml' not in apps and 'alloy-app.yaml' not in apps, 'Phase 1: loki/alloy apps unregistered')
+          gres = yaml.safe_load( Path('workloads/grafana/kustomization.yaml').read_text()).get('resources') or []
+          check('loki-datasource.yaml' not in gres and 'loki-client-certificate.yaml' not in gres, 'Phase 1: grafana logging files unregistered')
+          cmk = yaml.safe_load( Path('operators/cert-manager/kustomization.yaml').read_text())
+          cres = cmk.get('resources') or []
+          check('logging-admission.yaml' in cres, 'admission active')
+          check('logging-pki.yaml' not in cres, 'pki unreferenced')
+          rk = yaml.safe_load(Path('operators/reloader/kustomization.yaml').read_text())
+          refs = (rk.get('resources') or []) + [p.get('path') for p in (rk.get('patches') or []) if isinstance(p, dict)]
+          check('logging-watch-patch.yaml' not in refs, 'patch unreferenced')
+          base = sorted(yaml.safe_load( Path('operators/reloader/application.yaml').read_text()) ['spec']['source']['helm']['valuesObject']['reloader']['namespaces'])
+          check(base == ['grafana', 'opencode'], 'base-2 watchlist, got %s' % base)
+          adm = [x for x in yaml.safe_load_all( Path('operators/cert-manager/logging-admission.yaml').read_text()) if isinstance(x, dict)]
+          pols = {x['metadata']['name']: x for x in adm if x.get('kind') == 'ValidatingAdmissionPolicy'}
+          check(set(pols) == {'logging-certificate', 'logging-certificaterequest', 'logging-clusterissuer', 'logging-csr'}, 'four policies, got %s' % sorted(pols))
+          check(all(x.get('apiVersion') == 'admissionregistration.k8s.io/v1' and x['spec'].get('failurePolicy') == 'Fail' for x in pols.values()), 'v1 Fail')
+          bs = {x['metadata']['name']: x for x in adm if x.get('kind') == 'ValidatingAdmissionPolicyBinding'}
+          check(all(b['spec'].get('policyName') in pols and b['spec'].get('validationActions') == ['Deny'] for b in bs.values()), 'bindings Deny')
+          pt = Path('operators/cert-manager/logging-admission.yaml').read_text()
+          check('system:serviceaccount:argocd:argocd-argocd-application-controller' in pt, 'argo principal')
+          check('system:serviceaccount:cert-manager:cert-manager' in pt, 'cm principal')
+          for f in Path('workloads').rglob('*.yaml'):
+            if f.name == 'alloy-app.yaml':
+                continue
+            check('logging.makeitwork.cloud/approved' not in f.read_text(), 'opt-in leak: %s' % f)
+          if errors:
+            for e in errors:
+                print('LOGGING-CHART-INVALID: %s' % e)
+            sys.exit(1)
+          EOF
+          W="${RUNNER_TEMP}/logging-ci"
+          fail() { echo "PROSPECTIVE-INVALID: $1"; exit 1; }
+          P="$W/prospective"
+          mkdir -p "$P"
+          cp operators/reloader/application.yaml "$P/application.yaml"
+          cp operators/reloader/logging-watch-patch.yaml "$P/logging-watch-patch.yaml"
+          printf 'resources:\n  - application.yaml\npatches:\n  - path: logging-watch-patch.yaml\n' \
+          > "$P/kustomization.yaml"
+          kustomize build "$P" > "$W/reloader-prospective.yaml"
+          python - "$W" <<'EOF'
+          import sys, yaml
+          from pathlib import Path
+          w = Path(sys.argv[1])
+          effective = yaml.safe_load((w / 'reloader-prospective.yaml').read_text())
+          prospective = sorted(effective['spec']['source']['helm']['valuesObject'] ['reloader']['namespaces'])
+          if prospective != ['grafana', 'logging', 'opencode']:
+            sys.exit('PROSPECTIVE-INVALID: activation patch must extend the watch to ' 'grafana+logging+opencode exactly, got %s' % prospective)
+          (w / 'reloader-prospective-values.yaml').write_text(yaml.safe_dump( effective['spec']['source']['helm']['valuesObject'], sort_keys=False))
+          EOF
+          helm template reloader-prospective stakater-vendor/reloader --version 2.2.16 \
+          --namespace reloader --values "$W/reloader-prospective-values.yaml" \
+          > "$W/reloader-prospective-rendered.yaml"
+          python - "$W" <<'EOF'
+          import sys, yaml
+          from pathlib import Path
+          w = Path(sys.argv[1])
+          docs = [d for d in yaml.safe_load_all((w / 'reloader-prospective-rendered.yaml').read_text()) if isinstance(d, dict)]
+          errors = []
+          def check(cond, msg): cond or errors.append(msg)
+          check(not [d for d in docs if d.get('kind') in ('ClusterRole', 'ClusterRoleBinding')], 'prospective render must stay free of cluster-scoped RBAC')
+          roles = [d for d in docs if d.get('kind') == 'Role']
+          watch = sorted({r['metadata']['namespace'] for r in roles if any('secrets' in (rule.get('resources') or []) for rule in r.get('rules') or [])})
+          check(watch == ['grafana', 'logging', 'opencode', 'reloader'], 'prospective watch Roles must cover exactly the three namespaces plus the ' 'release namespace, got %s' % watch)
+          dep = next(d for d in docs if d.get('kind') == 'Deployment')
+          args = dep['spec']['template']['spec']['containers'][0].get('args') or []
+          check('--namespaces=grafana,logging,opencode,reloader' in args, 'prospective Deployment watch flag must be exact, got %s' % args)
+          if errors:
+            for e in errors:
+                print('PROSPECTIVE-INVALID: %s' % e)
+            sys.exit(1)
+          EOF
       - name: Assert privacy, native validate, PKI, verify-config
         run: |
-         python - <<'EOF'
-         import re, sys, yaml
-         from pathlib import Path
-         errors = []
-         def check(cond, msg): cond or errors.append(msg)
-         app = yaml.safe_load(Path('workloads/apps/alloy-app.yaml').read_text())
-         source = next(s for s in app['spec']['sources'] if 'chart' in s)
-         river = yaml.safe_load(source['helm']['values'])['alloy']['configMap']['content']
-         check(re.search(r'targets\s*=\s*discovery\.kubernetes\.pods\.targets', river) is not None, 'relabel consumes discovery')
-         check(re.search(r'targets\s*=\s*discovery\.relabel\.approved_pods\.output', river) is not None, 'source uses relabelled')
-         check(re.search(r'forward_to\s*=\s*\[loki\.process\.approved_pods\.receiver\]', river) is not None, 'source->process')
-         check(re.search(r'forward_to\s*=\s*\[loki\.write\.logging\.receiver\]', river) is not None, 'process->write')
-         check(river.index('discovery.kubernetes') < river.index('loki.source.kubernetes'), 'denies before source')
-         rules = []
-         for block in re.findall(r'rule\s*\{([^{}]*)\}', river):
-           def field(name):
-               match = re.search(r'\b%s\s*=\s*(.+)' % name, block)
-               return match.group(1).strip() if match else None
-           labels = re.search(r'\[([^\]]*)\]', field("source_labels") or "").group(1)
-           rules.append({ "source_labels": [x.strip().strip('"') for x in labels.split(",")], "regex": (field("regex") or "").strip('"'), "action": (field("action") or "").strip('"'), "target_label": (field("target_label") or "").strip('"'), })
-         gating = [r for r in rules if r['action'] in ('keep', 'drop')]
-         mapping = [r for r in rules if r['target_label']]
-         check([(r['action'], r['regex']) for r in gating] == [ ('keep', 'true'), ('keep', '.+'), ('drop', 'opencode|mcp|arc-runners'), ('drop', 'runner')], 'gating: keep=true, keep ' 'name, drop opencode|mcp|arc-runners, ' 'drop runner containers')
-         if len(gating) == 4 and mapping:
-           check(rules.index(gating[3]) < rules.index(mapping[0]), 'deny before mapping')
-           check([r['target_label'] for r in mapping] == ['namespace', 'application', 'container'], 'mapped labels ns/app/container')
-         keep = re.search(r'stage\.label_keep\s*\{\s*values\s*=\s*\[([^\]]*)\]', river)
-         check(keep is not None and [v.strip().strip('"') for v in keep.group(1).split(",")] == ['namespace', 'application', 'container'], 'label_keep 3 labels')
-         check(re.search(r"action\s*=\s*\"labeldrop\"", river) is None, 'no labeldrop')
-         def evaluate(labels):
-           for rule in gating:
-               joined = ';'.join(labels.get(sl, '') for sl in rule['source_labels'])
-               if rule['action'] == 'keep' and not re.fullmatch(rule['regex'], joined):
-                   return None
-               if rule['action'] == 'drop' and re.fullmatch(rule['regex'], joined):
-                   return None
-           for rule in mapping:
-               labels = dict(labels)
-               labels[rule['target_label']] = ';'.join( labels.get(sl, '') for sl in rule['source_labels'])
-           return labels
-         def meta(namespace, container, annotation, app_name):
-           return { '__meta_kubernetes_namespace': namespace, '__meta_kubernetes_pod_container_name': container, '__meta_kubernetes_pod_annotation_logging_makeitwork_cloud_approved': annotation, '__meta_kubernetes_pod_label_app_kubernetes_io_name': app_name, }
-         fixtures = [ (meta('team-a', 'web', '', 'web'), False, 'd1'), (meta('team-a', 'web', 'false', 'web'), False, 'd2'), (meta('team-a', 'web', 'true', ''), False, 'd3'), (meta('opencode', 'web', 'true', 'anything'), False, 'd4'), (meta('mcp', 'web', 'true', 'anything'), False, 'd5'), (meta('arc-runners', 'web', 'true', 'anything'), False, 'd6'), (meta('team-a', 'runner', 'true', 'web'), False, 'd7'), (meta('team-a', 'web', 'true', 'web'), True, 'p1'), ]
-         for labels, expected_kept, why in fixtures:
-           result = evaluate(labels)
-           check(bool(result) is expected_kept, why)
-         positive = evaluate(meta('team-a', 'web', 'true', 'web'))
-         check(positive is not None and {k: positive[k] for k in ('namespace', 'application', 'container')} == {'namespace': 'team-a', 'application': 'web', 'container': 'web'}, 'positive maps 3 labels')
-         expected_strings = { 'url': 'https://loki.logging.svc:3100/loki/api/v1/push', 'batch_wait': '1s', 'batch_size': '64KiB', 'remote_timeout': '10s', 'min_backoff_period': '500ms', 'max_backoff_period': '30s', 'server_name': 'loki.logging.svc'}
-         for key, expected in expected_strings.items():
-           match = re.search(r"\b%s\s*=\s*\"([^\"]*)\"" % key, river)
-           check(match is not None and match.group(1) == expected, 'loki.write %s=%s' % (key, expected))
-         retries = re.search(r'\bmax_backoff_retries\s*=\s*(\d+)', river)
-         check(retries is not None and retries.group(1) == '3', 'loki.write max_backoff_retries must be 3')
-         check(re.search(r'\binsecure_skip_verify\s*=\s*false', river) is not None, 'loki.write must verify the Loki server certificate')
-         check(re.search(r"\bcluster\s*=\s*\"k3s\"", river) is not None, 'external_labels must pin cluster=k3s')
-         ca_path = re.search(r"\bca_file\s*=\s*\"([^\"]*)\"", river)
-         cert_path = re.search(r"\bcert_file\s*=\s*\"([^\"]*)\"", river)
-         key_path = re.search(r"\bkey_file\s*=\s*\"([^\"]*)\"", river)
-         check(ca_path is not None and cert_path is not None and key_path is not None and ca_path.group(1).startswith('/etc/alloy/client-tls/') and cert_path.group(1).startswith('/etc/alloy/client-tls/') and key_path.group(1).startswith('/etc/alloy/client-tls/'), 'writer tls paths')
-         server_cert = yaml.safe_load( Path('workloads/logging/loki/server-certificate.yaml').read_text())
-         check('loki.logging.svc' in server_cert['spec']['dnsNames'], 'cert covers SNI')
-         if errors:
-           for e in errors:
-               print('LOGGING-PRIVACY-INVALID: %s' % e)
-           sys.exit(1)
-         EOF
-         W="${RUNNER_TEMP}/logging-ci"
-         . "$W/params.env"
-         docker run --rm --volume "$W:/conf:ro" "$ALLOY_IMAGE" \
-         validate $ALLOY_STABILITY_ARGS /conf/alloy.river
-         cp "$W/alloy.river" "$W/alloy-broken.river"
-         printf '\nci_bogus.component "negative_control" { }\n' >> "$W/alloy-broken.river"
-         set +e
-         docker run --rm --volume "$W:/conf:ro" "$ALLOY_IMAGE" \
-         validate $ALLOY_STABILITY_ARGS /conf/alloy-broken.river >/dev/null 2>&1
-         rc=$?
-         set -e
-         if [ "$rc" -eq 0 ]; then
-         echo "LOKI-NATIVE-INVALID: alloy validate accepted a bogus component (must fail)"
-         exit 1
-         fi
-         umask 077
-         PKI="$W/pki"
-         mkdir -p "$PKI"
-         openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
-         -subj "/CN=ci-logging-ca" -keyout "$PKI/ca.key" -out "$PKI/ca.crt" \
-         -addext "basicConstraints=critical,CA:TRUE" \
-         -addext "keyUsage=critical,keyCertSign,cRLSign" >/dev/null 2>&1
-         openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
-         -subj "/CN=ci-wrong-ca" -keyout "$PKI/wrong-ca.key" -out "$PKI/wrong-ca.crt" \
-         -addext "basicConstraints=critical,CA:TRUE" \
-         -addext "keyUsage=critical,keyCertSign,cRLSign" >/dev/null 2>&1
-         openssl req -newkey rsa:2048 -nodes -subj "/CN=loki.logging.svc" \
-         -keyout "$PKI/server.key" -out "$PKI/server.csr" >/dev/null 2>&1
-         openssl x509 -req -in "$PKI/server.csr" -CA "$PKI/ca.crt" -CAkey "$PKI/ca.key" \
-         -CAcreateserial -days 2 -out "$PKI/server.crt" \
-         -extfile "$W/pki-server.ext" >/dev/null 2>&1
-         openssl req -newkey rsa:2048 -nodes -subj "/CN=alloy.logging" \
-         -keyout "$PKI/client.key" -out "$PKI/client.csr" >/dev/null 2>&1
-         openssl x509 -req -in "$PKI/client.csr" -CA "$PKI/ca.crt" -CAkey "$PKI/ca.key" \
-         -CAcreateserial -days 2 -out "$PKI/client.crt" \
-         -extfile "$W/pki-client.ext" >/dev/null 2>&1
-         openssl req -newkey rsa:2048 -nodes -subj "/CN=alloy-wrong.logging" \
-         -keyout "$PKI/wrong-client.key" -out "$PKI/wrong-client.csr" >/dev/null 2>&1
-         openssl x509 -req -in "$PKI/wrong-client.csr" -CA "$PKI/wrong-ca.crt" \
-         -CAkey "$PKI/wrong-ca.key" -CAcreateserial -days 2 -out "$PKI/wrong-client.crt" \
-         -extfile "$W/pki-client.ext" >/dev/null 2>&1
-         for f in ca.crt ca.key wrong-ca.crt wrong-ca.key server.crt server.key \
-                client.crt client.key wrong-client.crt wrong-client.key; do
-         test -s "$PKI/$f" || { echo "synthetic PKI generation failed for $f"; exit 1; }
-         done
-         RT="$W/runtime"
-         rm -rf "$RT"; mkdir -p "$RT/var-loki"; chmod 700 "$RT/var-loki"
-         docker run --rm --user "$(id -u):$(id -g)" \
-         --volume "$W/loki-config.yaml:/etc/loki/loki.yaml:ro" \
-         --volume "$W/pki/server.crt:$LOKI_TLS_CERT:ro" \
-         --volume "$W/pki/server.key:$LOKI_TLS_KEY:ro" \
-         --volume "$W/pki/ca.crt:$LOKI_TLS_CA:ro" \
-         --volume "$RT/var-loki:/var/loki" \
-         "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml -verify-config=true
-         python - "$W" <<'EOF'
-         import sys, yaml
-         from pathlib import Path
-         work = Path(sys.argv[1])
-         config = yaml.safe_load((work / 'loki-config.yaml').read_text())
-         config['ci_unknown_field_negative_control'] = True
-         (work / 'loki-broken-unknown-field.yaml').write_text( yaml.safe_dump(config, sort_keys=False))
-         raw = (work / 'loki-config.yaml').read_text()
-         (work / 'loki-broken-truncated.yaml').write_text(raw[: max(1, len(raw) // 2)])
-         EOF
-         for broken in loki-broken-unknown-field.yaml loki-broken-truncated.yaml; do
-         set +e
-         docker run --rm --user "$(id -u):$(id -g)" \
-           --volume "$W/$broken:/etc/loki/loki.yaml:ro" \
-           --volume "$W/pki/server.crt:$LOKI_TLS_CERT:ro" \
-           --volume "$W/pki/server.key:$LOKI_TLS_KEY:ro" \
-           --volume "$W/pki/ca.crt:$LOKI_TLS_CA:ro" \
-           --volume "$RT/var-loki:/var/loki" \
-           "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml -verify-config=true \
-           >/dev/null 2>&1
-         rc=$?
-         set -e
-         if [ "$rc" -eq 0 ]; then
-         echo "LOKI-NATIVE-INVALID: -verify-config accepted $broken (must fail)"
-         exit 1
-         fi
-         done
+          python - <<'EOF'
+          import re, sys, yaml
+          from pathlib import Path
+          errors = []
+          def check(cond, msg): cond or errors.append(msg)
+          app = yaml.safe_load(Path('workloads/apps/alloy-app.yaml').read_text())
+          source = next(s for s in app['spec']['sources'] if 'chart' in s)
+          river = yaml.safe_load(source['helm']['values'])['alloy']['configMap']['content']
+          check(re.search(r'targets\s*=\s*discovery\.kubernetes\.pods\.targets', river) is not None, 'relabel consumes discovery')
+          check(re.search(r'targets\s*=\s*discovery\.relabel\.approved_pods\.output', river) is not None, 'source uses relabelled')
+          check(re.search(r'forward_to\s*=\s*\[loki\.process\.approved_pods\.receiver\]', river) is not None, 'source->process')
+          check(re.search(r'forward_to\s*=\s*\[loki\.write\.logging\.receiver\]', river) is not None, 'process->write')
+          check(river.index('discovery.kubernetes') < river.index('loki.source.kubernetes'), 'denies before source')
+          rules = []
+          for block in re.findall(r'rule\s*\{([^{}]*)\}', river):
+            def field(name):
+                match = re.search(r'\b%s\s*=\s*(.+)' % name, block)
+                return match.group(1).strip() if match else None
+            labels = re.search(r'\[([^\]]*)\]', field("source_labels") or "").group(1)
+            rules.append({ "source_labels": [x.strip().strip('"') for x in labels.split(",")], "regex": (field("regex") or "").strip('"'), "action": (field("action") or "").strip('"'), "target_label": (field("target_label") or "").strip('"'), })
+          gating = [r for r in rules if r['action'] in ('keep', 'drop')]
+          mapping = [r for r in rules if r['target_label']]
+          check([(r['action'], r['regex']) for r in gating] == [ ('keep', 'true'), ('keep', '.+'), ('drop', 'opencode|mcp|arc-runners'), ('drop', 'runner')], 'gating: keep=true, keep ' 'name, drop opencode|mcp|arc-runners, ' 'drop runner containers')
+          if len(gating) == 4 and mapping:
+            check(rules.index(gating[3]) < rules.index(mapping[0]), 'deny before mapping')
+            check([r['target_label'] for r in mapping] == ['namespace', 'application', 'container'], 'mapped labels ns/app/container')
+          keep = re.search(r'stage\.label_keep\s*\{\s*values\s*=\s*\[([^\]]*)\]', river)
+          check(keep is not None and [v.strip().strip('"') for v in keep.group(1).split(",")] == ['namespace', 'application', 'container'], 'label_keep 3 labels')
+          check(re.search(r"action\s*=\s*\"labeldrop\"", river) is None, 'no labeldrop')
+          def evaluate(labels):
+            for rule in gating:
+                joined = ';'.join(labels.get(sl, '') for sl in rule['source_labels'])
+                if rule['action'] == 'keep' and not re.fullmatch(rule['regex'], joined):
+                    return None
+                if rule['action'] == 'drop' and re.fullmatch(rule['regex'], joined):
+                    return None
+            for rule in mapping:
+                labels = dict(labels)
+                labels[rule['target_label']] = ';'.join( labels.get(sl, '') for sl in rule['source_labels'])
+            return labels
+          def meta(namespace, container, annotation, app_name):
+            return { '__meta_kubernetes_namespace': namespace, '__meta_kubernetes_pod_container_name': container, '__meta_kubernetes_pod_annotation_logging_makeitwork_cloud_approved': annotation, '__meta_kubernetes_pod_label_app_kubernetes_io_name': app_name, }
+          fixtures = [ (meta('team-a', 'web', '', 'web'), False, 'd1'), (meta('team-a', 'web', 'false', 'web'), False, 'd2'), (meta('team-a', 'web', 'true', ''), False, 'd3'), (meta('opencode', 'web', 'true', 'anything'), False, 'd4'), (meta('mcp', 'web', 'true', 'anything'), False, 'd5'), (meta('arc-runners', 'web', 'true', 'anything'), False, 'd6'), (meta('team-a', 'runner', 'true', 'web'), False, 'd7'), (meta('team-a', 'web', 'true', 'web'), True, 'p1'), ]
+          for labels, expected_kept, why in fixtures:
+            result = evaluate(labels)
+            check(bool(result) is expected_kept, why)
+          positive = evaluate(meta('team-a', 'web', 'true', 'web'))
+          check(positive is not None and {k: positive[k] for k in ('namespace', 'application', 'container')} == {'namespace': 'team-a', 'application': 'web', 'container': 'web'}, 'positive maps 3 labels')
+          expected_strings = { 'url': 'https://loki.logging.svc:3100/loki/api/v1/push', 'batch_wait': '1s', 'batch_size': '64KiB', 'remote_timeout': '10s', 'min_backoff_period': '500ms', 'max_backoff_period': '30s', 'server_name': 'loki.logging.svc'}
+          for key, expected in expected_strings.items():
+            match = re.search(r"\b%s\s*=\s*\"([^\"]*)\"" % key, river)
+            check(match is not None and match.group(1) == expected, 'loki.write %s=%s' % (key, expected))
+          retries = re.search(r'\bmax_backoff_retries\s*=\s*(\d+)', river)
+          check(retries is not None and retries.group(1) == '3', 'loki.write max_backoff_retries must be 3')
+          check(re.search(r'\binsecure_skip_verify\s*=\s*false', river) is not None, 'loki.write must verify the Loki server certificate')
+          check(re.search(r"\bcluster\s*=\s*\"k3s\"", river) is not None, 'external_labels must pin cluster=k3s')
+          ca_path = re.search(r"\bca_file\s*=\s*\"([^\"]*)\"", river)
+          cert_path = re.search(r"\bcert_file\s*=\s*\"([^\"]*)\"", river)
+          key_path = re.search(r"\bkey_file\s*=\s*\"([^\"]*)\"", river)
+          check(ca_path is not None and cert_path is not None and key_path is not None and ca_path.group(1).startswith('/etc/alloy/client-tls/') and cert_path.group(1).startswith('/etc/alloy/client-tls/') and key_path.group(1).startswith('/etc/alloy/client-tls/'), 'writer tls paths')
+          server_cert = yaml.safe_load( Path('workloads/logging/loki/server-certificate.yaml').read_text())
+          check('loki.logging.svc' in server_cert['spec']['dnsNames'], 'cert covers SNI')
+          if errors:
+            for e in errors:
+                print('LOGGING-PRIVACY-INVALID: %s' % e)
+            sys.exit(1)
+          EOF
+          W="${RUNNER_TEMP}/logging-ci"
+          . "$W/params.env"
+          docker run --rm --volume "$W:/conf:ro" "$ALLOY_IMAGE" \
+          validate $ALLOY_STABILITY_ARGS /conf/alloy.river
+          cp "$W/alloy.river" "$W/alloy-broken.river"
+          printf '\nci_bogus.component "negative_control" { }\n' >> "$W/alloy-broken.river"
+          set +e
+          docker run --rm --volume "$W:/conf:ro" "$ALLOY_IMAGE" \
+          validate $ALLOY_STABILITY_ARGS /conf/alloy-broken.river >/dev/null 2>&1
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+          echo "LOKI-NATIVE-INVALID: alloy validate accepted a bogus component (must fail)"
+          exit 1
+          fi
+          umask 077
+          PKI="$W/pki"
+          mkdir -p "$PKI"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
+          -subj "/CN=ci-logging-ca" -keyout "$PKI/ca.key" -out "$PKI/ca.crt" \
+          -addext "basicConstraints=critical,CA:TRUE" \
+          -addext "keyUsage=critical,keyCertSign,cRLSign" >/dev/null 2>&1
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 \
+          -subj "/CN=ci-wrong-ca" -keyout "$PKI/wrong-ca.key" -out "$PKI/wrong-ca.crt" \
+          -addext "basicConstraints=critical,CA:TRUE" \
+          -addext "keyUsage=critical,keyCertSign,cRLSign" >/dev/null 2>&1
+          openssl req -newkey rsa:2048 -nodes -subj "/CN=loki.logging.svc" \
+          -keyout "$PKI/server.key" -out "$PKI/server.csr" >/dev/null 2>&1
+          openssl x509 -req -in "$PKI/server.csr" -CA "$PKI/ca.crt" -CAkey "$PKI/ca.key" \
+          -CAcreateserial -days 2 -out "$PKI/server.crt" \
+          -extfile "$W/pki-server.ext" >/dev/null 2>&1
+          openssl req -newkey rsa:2048 -nodes -subj "/CN=alloy.logging" \
+          -keyout "$PKI/client.key" -out "$PKI/client.csr" >/dev/null 2>&1
+          openssl x509 -req -in "$PKI/client.csr" -CA "$PKI/ca.crt" -CAkey "$PKI/ca.key" \
+          -CAcreateserial -days 2 -out "$PKI/client.crt" \
+          -extfile "$W/pki-client.ext" >/dev/null 2>&1
+          openssl req -newkey rsa:2048 -nodes -subj "/CN=alloy-wrong.logging" \
+          -keyout "$PKI/wrong-client.key" -out "$PKI/wrong-client.csr" >/dev/null 2>&1
+          openssl x509 -req -in "$PKI/wrong-client.csr" -CA "$PKI/wrong-ca.crt" \
+          -CAkey "$PKI/wrong-ca.key" -CAcreateserial -days 2 -out "$PKI/wrong-client.crt" \
+          -extfile "$W/pki-client.ext" >/dev/null 2>&1
+          for f in ca.crt ca.key wrong-ca.crt wrong-ca.key server.crt server.key \
+                 client.crt client.key wrong-client.crt wrong-client.key; do
+          test -s "$PKI/$f" || { echo "synthetic PKI generation failed for $f"; exit 1; }
+          done
+          RT="$W/runtime"
+          rm -rf "$RT"; mkdir -p "$RT/var-loki"; chmod 700 "$RT/var-loki"
+          docker run --rm --user "$(id -u):$(id -g)" \
+          --volume "$W/loki-config.yaml:/etc/loki/loki.yaml:ro" \
+          --volume "$W/pki/server.crt:$LOKI_TLS_CERT:ro" \
+          --volume "$W/pki/server.key:$LOKI_TLS_KEY:ro" \
+          --volume "$W/pki/ca.crt:$LOKI_TLS_CA:ro" \
+          --volume "$RT/var-loki:/var/loki" \
+          "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml -verify-config=true
+          python - "$W" <<'EOF'
+          import sys, yaml
+          from pathlib import Path
+          work = Path(sys.argv[1])
+          config = yaml.safe_load((work / 'loki-config.yaml').read_text())
+          config['ci_unknown_field_negative_control'] = True
+          (work / 'loki-broken-unknown-field.yaml').write_text( yaml.safe_dump(config, sort_keys=False))
+          raw = (work / 'loki-config.yaml').read_text()
+          (work / 'loki-broken-truncated.yaml').write_text(raw[: max(1, len(raw) // 2)])
+          EOF
+          for broken in loki-broken-unknown-field.yaml loki-broken-truncated.yaml; do
+          set +e
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --volume "$W/$broken:/etc/loki/loki.yaml:ro" \
+            --volume "$W/pki/server.crt:$LOKI_TLS_CERT:ro" \
+            --volume "$W/pki/server.key:$LOKI_TLS_KEY:ro" \
+            --volume "$W/pki/ca.crt:$LOKI_TLS_CA:ro" \
+            --volume "$RT/var-loki:/var/loki" \
+            "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml -verify-config=true \
+            >/dev/null 2>&1
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+          echo "LOKI-NATIVE-INVALID: -verify-config accepted $broken (must fail)"
+          exit 1
+          fi
+          done
       - name: Prove the mTLS auth boundary with a live isolated Loki
         run: |
-         set -euo pipefail
-         W="${RUNNER_TEMP}/logging-ci"
-         . "$W/params.env"
-         PKI="$W/pki"
-         RT="$W/runtime"
-         fail() { echo "LOKI-RUNTIME-INVALID: $1"; exit 1; }
-         cleanup() {
-         docker rm -f loki-ci >/dev/null 2>&1 || true
-         docker network rm loki-ci-net >/dev/null 2>&1 || true
-         }
-         trap cleanup EXIT
-         VC=(--cert "$PKI/client.crt" --key "$PKI/client.key")
-         CA=(--cacert "$PKI/ca.crt")
-         rm -rf "$RT/var-loki"; mkdir -p "$RT/var-loki"; chmod 700 "$RT/var-loki"
-         docker network create loki-ci-net >/dev/null
-         docker run -d --name loki-ci \
-         --user "$(id -u):$(id -g)" \
-         --network loki-ci-net --network-alias loki.logging.svc --hostname loki \
-         --volume "$W/loki-config.yaml:/etc/loki/loki.yaml:ro" \
-         --volume "$W/pki/server.crt:$LOKI_TLS_CERT:ro" \
-         --volume "$W/pki/server.key:$LOKI_TLS_KEY:ro" \
-         --volume "$W/pki/ca.crt:$LOKI_TLS_CA:ro" \
-         --volume "$RT/var-loki:/var/loki" \
-         --publish 127.0.0.1:31000:3100 --publish 127.0.0.1:31001:3101 \
-         "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml >/dev/null
-         U="https://loki.logging.svc:31000"
-         R=(--resolve loki.logging.svc:31000:127.0.0.1)
-         code() { curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$@" || true; }
-         ready=""
-         for _ in $(seq 1 45); do
-         [ "$(code http://127.0.0.1:31001/ready)" = "200" ] && { ready=yes; break; }
-         sleep 2
-         done
-         if [ "$ready" != "yes" ]; then
-         docker logs --tail 60 loki-ci >&2 || true
-         fail "3101 never ready"
-         fi
-         [ "$(code http://127.0.0.1:31001/metrics)" = "200" ] \
-         || fail "internal metrics down"
-         [ "$(code -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:31001/loki/api/v1/push)" = "404" ] \
-         || fail "push on 3101"
-         [ "$(code -G --data-urlencode 'query={ci="x"}' http://127.0.0.1:31001/loki/api/v1/query_range)" = "404" ] \
-         || fail "query on 3101"
-         tls_rejected() {
-         [ "$2" = "000" ] || return 1
-         case "$1" in
-           35|56) ;;
-           *) return 1 ;;
-         esac
-         case "$3" in
-           *SSL*|*TLS*|*tls*|*certificate*|*alert*) ;;
-           *) return 1 ;;
-         esac
-         return 0
-         }
-         not_rej() { if tls_rejected "$@"; then fail "$4"; fi; }
-         is_rej() { if tls_rejected "$@"; then :; else fail "$4"; fi; }
-         not_rej 0 403 "" "o:403"
-         not_rej 0 404 "" "o:404"
-         not_rej 0 500 "" "o:500"
-         not_rej 0 000 "" "o:000"
-         not_rej 7 000 "curl: (7) Connection refused" "o:ref"
-         not_rej 28 000 "curl: (28) Operation timed out" "o:tmo"
-         not_rej 60 000 "curl: (60) SSL certificate problem" "o:ca"
-         is_rej 35 000 "curl: (35) tlsv13 alert certificate required" "o:alert"
-         is_rej 56 000 "curl: (56) SSL_read: Connection reset by peer" "o:recv"
-         probe_client() {
-         local rc=0 http
-         http=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
-           $R $CA \
-           "$@" $U/ready 2>"$W/tls-probe.err") || rc=$?
-         printf '%s %s' "$rc" "$http"
-         }
-         valid=$(probe_client $VC)
-         [ "$valid" = "0 200" ] || fail "valid client pre-negatives"
-         plain_rc=0
-         plain_http=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
-         http://127.0.0.1:31000/ready 2>/dev/null) || plain_rc=$?
-         if [ "$plain_http" != "400" ]; then
-         [ "$plain_http" = "000" ] && [ "$plain_rc" -ne 0 ] \
-           || fail "plain http rc=$plain_rc http=$plain_http"
-         fi
-         read nocert_rc nocert_http <<< "$(probe_client)"
-         nocert_err=$(cat "$W/tls-probe.err")
-         if tls_rejected "$nocert_rc" "$nocert_http" "$nocert_err"; then :; else
-         fail "no-cert rc=$nocert_rc http=$nocert_http err=$nocert_err"
-         fi
-         read wrongca_rc wrongca_http <<< "$(probe_client --cert "$PKI/wrong-client.crt" --key "$PKI/wrong-client.key")"
-         wrongca_err=$(cat "$W/tls-probe.err")
-         if tls_rejected "$wrongca_rc" "$wrongca_http" "$wrongca_err"; then :; else
-         fail "wrong-CA rc=$wrongca_rc http=$wrongca_http err=$wrongca_err"
-         fi
-         valid=$(probe_client $VC)
-         [ "$valid" = "0 200" ] || fail "valid client post-negatives"
-         TOKEN="ci-synthetic-line-$(date +%s)-$$"
-         TIMESTAMP=$(date +%s%N)
-         PAYLOAD=$(printf '{"streams":[{"stream":{"ci_job":"loki-ci","namespace":"ci","application":"ci-fixture","container":"ci"},"values":[["%s","%s"]]}]}' "$TIMESTAMP" "$TOKEN")
-         pushstatus=$(code -X POST -H 'Content-Type: application/json' -d "$PAYLOAD" \
-         $R $CA \
-         $VC \
-         $U/loki/api/v1/push)
-         [ "$pushstatus" = "204" ] || fail "push=$pushstatus"
-         sleep 2
-         QUERY=$(curl -sS --max-time 10 $R \
-         $CA $VC \
-         -G --data-urlencode 'query={ci_job="loki-ci"}' \
-         $U/loki/api/v1/query_range)
-         echo "$QUERY" | grep -q '"status":"success"' \
-         || fail "LogQL query over mTLS must succeed"
-         echo "$QUERY" | grep -q "$TOKEN" \
-         || fail "line not returned"
-         CONTAINER_IP=$(docker inspect -f \
-         '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' loki-ci)
-         [ -n "$CONTAINER_IP" ] || fail "could not resolve the loki-ci bridge IP"
-         for refused_port in 9095 7946 9096; do
-         probe_rc=0
-         probe_err=$(timeout 3 bash -c \
-           "exec 3<>/dev/tcp/$CONTAINER_IP/$refused_port" 2>&1 >/dev/null) || probe_rc=$?
-         [ "$probe_rc" -ne 124 ] \
-           || fail "port $refused_port timeout"
-         case "$probe_err" in
-           *"Connection refused"*) ;;
-           *) fail "port $refused_port rc=$probe_rc err=$probe_err" ;;
-         esac
-         done
+          set -euo pipefail
+          W="${RUNNER_TEMP}/logging-ci"
+          . "$W/params.env"
+          PKI="$W/pki"
+          RT="$W/runtime"
+          fail() { echo "LOKI-RUNTIME-INVALID: $1"; exit 1; }
+          cleanup() {
+          docker rm -f loki-ci >/dev/null 2>&1 || true
+          docker network rm loki-ci-net >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          VC=(--cert "$PKI/client.crt" --key "$PKI/client.key")
+          CA=(--cacert "$PKI/ca.crt")
+          rm -rf "$RT/var-loki"; mkdir -p "$RT/var-loki"; chmod 700 "$RT/var-loki"
+          docker network create loki-ci-net >/dev/null
+          docker run -d --name loki-ci \
+          --user "$(id -u):$(id -g)" \
+          --network loki-ci-net --network-alias loki.logging.svc --hostname loki \
+          --volume "$W/loki-config.yaml:/etc/loki/loki.yaml:ro" \
+          --volume "$W/pki/server.crt:$LOKI_TLS_CERT:ro" \
+          --volume "$W/pki/server.key:$LOKI_TLS_KEY:ro" \
+          --volume "$W/pki/ca.crt:$LOKI_TLS_CA:ro" \
+          --volume "$RT/var-loki:/var/loki" \
+          --publish 127.0.0.1:31000:3100 --publish 127.0.0.1:31001:3101 \
+          "$LOKI_IMAGE" -config.file=/etc/loki/loki.yaml >/dev/null
+          U="https://loki.logging.svc:31000"
+          R=(--resolve loki.logging.svc:31000:127.0.0.1)
+          code() { curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$@" || true; }
+          ready=""
+          for _ in $(seq 1 45); do
+          [ "$(code http://127.0.0.1:31001/ready)" = "200" ] && { ready=yes; break; }
+          sleep 2
+          done
+          if [ "$ready" != "yes" ]; then
+          docker logs --tail 60 loki-ci >&2 || true
+          fail "3101 never ready"
+          fi
+          [ "$(code http://127.0.0.1:31001/metrics)" = "200" ] \
+          || fail "internal metrics down"
+          [ "$(code -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:31001/loki/api/v1/push)" = "404" ] \
+          || fail "push on 3101"
+          [ "$(code -G --data-urlencode 'query={ci="x"}' http://127.0.0.1:31001/loki/api/v1/query_range)" = "404" ] \
+          || fail "query on 3101"
+          tls_rejected() {
+          [ "$2" = "000" ] || return 1
+          case "$1" in
+            35|56) ;;
+            *) return 1 ;;
+          esac
+          case "$3" in
+            *SSL*|*TLS*|*tls*|*certificate*|*alert*) ;;
+            *) return 1 ;;
+          esac
+          return 0
+          }
+          not_rej() { if tls_rejected "$@"; then fail "$4"; fi; }
+          is_rej() { if tls_rejected "$@"; then :; else fail "$4"; fi; }
+          not_rej 0 403 "" "o:403"
+          not_rej 0 404 "" "o:404"
+          not_rej 0 500 "" "o:500"
+          not_rej 0 000 "" "o:000"
+          not_rej 7 000 "curl: (7) Connection refused" "o:ref"
+          not_rej 28 000 "curl: (28) Operation timed out" "o:tmo"
+          not_rej 60 000 "curl: (60) SSL certificate problem" "o:ca"
+          is_rej 35 000 "curl: (35) tlsv13 alert certificate required" "o:alert"
+          is_rej 56 000 "curl: (56) SSL_read: Connection reset by peer" "o:recv"
+          probe_client() {
+          local rc=0 http
+          http=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
+            "${R[@]}" "${CA[@]}" \
+            "$@" $U/ready 2>"$W/tls-probe.err") || rc=$?
+          printf '%s %s' "$rc" "$http"
+          }
+          valid=$(probe_client "${VC[@]}")
+          [ "$valid" = "0 200" ] || fail "valid client pre-negatives"
+          plain_rc=0
+          plain_http=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 \
+          http://127.0.0.1:31000/ready 2>/dev/null) || plain_rc=$?
+          if [ "$plain_http" != "400" ]; then
+          [ "$plain_http" = "000" ] && [ "$plain_rc" -ne 0 ] \
+            || fail "plain http rc=$plain_rc http=$plain_http"
+          fi
+          read nocert_rc nocert_http <<< "$(probe_client)"
+          nocert_err=$(cat "$W/tls-probe.err")
+          if tls_rejected "$nocert_rc" "$nocert_http" "$nocert_err"; then :; else
+          fail "no-cert rc=$nocert_rc http=$nocert_http err=$nocert_err"
+          fi
+          read wrongca_rc wrongca_http <<< "$(probe_client --cert "$PKI/wrong-client.crt" --key "$PKI/wrong-client.key")"
+          wrongca_err=$(cat "$W/tls-probe.err")
+          if tls_rejected "$wrongca_rc" "$wrongca_http" "$wrongca_err"; then :; else
+          fail "wrong-CA rc=$wrongca_rc http=$wrongca_http err=$wrongca_err"
+          fi
+          valid=$(probe_client "${VC[@]}")
+          [ "$valid" = "0 200" ] || fail "valid client post-negatives"
+          TOKEN="ci-synthetic-line-$(date +%s)-$$"
+          TIMESTAMP=$(date +%s%N)
+          PAYLOAD=$(printf '{"streams":[{"stream":{"ci_job":"loki-ci","namespace":"ci","application":"ci-fixture","container":"ci"},"values":[["%s","%s"]]}]}' "$TIMESTAMP" "$TOKEN")
+          pushstatus=$(code -X POST -H 'Content-Type: application/json' -d "$PAYLOAD" \
+          "${R[@]}" "${CA[@]}" \
+          "${VC[@]}" \
+          $U/loki/api/v1/push)
+          [ "$pushstatus" = "204" ] || fail "push=$pushstatus"
+          sleep 2
+          QUERY=$(curl -sS --max-time 10 "${R[@]}" \
+          "${CA[@]}" "${VC[@]}" \
+          -G --data-urlencode 'query={ci_job="loki-ci"}' \
+          $U/loki/api/v1/query_range)
+          echo "$QUERY" | grep -q '"status":"success"' \
+          || fail "LogQL query over mTLS must succeed"
+          echo "$QUERY" | grep -q "$TOKEN" \
+          || fail "line not returned"
+          CONTAINER_IP=$(docker inspect -f \
+          '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' loki-ci)
+          [ -n "$CONTAINER_IP" ] || fail "could not resolve the loki-ci bridge IP"
+          for refused_port in 9095 7946 9096; do
+          probe_rc=0
+          probe_err=$(timeout 3 bash -c \
+            "exec 3<>/dev/tcp/$CONTAINER_IP/$refused_port" 2>&1 >/dev/null) || probe_rc=$?
+          [ "$probe_rc" -ne 124 ] \
+            || fail "port $refused_port timeout"
+          case "$probe_err" in
+            *"Connection refused"*) ;;
+            *) fail "port $refused_port rc=$probe_rc err=$probe_err" ;;
+          esac
+          done
       - name: Prove admission policy semantics on a native 1.31 API
         run: |
-         set -euo pipefail
-         W="${RUNNER_TEMP}/logging-ci"
-         fail() { echo "ADMISSION-INVALID: $1"; exit 1; }
-         kind create cluster --name logging-adm --image \
-         kindest/node:v1.31.2@sha256:18fbefc20a7113353c7b75b5c869d7145a6abd6269154825872dc59c1329912e \
-         >/dev/null
-         trap 'kind delete cluster --name logging-adm >/dev/null 2>&1 || true' EXIT
-         K() { docker exec -i logging-adm-control-plane \
-         kubectl --kubeconfig=/etc/kubernetes/admin.conf "$@"; }
-         K version | grep -q 'Server Version: v1\.31' || fail "need 1.31"
-         curl -fsSL -o "$W/cm.crds.yaml" \
-         https://github.com/cert-manager/cert-manager/releases/download/v1.20.3/cert-manager.crds.yaml
-         printf '%s  %s\n' \
-         8c2aea21520854c8c05f4b39909d0be6e2c1ea71544d5c4e2c4ba4f75a223ccc "$W/cm.crds.yaml" \
-         | sha256sum -c - >/dev/null || fail "cert-manager v1.20.3 CRD digest mismatch"
-         docker cp "$W/cm.crds.yaml" logging-adm-control-plane:/tmp/cm.crds.yaml
-         K apply --server-side -f /tmp/cm.crds.yaml >/dev/null
-         K apply -f - < operators/cert-manager/logging-admission.yaml >/dev/null
-         for pol in logging-certificate logging-certificaterequest logging-clusterissuer logging-csr; do
-         [ "$(K get validatingadmissionpolicy "$pol" \
-               -o jsonpath='{.spec.failurePolicy}')" = Fail ] \
-           || fail "$pol must be failurePolicy Fail"
-         K get validatingadmissionpolicybinding "$pol-binding" \
-           -o jsonpath='{.spec.policyName}{" "}{.spec.validationActions[0]}' \
-           | grep -qx "$pol Deny" || fail "$pol-binding must bind $pol with Deny"
-         done
-         ARGO=system:serviceaccount:argocd:argocd-argocd-application-controller
-         CM=system:serviceaccount:cert-manager:cert-manager
-         U=ci-untrusted
-         for ns in cert-manager logging grafana untrusted; do K create ns "$ns" >/dev/null; done
-         K create clusterrolebinding logging-adm-ci-actors --clusterrole cluster-admin \
-         --user "$ARGO" --user "$CM" --user "$U" >/dev/null
-         umask 077
-         openssl req -new -newkey rsa:2048 -nodes \
-         -subj "/CN=ci-admission-fixture" -keyout "$W/adm.key" -out "$W/adm.csr" \
-         >/dev/null 2>&1
-         python - "$W" <<'EOF'
-         import base64, copy, sys, yaml
-         from pathlib import Path
-         w = Path(sys.argv[1]); adm = w / 'adm'; adm.mkdir(exist_ok=True)
-         F = {}
-         def put(n, *docs): F[n] = yaml.safe_dump_all(list(docs))
-         def cert(path, name):
-           doc = next(d for d in yaml.safe_load_all(Path(path).read_text()) if isinstance(d, dict) and d.get('kind') == 'Certificate' and d['metadata']['name'] == name)
-           doc['metadata'].pop('status', None)
-           return doc
-         pki = [d for d in yaml.safe_load_all( Path('operators/cert-manager/logging-pki.yaml').read_text()) if isinstance(d, dict)]
-         root = next(d for d in pki if d.get('kind') == 'Certificate')
-         loki = cert('workloads/logging/loki/server-certificate.yaml', 'loki-server')
-         alloy = cert('workloads/logging/alloy/client-certificate.yaml', 'alloy-client')
-         graf = cert('workloads/grafana/loki-client-certificate.yaml', 'grafana-loki-client')
-         selfsigned = next(d for d in pki if d.get('kind') == 'ClusterIssuer' and d['metadata']['name'] == 'logging-selfsigned')
-         caissuer = next(d for d in pki if d.get('kind') == 'ClusterIssuer' and d['metadata']['name'] == 'logging-ca')
-         cp = copy.deepcopy
-         put('issuers.yaml', selfsigned, caissuer)
-         put('root.yaml', root); put('loki.yaml', loki)
-         put('alloy.yaml', alloy); put('graf.yaml', graf)
-         put('ci-self.yaml', selfsigned)
-         m = cp(root); m['metadata']['namespace'] = 'logging'
-         put('d-root-in-logging.yaml', m)
-         m = cp(root); m['spec']['privateKey']['rotationPolicy'] = 'Always'
-         put('d-root-always.yaml', m)
-         m = cp(loki); m['metadata']['name'] = m['spec']['commonName'] = 'ci-selfleaf'
-         m['spec']['issuerRef']['name'] = 'logging-selfsigned'
-         put('d-selfsigned-leaf.yaml', m)
-         m = cp(loki); m['metadata']['namespace'] = 'grafana'
-         put('d-loki-wrong-ns.yaml', m)
-         m = cp(caissuer); m['spec']['ca']['secretName'] = 'evil-ca-secret'
-         put('d-ci-ca.yaml', m)
-         m = cp(selfsigned); m['spec'] = {'ca': {'secretName': 'evil-ca-secret'}}
-         put('d-ci-self.yaml', m)
-         def certdict(name, ns, issuer):
-           return {'apiVersion': 'cert-manager.io/v1', 'kind': 'Certificate', 'metadata': {'name': name, 'namespace': ns}, 'spec': {'secretName': name, 'commonName': name, 'issuerRef': issuer}}
-         put('controls.yaml', certdict('ci-unrelated', 'untrusted', {'name': 'unrelated-issuer'}), certdict('ci-other-group', 'untrusted', {'name': 'logging-ca', 'kind': 'ClusterIssuer', 'group': 'other.example.io'}), certdict('logging-root-ca', 'untrusted', {'name': 'unrelated-issuer'}), {'apiVersion': 'cert-manager.io/v1', 'kind': 'Issuer', 'metadata': {'name': 'logging-ca', 'namespace': 'untrusted'}, 'spec': {'selfSigned': {}}})
-         req = base64.b64encode((w / 'adm.csr').read_bytes()).decode()
-         CA = {'name': 'logging-ca', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}
-         SELF = {'name': 'logging-selfsigned', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}
-         def crq(name, ns, owner, issuer, usages, isca=None, controller=True):
-           d = {'apiVersion': 'cert-manager.io/v1', 'kind': 'CertificateRequest', 'metadata': {'name': name, 'namespace': ns, 'ownerReferences': [{ 'apiVersion': 'cert-manager.io/v1', 'kind': 'Certificate', 'name': owner, 'controller': controller}]}, 'spec': {'request': req, 'issuerRef': issuer, 'usages': usages}}
-           if isca is not None:
-               d['spec']['isCA'] = isca
-           return d
-         put('cr-loki.yaml', crq('ci-cr-loki', 'logging', 'loki-server', CA, ['server auth']))
-         put('cr-root.yaml', crq('ci-cr-root', 'cert-manager', 'logging-root-ca', SELF, ['signing', 'cert sign', 'crl sign'], isca=True))
-         put('d-cr-noncontrolling.yaml', crq('ci-cr-nc', 'logging', 'loki-server', CA, ['server auth'], controller=False))
-         put('d-cr-wrong-owner.yaml', crq('ci-cr-wo', 'logging', 'grafana-loki-client', CA, ['server auth']))
-         put('d-cr-bad-usages.yaml', crq('ci-cr-bu', 'logging', 'loki-server', CA, ['server auth', 'client auth']))
-         put('d-cr-root-not-ca.yaml', crq('ci-cr-rn', 'cert-manager', 'logging-root-ca', SELF, ['signing'], isca=False))
-         def csr(name, signer):
-           return {'apiVersion': 'certificates.k8s.io/v1', 'kind': 'CertificateSigningRequest', 'metadata': {'name': name}, 'spec': {'request': req, 'signerName': signer, 'usages': ['client auth']}}
-         put('d-csr-ca.yaml', csr('ci-csr-ca', 'clusterissuers.cert-manager.io/logging-ca'))
-         put('d-csr-self.yaml', csr('ci-csr-self', 'clusterissuers.cert-manager.io/logging-selfsigned'))
-         put('c-csr-other.yaml', csr('ci-csr-other', 'kubernetes.io/kube-apiserver-client'))
-         for n, t in F.items(): (adm / n).write_text(t)
-         EOF
-         docker cp "$W/adm" logging-adm-control-plane:/tmp/adm
-         A=/tmp/adm
-         ok() { K "$@" >/dev/null 2>"$W/adm.err" || fail "allow failed: $*"; }
-         denied() {
-         local m="$1"; shift
-         if K "$@" >/dev/null 2>"$W/adm.err"; then
-           fail "no deny: $*"
-         fi
-         grep -q "$m" "$W/adm.err" || fail "wrong deny msg for $*: $(head -c120 "$W/adm.err")"
-         }
-         CERTMSG="Logging PKI Certificates"
-         CRMSG="Logging PKI CertificateRequests"
-         CIMSG="Logging PKI ClusterIssuers"
-         CSRMSG="built-in CertificateSigningRequest path is disabled"
-         for f in issuers root loki alloy graf; do ok --as="$ARGO" create -f "$A/$f.yaml"; done
-         ok --as="$CM" create -f "$A/cr-loki.yaml"
-         ok --as="$CM" create -f "$A/cr-root.yaml"
-         ok --as="$CM" annotate certificaterequest -n logging ci-cr-loki ci=kept
-         ok --as="$U" annotate certificate -n logging loki-server ci=metadata-only
-         ok --as="$U" annotate clusterissuer logging-ca ci=metadata-only
-         ok --as="$U" create -f "$A/controls.yaml"
-         ok --as="$U" create -f "$A/c-csr-other.yaml"
-         ok --as="$U" delete clusterissuer logging-selfsigned
-         denied "$CERTMSG" --as="$U" create -f "$A/loki.yaml"
-         for spec in \
-         '{"spec":{"commonName":"evil.logging.svc"}}' \
-         '{"spec":{"secretName":"evil-secret"}}' \
-         '{"spec":{"usages":["client auth"]}}' \
-         '{"spec":{"isCA":true}}' \
-         '{"spec":{"duration":"4320h"}}' \
-         '{"spec":{"issuerRef":{"name":"unrelated-issuer","kind":"ClusterIssuer","group":"cert-manager.io"}}}'; do
-         denied "$CERTMSG" --as="$U" patch certificate loki-server -n logging \
-           --type=merge -p "$spec"
-         denied "$CERTMSG" --as="$ARGO" patch certificate loki-server -n logging \
-           --type=merge -p "$spec"
-         done
-         denied "$CERTMSG" --as="$ARGO" create -f "$A/d-root-in-logging.yaml"
-         denied "$CERTMSG" --as="$ARGO" create -f "$A/d-root-always.yaml"
-         denied "$CERTMSG" --as="$ARGO" create -f "$A/d-selfsigned-leaf.yaml"
-         denied "$CERTMSG" --as="$ARGO" create -f "$A/d-loki-wrong-ns.yaml"
-         denied "$CIMSG" --as="$U" create -f "$A/ci-self.yaml"
-         ok --as="$ARGO" create -f "$A/ci-self.yaml"
-         denied "$CIMSG" --as="$U" replace -f "$A/d-ci-ca.yaml"
-         denied "$CIMSG" --as="$U" replace -f "$A/d-ci-self.yaml"
-         denied "$CRMSG" --as="$U" create -f "$A/cr-loki.yaml"
-         for f in d-cr-noncontrolling d-cr-wrong-owner d-cr-bad-usages d-cr-root-not-ca; do
-         denied "$CRMSG" --as="$CM" create -f "$A/$f.yaml"
-         done
-         denied "$CSRMSG" --as="$ARGO" create -f "$A/d-csr-ca.yaml"
-         for a in "$ARGO" "$CM" "$U"; do
-         denied "$CSRMSG" --as="$a" create -f "$A/d-csr-self.yaml"
-         done
+          set -euo pipefail
+          W="${RUNNER_TEMP}/logging-ci"
+          fail() { echo "ADMISSION-INVALID: $1"; exit 1; }
+          kind create cluster --name logging-adm --image \
+          kindest/node:v1.31.2@sha256:18fbefc20a7113353c7b75b5c869d7145a6abd6269154825872dc59c1329912e \
+          >/dev/null
+          trap 'kind delete cluster --name logging-adm >/dev/null 2>&1 || true' EXIT
+          K() { docker exec -i logging-adm-control-plane \
+          kubectl --kubeconfig=/etc/kubernetes/admin.conf "$@"; }
+          K version | grep -q 'Server Version: v1\.31' || fail "need 1.31"
+          curl -fsSL -o "$W/cm.crds.yaml" \
+          https://github.com/cert-manager/cert-manager/releases/download/v1.20.3/cert-manager.crds.yaml
+          printf '%s  %s\n' \
+          8c2aea21520854c8c05f4b39909d0be6e2c1ea71544d5c4e2c4ba4f75a223ccc "$W/cm.crds.yaml" \
+          | sha256sum -c - >/dev/null || fail "cert-manager v1.20.3 CRD digest mismatch"
+          docker cp "$W/cm.crds.yaml" logging-adm-control-plane:/tmp/cm.crds.yaml
+          K apply --server-side -f /tmp/cm.crds.yaml >/dev/null
+          K apply -f - < operators/cert-manager/logging-admission.yaml >/dev/null
+          for pol in logging-certificate logging-certificaterequest logging-clusterissuer logging-csr; do
+          [ "$(K get validatingadmissionpolicy "$pol" \
+                -o jsonpath='{.spec.failurePolicy}')" = Fail ] \
+            || fail "$pol must be failurePolicy Fail"
+          K get validatingadmissionpolicybinding "$pol-binding" \
+            -o jsonpath='{.spec.policyName}{" "}{.spec.validationActions[0]}' \
+            | grep -qx "$pol Deny" || fail "$pol-binding must bind $pol with Deny"
+          done
+          ARGO=system:serviceaccount:argocd:argocd-argocd-application-controller
+          CM=system:serviceaccount:cert-manager:cert-manager
+          U=ci-untrusted
+          for ns in cert-manager logging grafana untrusted; do K create ns "$ns" >/dev/null; done
+          K create clusterrolebinding logging-adm-ci-actors --clusterrole cluster-admin \
+          --user "$ARGO" --user "$CM" --user "$U" >/dev/null
+          umask 077
+          openssl req -new -newkey rsa:2048 -nodes \
+          -subj "/CN=ci-admission-fixture" -keyout "$W/adm.key" -out "$W/adm.csr" \
+          >/dev/null 2>&1
+          python - "$W" <<'EOF'
+          import base64, copy, sys, yaml
+          from pathlib import Path
+          w = Path(sys.argv[1]); adm = w / 'adm'; adm.mkdir(exist_ok=True)
+          F = {}
+          def put(n, *docs): F[n] = yaml.safe_dump_all(list(docs))
+          def cert(path, name):
+            doc = next(d for d in yaml.safe_load_all(Path(path).read_text()) if isinstance(d, dict) and d.get('kind') == 'Certificate' and d['metadata']['name'] == name)
+            doc['metadata'].pop('status', None)
+            return doc
+          pki = [d for d in yaml.safe_load_all( Path('operators/cert-manager/logging-pki.yaml').read_text()) if isinstance(d, dict)]
+          root = next(d for d in pki if d.get('kind') == 'Certificate')
+          loki = cert('workloads/logging/loki/server-certificate.yaml', 'loki-server')
+          alloy = cert('workloads/logging/alloy/client-certificate.yaml', 'alloy-client')
+          graf = cert('workloads/grafana/loki-client-certificate.yaml', 'grafana-loki-client')
+          selfsigned = next(d for d in pki if d.get('kind') == 'ClusterIssuer' and d['metadata']['name'] == 'logging-selfsigned')
+          caissuer = next(d for d in pki if d.get('kind') == 'ClusterIssuer' and d['metadata']['name'] == 'logging-ca')
+          cp = copy.deepcopy
+          put('issuers.yaml', selfsigned, caissuer)
+          put('root.yaml', root); put('loki.yaml', loki)
+          put('alloy.yaml', alloy); put('graf.yaml', graf)
+          put('ci-self.yaml', selfsigned)
+          m = cp(root); m['metadata']['namespace'] = 'logging'
+          put('d-root-in-logging.yaml', m)
+          m = cp(root); m['spec']['privateKey']['rotationPolicy'] = 'Always'
+          put('d-root-always.yaml', m)
+          m = cp(loki); m['metadata']['name'] = m['spec']['commonName'] = 'ci-selfleaf'
+          m['spec']['issuerRef']['name'] = 'logging-selfsigned'
+          put('d-selfsigned-leaf.yaml', m)
+          m = cp(loki); m['metadata']['namespace'] = 'grafana'
+          put('d-loki-wrong-ns.yaml', m)
+          m = cp(caissuer); m['spec']['ca']['secretName'] = 'evil-ca-secret'
+          put('d-ci-ca.yaml', m)
+          m = cp(selfsigned); m['spec'] = {'ca': {'secretName': 'evil-ca-secret'}}
+          put('d-ci-self.yaml', m)
+          def certdict(name, ns, issuer):
+            return {'apiVersion': 'cert-manager.io/v1', 'kind': 'Certificate', 'metadata': {'name': name, 'namespace': ns}, 'spec': {'secretName': name, 'commonName': name, 'issuerRef': issuer}}
+          put('controls.yaml', certdict('ci-unrelated', 'untrusted', {'name': 'unrelated-issuer'}), certdict('ci-other-group', 'untrusted', {'name': 'logging-ca', 'kind': 'ClusterIssuer', 'group': 'other.example.io'}), certdict('logging-root-ca', 'untrusted', {'name': 'unrelated-issuer'}), {'apiVersion': 'cert-manager.io/v1', 'kind': 'Issuer', 'metadata': {'name': 'logging-ca', 'namespace': 'untrusted'}, 'spec': {'selfSigned': {}}})
+          req = base64.b64encode((w / 'adm.csr').read_bytes()).decode()
+          CA = {'name': 'logging-ca', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}
+          SELF = {'name': 'logging-selfsigned', 'kind': 'ClusterIssuer', 'group': 'cert-manager.io'}
+          def crq(name, ns, owner, issuer, usages, isca=None, controller=True):
+            d = {'apiVersion': 'cert-manager.io/v1', 'kind': 'CertificateRequest', 'metadata': {'name': name, 'namespace': ns, 'ownerReferences': [{ 'apiVersion': 'cert-manager.io/v1', 'kind': 'Certificate', 'name': owner, 'controller': controller}]}, 'spec': {'request': req, 'issuerRef': issuer, 'usages': usages}}
+            if isca is not None:
+                d['spec']['isDA'] = isca
+            return d
+          put('cr-loki.yaml', crq('ci-cr-loki', 'logging', 'loki-server', CA, ['server auth']))
+          put('cr-root.yaml', crq('ci-cr-root', 'cert-manager', 'logging-root-ca', SELF, ['signing', 'cert sign', 'crl sign'], isca=True))
+          put('d-cr-noncontrolling.yaml', crq('ci-cr-nc', 'logging', 'loki-server', CA, ['server auth'], controller=False))
+          put('d-cr-wrong-owner.yaml', crq('ci-cr-wo', 'logging', 'grafana-loki-client', CA, ['server auth']))
+          put('d-cr-bad-usages.yaml', crq('ci-cr-bu', 'logging', 'loki-server', CA, ['server auth', 'client auth']))
+          put('d-cr-root-not-ca.yaml', crq('ci-cr-rn', 'cert-manager', 'logging-root-ca', SELF, ['signing'], isca=False))
+          def csr(name, signer):
+            return {'apiVersion': 'certificates.k8s.io/v1', 'kind': 'CertificateSigningRequest', 'metadata': {'name': name}, 'spec': {'request': req, 'signerName': signer, 'usages': ['client auth']}}
+          put('d-csr-ca.yaml', csr('ci-csr-ca', 'clusterissuers.cert-manager.io/logging-ca'))
+          put('d-csr-self.yaml', csr('ci-csr-self', 'clusterissuers.cert-manager.io/logging-selfsigned'))
+          put('c-csr-other.yaml', csr('ci-csr-other', 'kubernetes.io/kube-apiserver-client'))
+          for n, t in F.items(): (adm / n).write_text(t)
+          EOF
+          docker cp "$W/adm" logging-adm-control-plane:/tmp/adm
+          A=/tmp/adm
+          ok() { K "$@" >/dev/null 2>"$W/adm.err" || fail "allow failed: $*"; }
+          denied() {
+          local m="$1"; shift
+          if K "$@" >/dev/null 2>"$W/adm.err"; then
+            fail "no deny: $*"
+          fi
+          grep -q "$m" "$W/adm.err" || fail "wrong deny msg for $*: $(head -c120 "$W/adm.err")"
+          }
+          CERTMSG="Logging PKI Certificates"
+          CRMSG="Logging PKI CertificateRequests"
+          CIMSG="Logging PKI ClusterIssuers"
+          CSRMSG="built-in CertificateSigningRequest path is disabled"
+          for f in issuers root loki alloy graf; do ok --as="$ARGO" create -f "$A/$f.yaml"; done
+          ok --as="$CM" create -f "$A/cr-loki.yaml"
+          ok --as="$CM" create -f "$A/cr-root.yaml"
+          ok --as="$CM" annotate certificaterequest -n logging ci-cr-loki ci=kept
+          ok --as="$U" annotate certificate -n logging loki-server ci=metadata-only
+          ok --as="$U" annotate clusterissuer logging-ca ci=metadata-only
+          ok --as="$U" create -f "$A/controls.yaml"
+          ok --as="$U" create -f "$A/c-csr-other.yaml"
+          ok --as="$U" delete clusterissuer logging-selfsigned
+          denied "$CERTMSG" --as="$U" create -f "$A/loki.yaml"
+          for spec in \
+          '{"spec":{"commonName":"evil.logging.svc"}}' \
+          '{"spec":{"secretName":"evil-secret"}}' \
+          '{"spec":{"usages":["client auth"]}}' \
+          '{"spec":{"isCA":true}}' \
+          '{"spec":{"duration":"4320h"}}' \
+          '{"spec":{"issuerRef":{"name":"unrelated-issuer","kind":"ClusterIssuer","group":"cert-manager.io"}}}'; do
+          denied "$CERTMSG" --as="$U" patch certificate loki-server -n logging \
+            --type=merge -p "$spec"
+          denied "$CERTMSG" --as="$ARGO" patch certificate loki-server -n logging \
+            --type=merge -p "$spec"
+          done
+          denied "$CERTMSG" --as="$ARGO" create -f "$A/d-root-in-logging.yaml"
+          denied "$CERTMSG" --as="$ARGO" create -f "$A/d-root-always.yaml"
+          denied "$CERTMSG" --as="$ARGO" create -f "$A/d-selfsigned-leaf.yaml"
+          denied "$CERTMSG" --as="$ARGO" create -f "$A/d-loki-wrong-ns.yaml"
+          denied "$CIMSG" --as="$U" create -f "$A/ci-self.yaml"
+          ok --as="$ARGO" create -f "$A/ci-self.yaml"
+          denied "$CIMSG" --as="$U" replace -f "$A/d-ci-ca.yaml"
+          denied "$CIMSG" --as="$U" replace -f "$A/d-ci-self.yaml"
+          denied "$CRMSG" --as="$U" create -f "$A/cr-loki.yaml"
+          for f in d-cr-noncontrolling d-cr-wrong-owner d-cr-bad-usages d-cr-root-not-ca; do
+          denied "$CRMSG" --as="$CM" create -f "$A/$f.yaml"
+          done
+          denied "$CSRMSG" --as="$ARGO" create -f "$A/d-csr-ca.yaml"
+          for a in "$ARGO" "$CM" "$U"; do
+          denied "$CSRMSG" --as="$a" create -f "$A/d-csr-self.yaml"
+          done
