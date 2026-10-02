@@ -49,8 +49,9 @@ Source opt-ins remain separate owner-reviewed changes after backend acceptance.
 | Loki chart 18.13.7, app 3.7.8 | Loki Application | Published upstream; pin authored, Application unregistered |
 | Alloy chart 1.13.0, app v1.20.0 | Alloy Application | Published upstream; pin authored, Application unregistered |
 | Native admission policies (5) and bindings (5) | Target API server | Registered in operator desired state; not deployed or verified |
-| Dedicated cert-manager PKI | Workload Certificates | Staged, unregistered; no logging keys generated |
-| Logging overlays | Chart-backed workloads in namespace `logging` | Staged; certificate and monitoring integration |
+| Dedicated cert-manager PKI (5 named Certificate profiles) | Workload Certificates | Staged, unregistered; no logging keys generated |
+| Logging overlays | Chart-backed workloads in namespace `logging` | Staged; server/client Certificates and mTLS metrics integration |
+| Prometheus client Certificate and Loki ServiceMonitor | Cluster Prometheus in `monitoring` | Staged in Loki child overlay; Application still unregistered |
 | Grafana datasource/client Certificate | Main authenticated Grafana | Staged, unregistered; public status Grafana excluded |
 | Reloader chart 2.2.16 | Certificate renewal | Current watch scope unchanged; future `logging` watch patch staged |
 | OpenCode chart, storage, credentials and exporter | OpenCode | Unchanged; no OpenCode log source enabled |
@@ -70,13 +71,17 @@ separate approval gates in both phases.
 
 Loki's native HTTP listener on 3100 requires a client certificate signed by the
 logging CA, including direct service access. There is no public route, gateway
-bypass or assumption that ClusterIP authenticates clients. Both issued client
-certificates are trusted for the single tenant; they are not separate read/write
-authorization roles.
+bypass or assumption that ClusterIP authenticates clients. The three staged
+clients (Alloy, Grafana and Prometheus) are trusted for the single tenant and
+currently all have full read/write access. Prometheus is an observer by intended
+use, not a read-only ACL or separate authorization role. No RBAC or permission
+grant is changed by the metrics integration.
 
 Admission guardrails restrict Certificate creation/spec changes to the Argo
-application-controller identity and fixed profiles. CertificateRequests require
-the cert-manager controller and the matching Certificate owner/profile. Direct
+application-controller identity and five fixed profiles: `logging-root-ca`,
+`loki-server`, `alloy-client`, `grafana-loki-client` and `prometheus-client`.
+CertificateRequests require the cert-manager controller and the matching
+Certificate owner/profile. Direct
 built-in CSR paths for the logging signers are denied. Protected issuer/root
 changes cannot escape via a changed issuer reference. Metadata-only updates use
 deep spec equality, not a mutable generation counter. The policies also close the
@@ -90,14 +95,27 @@ scope. Existing RBAC remains necessary; these controls do not defend against a
 compromised CA controller or administrator able to alter policy/read the CA key.
 
 Only after approved activation does cert-manager generate dedicated keys:
-`logging-root-ca` in `cert-manager`, `loki-server-tls`/`loki-alloy-client` in
-`logging`, and `loki-grafana-client` in `grafana`. No production keys are generated,
+`logging-root-ca` in `cert-manager`, `loki-server-tls`/`loki-alloy-client` and
+`loki-prometheus-client` in `logging`, and `loki-grafana-client` in `grafana`.
+The [Prometheus Certificate](loki/metrics-client-certificate.yaml) is named
+`prometheus-client` in `logging`, with CN `prometheus.logging`, only `client auth`,
+ECDSA P-256, `Always` key rotation, duration `2160h`, renew-before `360h` and
+issuer `logging-ca`. It is referenced only by the staged Loki child overlay;
+this does not register the Loki Application. No production keys are generated,
 retrieved, printed, decrypted or committed by this preparation workflow.
 
 The root lasts ten years and retains its key; root trust migration is manual and
 reviewed, not automatic. Leaf duration is 90 days with key rotation. Alloy mounts
 its client files; Grafana Operator consumes TLS fields through Secret references,
-with verification enabled and selector `dashboards: grafana` only.
+with verification enabled and selector `dashboards: grafana` only. Prometheus
+Operator resolves the ServiceMonitor's TLS Secret references in the
+ServiceMonitor namespace (`logging`), not the Prometheus namespace (`monitoring`),
+and feeds the generated scrape configuration and TLS assets to Prometheus.
+The same-namespace `loki-prometheus-client` references supply `ca.crt`, `tls.crt`
+and `tls.key`; SNI is `loki.logging.svc` and verification is not skipped. Operator
+reconciliation handles this client rather than Reloader; actual generation,
+rotation, propagation and successful scraping remain future live acceptance
+proofs, without Secret-data retrieval.
 
 The staged Reloader patch adds only `logging` to the existing namespace scope,
 without changing chart version or global strategy. Named leaf Secret annotations
@@ -134,11 +152,19 @@ limits.
 
 ## Listeners and privacy
 
-The main HTTP listener is mTLS-only. Internal gRPC, memberlist and the
-single-process ring/frontend worker are loopback-bound. The operational 3101
-listener serves readiness, metrics, build info and ring status, not log query or
-push. Kubernetes probes and the Loki ServiceMonitor use it; Alloy monitoring
-uses 12345. CI and live acceptance must verify this separation.
+The main HTTP listener is mTLS-only on 3100, with
+`server.register_instrumentation: true`. The `loki-metrics` Service selects the
+same chart-rendered Loki pods and exposes `https-metrics` on port/targetPort 3100;
+the Loki ServiceMonitor scrapes HTTPS `/metrics` with the dedicated client above.
+Its job label remains `loki` and existing alerts are retained. Internal gRPC,
+memberlist and the single-process ring/frontend worker are loopback-bound.
+The operational 3101 listener is for Kubernetes `/ready` probes only, not metrics
+or profiling: `internal_server.register_instrumentation: false` keeps `/metrics`
+and `/debug/pprof` (including heap/goroutine) unregistered. Enabling that internal
+flag would expose unauthenticated profiling and is not an acceptable metrics fix.
+No Service exposes 3101; log query/push remain unavailable there. Main profiling
+routes remain behind mTLS. Alloy monitoring uses 12345. CI and live acceptance
+must verify this separation.
 
 Every source requires review and a later Pod-template annotation
 `logging.makeitwork.cloud/approved: "true"`, plus a stable
@@ -162,21 +188,33 @@ collector's permissions.
 The reusable validation workflow is now published: `.github/workflows/test.yml`
 calls `.github/workflows/logging-checks.yml` at the same committed revision; the
 existing test jobs are retained. The reusable workflow is `workflow_call`-only
-with `contents: read` and no Secret exchange. The child workflow is authored and
-committed with the intended controls — strong-TLS oracle plus positive,
-negative, escape and unrelated-resource cases against the real Kind API,
-including ownerUID/client identity checks — but CI has not yet executed on this
-branch and no PR is open; final reviews and passing CI remain required before
+with `contents: read` and no Secret exchange. PR #274 is open. CI run
+[37047181304](https://github.com/makeitworkcloud/kustomize-cluster/actions/runs/37047181304)
+failed: native startup and readiness on 3101 succeeded, but the old expectation
+that `/metrics` on 3101 returned 200 failed with 404. The core fix at
+`d9ff612ad2eca773cff5ce0e4e7f292ebb7344ce` stages metrics behind mTLS on 3100;
+the child checks now follow that contract. This authoring update runs no local
+or native checks and dispatches no workflow. Passing CI for the revised workflow
+is not yet established; final reviews and passing CI remain required before
 calling this branch CI-ready.
 
 The intended checks render pinned Loki, Alloy and prospective Reloader values;
 validate native Alloy/Loki configuration; test synthetic mTLS authorized
-push/query and TLS-level rejection; verify operational-route separation and
-remote RPC refusal; and exercise the real staged source admission guard policies
-(Phase 1) on a native Kind isolated Kubernetes API at version 1.31 with positive,
-negative, escape and unrelated-resource controls — this is not proof of actual
-target policy enforcement. Synthetic CI keys/kubeconfig material must never be
-printed or uploaded.
+push/query and `/metrics` on 3100 after a healthy valid-client anchor; require
+TLS-level rejection for missing/wrong-CA clients on metrics and missing clients
+on main profiling routes; require internal readiness 200 and metrics/profiling,
+query and push 404; and verify remote RPC refusal. Admission checks exercise the
+real staged policies on an isolated native Kind 1.31 API, creating all five
+source Certificate profiles as Argo and constructing cert-manager requests with
+actual fixture Certificate UIDs, including `prometheus-client` in `logging` with
+`logging-ca`, only `client auth` and no CA flag. Prometheus-specific negative
+controls cover wrong Certificate namespace/server usage, untrusted actors and
+request owner type, namespace and usage mismatches. Existing root-alias, escape
+and unrelated-resource controls remain. These checks are not proof of target
+policy enforcement or cert-manager issuance. The policy does not parse CSR
+bytes or resolve owner UIDs against live Certificates; the synthetic fixtures
+use real UIDs but do not prove that resolution or exhaustive cross-profile
+rejection. Synthetic CI keys/kubeconfig material must never be printed or uploaded.
 
 CI does not prove target policy enforcement, cert-manager issuance/renewal,
 real scrape discovery, bound-volume retention, production source safety, disk
