@@ -13,6 +13,15 @@
 # cannot escape the policy by changing its issuerRef away from the logging
 # issuers. "Metadata-only update" is verified by explicit deep spec equality
 # (object.spec == oldObject.spec), not by generation semantics.
+# The ClusterIssuer and namespaced Issuer guards additionally match ANY
+# issuer (not only the approved names) whose spec.ca.secretName references
+# the shared logging-root-ca Secret: an alias issuer of any other name that
+# points at the root CA secret can sign new trusted clients without reading
+# the private key material itself, so it is denied for every actor including
+# Argo CD. Pre-existing aliases cannot be expanded or newly created; a name
+# and secret-reference inventory (no key reads) is required before any future
+# activation. cert-manager resolves cluster resources in its own namespace
+# (--cluster-resource-namespace=$(POD_NAMESPACE), i.e. cert-manager).
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -228,6 +237,14 @@ spec:
         exactly 'client auth'). A forged ownerReference does not help a
         different requester.
 ---
+# ClusterIssuer guard: matches the two approved names AND any ClusterIssuer
+# whose ca.secretName references the shared logging-root-ca Secret (the OLD
+# object too, so an existing object cannot escape by editing away). A
+# differently-named alias that points at logging-root-ca matches the
+# condition but fails the fixed name/scheme validation below, and is denied
+# for every actor including Argo CD: names are immutable, so no profile-valid
+# alias can ever be admitted. Metadata-only (spec deep-equal) updates stay
+# permitted so regular controllers can touch status and bookkeeping.
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -245,7 +262,12 @@ spec:
   matchConditions:
     - name: logging-pki-scope
       expression: >-
-        object.metadata.name == 'logging-selfsigned' || object.metadata.name == 'logging-ca'
+        object.metadata.name == 'logging-selfsigned' || object.metadata.name == 'logging-ca' ||
+        (has(object.spec.ca) && has(object.spec.ca.secretName) &&
+         object.spec.ca.secretName == 'logging-root-ca') ||
+        (request.operation == 'UPDATE' && oldObject != null &&
+         has(oldObject.spec.ca) && has(oldObject.spec.ca.secretName) &&
+         oldObject.spec.ca.secretName == 'logging-root-ca')
   variables:
     - name: isArgo
       expression: >-
@@ -262,10 +284,51 @@ spec:
            has(object.spec.ca.secretName) && object.spec.ca.secretName == 'logging-root-ca')))
       message: >-
         Logging PKI ClusterIssuers: spec create/change requires the Argo CD
-        application controller identity and the fixed scheme
+        application controller identity and the fixed name/scheme
         (selfSigned {} for logging-selfsigned; ca.secretName logging-root-ca
-        for logging-ca); metadata-only updates (spec deep-equal to the old
-        object) stay permitted.
+        for logging-ca); any other ClusterIssuer referencing the shared
+        logging-root-ca Secret is denied for every actor. Metadata-only
+        updates (spec deep-equal to the old object) stay permitted.
+---
+# Namespaced Issuer guard: cert-manager resolves ClusterResourceNamespace
+# resources in its own namespace (cert-manager here), so a namespaced Issuer
+# in namespace cert-manager that sets ca.secretName to logging-root-ca is a
+# root-CA alias that can sign new trusted clients without any private-key
+# read. No legitimate flow uses a namespaced root Issuer, so every CREATE or
+# spec-changing UPDATE of such an alias is denied for every actor; the OLD
+# object is matched so an existing object cannot escape by editing away.
+# Namespaced Issuers in other namespaces with the same secret name reference
+# an unrelated secret and do NOT match; other root references are unaffected.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: logging-issuer
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["cert-manager.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["issuers"]
+  matchConditions:
+    - name: cert-manager-root-ca-alias
+      expression: >-
+        request.namespace == 'cert-manager' &&
+        ((has(object.spec.ca) && has(object.spec.ca.secretName) &&
+          object.spec.ca.secretName == 'logging-root-ca') ||
+         (request.operation == 'UPDATE' && oldObject != null &&
+          has(oldObject.spec.ca) && has(oldObject.spec.ca.secretName) &&
+          oldObject.spec.ca.secretName == 'logging-root-ca'))
+  validations:
+    - expression: "false"
+      message: >-
+        Logging PKI Issuers: a namespaced Issuer in namespace cert-manager
+        that references the shared logging-root-ca Secret is a root-CA alias
+        and is denied for every actor; root issuance flows only through the
+        approved ClusterIssuers (logging-selfsigned, logging-ca).
 ---
 # cert-manager's use of built-in CertificateSigningRequest resources is
 # experimental and not enabled in this deployment; these policies keep the
@@ -326,6 +389,17 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
 spec:
   policyName: logging-clusterissuer
+  validationActions:
+    - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: logging-issuer-binding
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  policyName: logging-issuer
   validationActions:
     - Deny
 ---
