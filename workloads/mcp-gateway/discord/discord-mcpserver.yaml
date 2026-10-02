@@ -1,0 +1,61 @@
+---
+# Staged, unreferenced overlay: no active Kustomization or Application
+# includes it (see README.md). Cluster-reachable unauthenticated read-only
+# endpoint accepted by owner decision 2026-09-29 (trusted-cluster exception).
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: discord
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  image: docker.io/saseq/discord-mcp@sha256:92a5849c282750cf92f96865ca3f0ccad9560f505e6c71e764bae206a9b47a96
+  transport: stdio
+  proxyMode: streamable-http
+  permissionProfile:
+    type: builtin
+    name: network
+  toolConfigRef:
+    name: discord-readonly
+  env:
+    - name: DISCORD_GUILD_ID
+      value: "1540492160103620668"
+    - name: LOGGING_CONFIG
+      value: file:/config/logback.xml
+  secrets:
+    - name: mcp-discord
+      key: token
+      targetEnvName: DISCORD_TOKEN
+  podTemplateSpec:
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: config
+          configMap:
+            name: mcp-discord-logging
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+      containers:
+        - name: mcp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp

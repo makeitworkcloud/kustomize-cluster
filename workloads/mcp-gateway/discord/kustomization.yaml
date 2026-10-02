@@ -1,0 +1,16 @@
+# Staged, unreferenced discord MCP overlay (see README.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - discord-toolconfig.yaml
+  - discord-mcpserver.yaml
+configMapGenerator:
+  - name: mcp-discord-logging
+    namespace: mcp
+    files:
+      - logback.xml
+    options:
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
+configurations:
+  - name-reference.yaml

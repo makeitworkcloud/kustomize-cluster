@@ -1,0 +1,14 @@
+---
+# Staged, unreferenced overlay (see README.md). Wave 0: filter before the MCPServer.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPToolConfig
+metadata:
+  name: discord-readonly
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  toolsFilter:
+    - get_server_info
+    - find_channel
+    - read_messages
