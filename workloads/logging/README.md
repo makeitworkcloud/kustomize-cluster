@@ -19,7 +19,7 @@ Follow [Adding a workload](../../docs/adding-a-workload.md) and
 | [Logging PKI](../../operators/cert-manager/logging-pki.yaml) | Existing cert-manager, then workload Certificates | Changed; issuance asynchronous, not guaranteed by sync waves |
 | [Loki overlay](loki/) / [Alloy overlay](alloy/) | Chart-backed workloads in namespace `logging` | Changed; certificate and monitoring integration |
 | [Loki datasource](../grafana/loki-datasource.yaml) and [client Certificate](../grafana/loki-client-certificate.yaml) | Grafana Operator and the main authenticated Grafana | Changed; independently reconciled by the `grafana` child |
-| Existing Reloader | Loki / Alloy certificate renewal | Operator unchanged; narrowly selected leaf Secret reloads added |
+| Existing Reloader | Loki / Alloy certificate renewal | Chart 2.2.16 and global strategy unchanged; namespace watch list extended to `logging`; narrowly selected leaf Secret reloads added |
 | Existing OpenCode chart, storage, credentials and exporter | OpenCode | Unchanged; no OpenCode log source enabled |
 | Production source opt-ins | Alloy | None in this change; later reviewed source PRs required |
 
@@ -89,8 +89,14 @@ retrieved or committed by this preparation workflow.
 - Reloader selects only the named mounted leaf Secrets. The two Applications
   ignore only the exact controller-generated renewal hash entries and the
   documented renewal annotation, with `RespectIgnoreDifferences=true`. They do
-  not ignore general environment, configuration or Secret changes. The global
-  Reloader strategy is unchanged.
+  not ignore general environment, configuration or Secret changes. The Reloader
+  chart and global reload strategy are unchanged; its namespace watch list is
+  extended from `grafana`/`opencode` to include `logging`. Operators and
+  workloads are independent roots and `logging` is created by the workload
+  Applications' `CreateNamespace`, so the initial Reloader Role apply for the
+  newly watched namespace may retry until that namespace exists. After rollout,
+  verify the Reloader watch Roles and the health of every affected root and
+  child; this interaction is not guaranteed harmless.
 
 [Native Loki authentication](https://grafana.com/docs/loki/latest/operations/authentication/)
 and [Reloader annotations](https://docs.stakater.com/reloader/main/reference/annotations.html)
@@ -100,10 +106,11 @@ rollout must be verified before claiming that rotation works.
 ## Listeners and monitoring
 
 The main HTTP listener is mTLS-only. Internal gRPC binds to loopback, with the
-single-process in-memory ring and frontend worker also using loopback. An
-operational HTTP listener on 3101 serves readiness, metrics, build info and ring
-status, not log query or push routes. CI must test this separation; do not
-broaden that operational listener's routing.
+single-process in-memory ring, frontend worker and the unused memberlist
+listener all bound to loopback as well. An operational HTTP listener on 3101
+serves readiness, metrics, build info and ring status, not log query or push
+routes. CI must test this separation; do not broaden that operational listener's
+routing.
 
 Kubernetes probes use 3101. `loki-internal` and its ServiceMonitor scrape that
 listener with explicit job `loki`; Alloy's chart ServiceMonitor scrapes its own
@@ -113,8 +120,8 @@ source is approved, that ingestion works, or that 30-day history exists.
 ## Source eligibility and privacy
 
 A source requires owner review of its emitted operational payloads and a separate
-GitOps opt-in. Add `logging.makeitwork.cloud/approved: "true"` to the **Pod
- template** of the approved workload, not merely to Deployment metadata.
+GitOps opt-in. Add `logging.makeitwork.cloud/approved: "true"` to the **Pod template**
+of the approved workload, not merely to Deployment metadata.
 
 Alloy requires a stable `app.kubernetes.io/name` label and applies the opt-in
 filter before creating the Kubernetes API log source. Namespaces `opencode`,

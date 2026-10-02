@@ -104,7 +104,14 @@ spec:
                 ring:
                   kvstore:
                     store: inmemory
+              # Memberlist is unused (in-memory ring, no peers) but an empty
+              # join list does NOT disable its listener; bind it to loopback.
+              # The chart always passes -memberlist.advertise-addr=$(POD_IP),
+              # which overrides any config-file advertise_addr, so that key
+              # is intentionally not set here.
               memberlist:
+                bind_addr:
+                  - 127.0.0.1
                 join_members: []
               analytics:
                 reporting_enabled: false
