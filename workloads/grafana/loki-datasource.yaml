@@ -1,0 +1,45 @@
+---
+# Loki datasource for the main Grafana instance: mTLS client authentication
+# via the dedicated logging CA. Selected onto the main Grafana only, via the
+# matching `dashboards: grafana` label. The Grafana operator re-reads the
+# client Secret on datasource reconcile, so renewed leafs need no edits.
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: grafana-loki
+  namespace: grafana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  uid: loki
+  instanceSelector:
+    matchLabels:
+      dashboards: "grafana"
+  datasource:
+    name: Loki
+    type: loki
+    access: proxy
+    isDefault: false
+    url: https://loki.logging.svc:3100
+    jsonData:
+      tlsAuth: true
+      tlsAuthWithCACert: true
+      tlsSkipVerify: false
+      serverName: loki.logging.svc
+      maxLines: 1000
+  valuesFrom:
+    - targetPath: secureJsonData.tlsClientCert
+      valueFrom:
+        secretKeyRef:
+          name: loki-grafana-client
+          key: tls.crt
+    - targetPath: secureJsonData.tlsClientKey
+      valueFrom:
+        secretKeyRef:
+          name: loki-grafana-client
+          key: tls.key
+    - targetPath: secureJsonData.tlsCACert
+      valueFrom:
+        secretKeyRef:
+          name: loki-grafana-client
+          key: ca.crt

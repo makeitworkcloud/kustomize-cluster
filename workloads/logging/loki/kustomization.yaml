@@ -1,0 +1,8 @@
+# Companion manifests for the loki Helm release (workloads/apps/loki-app.yaml).
+# The Loki StatefulSet/Service themselves are rendered by the upstream chart.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - server-certificate.yaml
+  - metrics-client-certificate.yaml
+  - monitoring.yaml

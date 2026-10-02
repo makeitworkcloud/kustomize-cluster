@@ -1,0 +1,230 @@
+---
+# Alloy collector: cluster-wide, opt-in pod log collection via the Kubernetes
+# API (no hostPath, no node journald), pushing to Loki over mTLS.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: alloy
+      targetRevision: 1.13.0
+      helm:
+        releaseName: alloy
+        skipCrds: true
+        values: |
+          fullnameOverride: alloy
+
+          crds:
+            create: false
+
+          global:
+            podSecurityContext:
+              runAsNonRoot: true
+              runAsUser: 473
+              runAsGroup: 473
+              fsGroup: 473
+              seccompProfile:
+                type: RuntimeDefault
+
+          alloy:
+            stabilityLevel: generally-available
+            enableReporting: false
+            storagePath: /var/lib/alloy
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+            mounts:
+              extra:
+                - name: client-tls
+                  mountPath: /etc/alloy/client-tls
+                  readOnly: true
+                - name: storage
+                  mountPath: /var/lib/alloy
+            configMap:
+              content: |
+                // Opt-in cluster log collection. Privacy model (fail closed):
+                //   1. Only pods annotated `logging.makeitwork.cloud/approved: "true"`
+                //      are collected. No production pod carries this annotation yet.
+                //   2. Pods must carry a stable `app.kubernetes.io/name` label.
+                //   3. Namespaces opencode, mcp and arc-runners, and any container
+                //      named "runner", are hard-denied BEFORE any log source runs.
+                //   4. stage.label_keep pins the indexed label set to exactly
+                //      namespace/application/container (+ static cluster label).
+                //      Pod UID/name are only used internally to target the
+                //      Kubernetes API and are never indexed as Loki labels.
+
+                discovery.kubernetes "pods" {
+                  role = "pod"
+                }
+
+                discovery.relabel "approved_pods" {
+                  targets = discovery.kubernetes.pods.targets
+
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_annotation_logging_makeitwork_cloud_approved"]
+                    regex         = "true"
+                    action        = "keep"
+                  }
+
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+                    regex         = ".+"
+                    action        = "keep"
+                  }
+
+                  rule {
+                    source_labels = ["__meta_kubernetes_namespace"]
+                    regex         = "opencode|mcp|arc-runners"
+                    action        = "drop"
+                  }
+
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_container_name"]
+                    regex         = "runner"
+                    action        = "drop"
+                  }
+
+                  rule {
+                    source_labels = ["__meta_kubernetes_namespace"]
+                    target_label  = "namespace"
+                  }
+
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+                    target_label  = "application"
+                  }
+
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_container_name"]
+                    target_label  = "container"
+                  }
+                }
+
+                loki.source.kubernetes "approved_pods" {
+                  targets    = discovery.relabel.approved_pods.output
+                  forward_to = [loki.process.approved_pods.receiver]
+                }
+
+                loki.process "approved_pods" {
+                  forward_to = [loki.write.logging.receiver]
+
+                  stage.label_keep {
+                    values = ["namespace", "application", "container"]
+                  }
+                }
+
+                loki.write "logging" {
+                  endpoint {
+                    url                 = "https://loki.logging.svc:3100/loki/api/v1/push"
+                    batch_wait          = "1s"
+                    batch_size          = "64KiB"
+                    remote_timeout      = "10s"
+                    min_backoff_period  = "500ms"
+                    max_backoff_period  = "30s"
+                    max_backoff_retries = 3
+
+                    tls_config {
+                      ca_file              = "/etc/alloy/client-tls/ca.crt"
+                      cert_file            = "/etc/alloy/client-tls/tls.crt"
+                      key_file             = "/etc/alloy/client-tls/tls.key"
+                      server_name          = "loki.logging.svc"
+                      insecure_skip_verify = false
+                    }
+                  }
+
+                  external_labels = {
+                    cluster = "k3s",
+                  }
+                }
+
+          controller:
+            type: deployment
+            replicas: 1
+            # Reloader reads controller (Deployment) annotations, not pod
+            # annotations. Named-resource pattern: roll ONLY on renewal of
+            # the mounted client TLS secret (config rolls via the chart's own
+            # config-reloader sidecar).
+            extraAnnotations:
+              secret.reloader.stakater.com/reload: "loki-alloy-client"
+            volumes:
+              extra:
+                - name: client-tls
+                  secret:
+                    secretName: loki-alloy-client
+                    defaultMode: 0440
+                - name: storage
+                  emptyDir:
+                    sizeLimit: 256Mi
+
+          # Minimal RBAC: pod discovery and pod log reads only.
+          # rbac.rules and rbac.clusterRules must BOTH be non-empty with the
+          # pinned chart 1.13.0: its ClusterRole template appends
+          # `rbac.rules | toYaml` AND `clusterRules | toYaml` into one list,
+          # so an empty clusterRules renders a standalone `[]` after the rule
+          # items and breaks YAML parsing. With rbac.namespaces empty the two
+          # lists merge into a single ClusterRole, so the split below grants
+          # exactly the same permissions as one combined list. Ref:
+          # https://github.com/grafana/alloy/blob/helm-chart/1.13.0/operations/helm/charts/alloy/templates/rbac.yaml
+          rbac:
+            create: true
+            rules:
+              - apiGroups: [""]
+                resources: ["pods/log"]
+                verbs: ["get"]
+            clusterRules:
+              - apiGroups: [""]
+                resources: ["pods"]
+                verbs: ["get", "list", "watch"]
+
+          serviceAccount:
+            create: true
+            name: alloy
+
+          # Scrapes Alloy's own metrics via the chart Service port
+          # http-metrics (12345); Prometheus job label = Service name "alloy".
+          serviceMonitor:
+            enabled: true
+            additionalLabels:
+              release: kube-prometheus-stack
+    - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
+      targetRevision: main
+      path: workloads/logging/alloy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  # Controller-generated fields on TLS renewal must not register as drift:
+  # with the env-vars strategy Reloader injects STAKATER_LOKI_ALLOY_CLIENT_SECRET
+  # (SHA1 of the secret data) into the mounting container; with the
+  # annotations strategy it stamps last-reloaded-from on the pod template.
+  # Nothing else is ignored.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: alloy
+      namespace: logging
+      jqPathExpressions:
+        - '.spec.template.spec.containers[] | select(.name == "alloy") | .env[] | select(.name == "STAKATER_LOKI_ALLOY_CLIENT_SECRET")'
+        - '.spec.template.metadata.annotations["reloader.stakater.com/last-reloaded-from"]'
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        maxDuration: 5m
+        factor: 2

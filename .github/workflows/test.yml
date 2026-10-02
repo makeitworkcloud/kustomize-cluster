@@ -1474,3 +1474,8 @@ jobs:
           test -f /app/package.json
           test -d /app/node_modules/discord.js
           test ! -d /app/node_modules/.bin/vitest
+
+  ci-logging:
+    uses: ./.github/workflows/logging-checks.yml
+    permissions:
+      contents: read

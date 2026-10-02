@@ -1,5 +1,8 @@
-# Reloader is scoped to the Grafana and OpenCode namespaces and restarts only
-# workloads that explicitly opt into a named Secret reload annotation.
+# Reloader is scoped to the Grafana and OpenCode namespaces and restarts
+# only workloads that explicitly opt into a named Secret reload annotation.
+# Watching the logging namespace is staged but intentionally inactive:
+# activation applies operators/reloader/logging-watch-patch.yaml in the
+# later logging activation PR.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

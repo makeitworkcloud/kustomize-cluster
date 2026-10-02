@@ -1,6 +1,9 @@
 ---
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+# loki-app.yaml and alloy-app.yaml stay authored but intentionally
+# unregistered until the logging activation PR (after native admission deny
+# proof); see workloads/logging/README.md.
 resources:
   - wait-for-crds.yaml
   - argocd-proxy-app.yaml

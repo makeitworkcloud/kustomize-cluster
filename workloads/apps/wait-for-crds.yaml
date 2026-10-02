@@ -47,6 +47,8 @@ spec:
                 mcpgroups.toolhive.stacklok.dev
                 virtualmcpservers.toolhive.stacklok.dev
                 mcpexternalauthconfigs.toolhive.stacklok.dev
+                certificates.cert-manager.io
+                clusterissuers.cert-manager.io
               )
 
               for crd in "${CRDS[@]}"; do

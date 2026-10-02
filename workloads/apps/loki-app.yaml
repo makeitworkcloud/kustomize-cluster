@@ -1,0 +1,283 @@
+---
+# Loki log aggregation (Monolithic) for opt-in cluster logging.
+# Helm source renders the pinned upstream chart; the git source applies the
+# companion manifests under workloads/logging/loki.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  sources:
+    - repoURL: https://grafana-community.github.io/helm-charts
+      chart: loki
+      targetRevision: 18.13.7
+      helm:
+        releaseName: loki
+        skipCrds: true
+        values: |
+          deploymentMode: Monolithic
+          fullnameOverride: loki
+
+          write:
+            replicas: 0
+          read:
+            replicas: 0
+          backend:
+            replicas: 0
+
+          # No gateway/reverse proxy: clients reach Loki directly on the
+          # mTLS-protected port 3100.
+          gateway:
+            enabled: false
+          ingress:
+            enabled: false
+
+          minio:
+            enabled: false
+          rollout_operator:
+            enabled: false
+          chunksCache:
+            enabled: false
+          resultsCache:
+            enabled: false
+          lokiCanary:
+            enabled: false
+          test:
+            enabled: false
+
+          # Chart ServiceMonitor is disabled; metrics are scraped from the
+          # mTLS port 3100 via companion manifests (workloads/logging/loki)
+          # using the dedicated prometheus-client certificate instead.
+          monitoring:
+            dashboards:
+              enabled: false
+            rules:
+              enabled: false
+            alerts:
+              enabled: false
+            serviceMonitor:
+              enabled: false
+            selfMonitoring:
+              enabled: false
+              grafanaAgent:
+                installOperator: false
+
+          loki:
+            storage:
+              type: filesystem
+            server:
+              http_listen_port: 3100
+              grpc_listen_port: 9095
+            # The pinned chart's calculatedConfig helper MERGES config
+            # sources - mergeOverwrite(fromYaml(tpl(.Values.loki.config)),
+            # .Values.loki.structuredConfig) - loki chart 18.13.7, exact
+            # source:
+            # https://github.com/grafana-community/helm-charts/blob/loki-18.13.7/charts/loki/templates/_helpers.tpl
+            # structuredConfig alone therefore does NOT replace the
+            # chart-default loki.config: unreviewed upstream defaults would
+            # be merged into the rendered ConfigMap. Setting loki.config to
+            # the vendor-supported template below derives both the
+            # unstructured and structured sources from this one canonical
+            # reviewed map, so the merged render is exactly structuredConfig
+            # (no extra upstream default fields, no duplicated literal).
+            # Neither the template nor structuredConfig contains ${ENV}
+            # interpolation strings, so the chart's -config.expand-env=true
+            # flag cannot alter any rendered value.
+            config: '{{- toYaml .Values.loki.structuredConfig -}}'
+            # structuredConfig is the complete reviewed native Loki config.
+            structuredConfig:
+              # Authentication is the mTLS client certificate below; Loki
+              # multi-tenancy stays off behind the TLS boundary.
+              auth_enabled: false
+              server:
+                http_listen_address: 0.0.0.0
+                http_listen_port: 3100
+                grpc_listen_address: 127.0.0.1
+                grpc_listen_port: 9095
+                log_level: info
+                # register_instrumentation defaults to true on the main
+                # server and is pinned explicitly here: /metrics is wanted
+                # on the mTLS port 3100 (RequireAndVerifyClientCert below)
+                # for the Prometheus client-certificate scrape.
+                register_instrumentation: true
+                http_tls_config:
+                  cert_file: /etc/loki/server-tls/tls.crt
+                  key_file: /etc/loki/server-tls/tls.key
+                  client_ca_file: /etc/loki/server-tls/ca.crt
+                  client_auth_type: RequireAndVerifyClientCert
+              # Native operational-only listener: ready/buildinfo/rings, no
+              # log query/push API (Loki docs, internal_server).
+              # register_instrumentation: false is mandatory on 3101: for
+              # the internal server this single flag gates BOTH /metrics
+              # AND /debug/pprof (pinned Loki 3.7.8 vendor server.go), and
+              # 3101 has no TLS/client auth, so instrumenting it would
+              # expose unauthenticated profiling. Probes use /ready only.
+              internal_server:
+                enable: true
+                register_instrumentation: false
+                http_listen_address: 0.0.0.0
+                http_listen_port: 3101
+              common:
+                instance_addr: 127.0.0.1
+                path_prefix: /var/loki
+                replication_factor: 1
+                storage:
+                  filesystem:
+                    chunks_directory: /var/loki/chunks
+                    rules_directory: /var/loki/rules
+                ring:
+                  kvstore:
+                    store: inmemory
+              # Memberlist is unused (in-memory ring, no peers) but an empty
+              # join list does NOT disable its listener; bind it to loopback.
+              # The chart always passes -memberlist.advertise-addr=$(POD_IP),
+              # which overrides any config-file advertise_addr, so that key
+              # is intentionally not set here.
+              memberlist:
+                bind_addr:
+                  - 127.0.0.1
+                join_members: []
+              analytics:
+                reporting_enabled: false
+              storage_config:
+                tsdb_shipper:
+                  active_index_directory: /var/loki/tsdb-index
+                  cache_location: /var/loki/tsdb-cache
+                filesystem:
+                  directory: /var/loki/chunks
+              schema_config:
+                configs:
+                  - from: "2025-01-01"
+                    store: tsdb
+                    object_store: filesystem
+                    schema: v13
+                    index:
+                      prefix: loki_index_
+                      period: 24h
+              compactor:
+                working_directory: /var/loki/compactor
+                compaction_interval: 10m
+                retention_enabled: true
+                retention_delete_delay: 2h
+                retention_delete_worker_count: 150
+                delete_request_store: filesystem
+              ingester:
+                wal:
+                  enabled: true
+                  dir: /var/loki/wal
+              ruler:
+                rule_path: /var/loki/rules-tmp
+              frontend_worker:
+                frontend_address: 127.0.0.1:9095
+              querier:
+                max_concurrent: 4
+              limits_config:
+                # 30-day retention target is nominal: the 100Gi PVC is not a
+                # quota and node-local storage is the real ceiling.
+                retention_period: 720h
+                max_query_lookback: 720h
+                split_queries_by_interval: 24h
+                ingestion_rate_mb: 0.02
+                ingestion_burst_size_mb: 1
+                # Byte-size fields below are unitless integer BYTES: Loki's
+                # flagext.ByteSize parser rejects KiB/MiB suffixes
+                # (`loki -verify-config` fails with
+                # `strconv.UnmarshalText: parsing "4KIB": invalid syntax`),
+                # unlike Alloy's Base2Bytes which accepts them. Exact byte
+                # values: 20480 = 20KiB, 1048576 = 1MiB, 4096 = 4KiB.
+                per_stream_rate_limit: 20480
+                per_stream_rate_limit_burst: 1048576
+                max_streams_per_user: 1000
+                max_line_size: 4096
+                max_entries_limit_per_query: 5000
+                max_query_series: 500
+                reject_old_samples: true
+                reject_old_samples_max_age: 168h
+
+          singleBinary:
+            replicas: 1
+            # Reloader reads controller (StatefulSet) annotations, not pod
+            # annotations. Named-resource pattern: roll ONLY on renewal of
+            # the mounted server TLS secret (config rolls via the chart's own
+            # config-checksum annotation).
+            annotations:
+              secret.reloader.stakater.com/reload: "loki-server-tls"
+            persistence:
+              enabled: true
+              size: 100Gi
+              storageClass: local-path
+              enableStatefulSetAutoDeletePVC: true
+              whenDeleted: Retain
+              whenScaled: Retain
+              annotations:
+                argocd.argoproj.io/sync-options: Prune=false,Delete=false
+            extraVolumes:
+              - name: server-tls
+                secret:
+                  secretName: loki-server-tls
+                  defaultMode: 0440
+            extraVolumeMounts:
+              - name: server-tls
+                mountPath: /etc/loki/server-tls
+                readOnly: true
+            startupProbe:
+              httpGet:
+                path: /ready
+                port: 3101
+                scheme: HTTP
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 60
+            readinessProbe:
+              httpGet:
+                path: /ready
+                port: 3101
+                scheme: HTTP
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+            livenessProbe:
+              httpGet:
+                path: /ready
+                port: 3101
+                scheme: HTTP
+              periodSeconds: 30
+              timeoutSeconds: 5
+              failureThreshold: 3
+    - repoURL: https://github.com/makeitworkcloud/kustomize-cluster.git
+      targetRevision: main
+      path: workloads/logging/loki
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  # Controller-generated fields on TLS renewal must not register as drift:
+  # with the env-vars strategy Reloader injects STAKATER_LOKI_SERVER_TLS_SECRET
+  # (SHA1 of the secret data) into the mounting container; with the
+  # annotations strategy it stamps last-reloaded-from on the pod template.
+  # Nothing else is ignored.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: loki
+      namespace: logging
+      jqPathExpressions:
+        - '.spec.template.spec.containers[] | select(.name == "loki") | .env[] | select(.name == "STAKATER_LOKI_SERVER_TLS_SECRET")'
+        - '.spec.template.metadata.annotations["reloader.stakater.com/last-reloaded-from"]'
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        maxDuration: 5m
+        factor: 2
