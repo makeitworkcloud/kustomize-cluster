@@ -158,14 +158,13 @@ jobs:
                     "%s jobName must match the Probe name" % name)
               check(spec.get("prober") == {
                   "path": "/probe", "url": "blackbox-exporter.grafana.svc:9115"},
-                  "%s prober must be blackbox-exporter.grafana.svc:9115 /probe" % name)
+                    "%s prober must be blackbox-exporter.grafana.svc:9115 /probe" % name)
               static_cfg = spec["targets"]["staticConfig"]
               check(static_cfg["static"] == [url],
                     "%s target must be exactly %s" % (name, url))
               check(static_cfg.get("labels") == {
                   "application": "opencode", "probe_path": path_label},
-                  "%s target labels must be application=opencode probe_path=%s"
-                  % (name, path_label))
+                    "%s target labels must be application=opencode probe_path=%s" % (name, path_label))
 
           dash_doc = yaml.safe_load(
               Path("workloads/grafana/opencode-dashboard.yaml").read_text())
@@ -181,7 +180,7 @@ jobs:
           check(sorted(ids) == list(range(1, 23)),
                 "dashboard must contain exactly panels 1..22")
           grid = [(p["gridPos"]["x"], p["gridPos"]["y"],
-                   p["gridPos"]["w"], p["gridPos"]["h"]) for p in panels]
+                  p["gridPos"]["w"], p["gridPos"]["h"]) for p in panels]
           check(len(grid) == len(set(grid)),
                 "dashboard panel grid positions must be unique")
           for p in panels:
@@ -241,11 +240,13 @@ jobs:
               "opencode_session_usage_scan_pages opencode_session_usage_scan_duration_seconds"
           ).split())
 
-          def build_module():
+          def build_module(extra_env=None):
               module = types.ModuleType("exporter_under_test")
               env = {"SESSION_LIST_LIMIT": "1000", "MAX_USAGE_SCAN_PAGES": "20",
                      "MAX_USAGE_SCAN_SESSIONS": "10000", "USAGE_SCAN_TIMEOUT_SECONDS": "15",
                      "MAX_RESPONSE_BYTES": "4194304", "REQUEST_TIMEOUT_SECONDS": "5"}
+              if extra_env:
+                  env.update(extra_env)
               with mock.patch.dict(os.environ, env):
                   exec(compile(EXPORTER_SOURCE, "exporter.py", "exec"), module.__dict__)
               return module
@@ -278,6 +279,16 @@ jobs:
                   filtered = [r for r in self.rows if cursor is None or r["time"]["updated"] < cursor]
                   page = [dict(r) for r in filtered[:limit]]
                   return page, (str(page[-1]["time"]["updated"]) if len(filtered) > limit else None)
+
+          class FakeV2UsageApi:
+              def __init__(self, pages):
+                  self.pages = list(pages)
+                  self.calls = []
+              def __call__(self, limit, cursor, budget_check):
+                  self.calls.append((limit, cursor))
+                  if self.pages:
+                      return self.pages.pop(0)
+                  return [], None
 
           class StaticResponse:
               def __init__(self, body, status=200, headers=None):
@@ -629,13 +640,163 @@ jobs:
                   self.assertEqual(names, METRIC_NAMES)
                   self.assertEqual(labels, {"kind", "state"})
 
+          class ExporterV2TestCase(unittest.TestCase):
+              def setUp(self):
+                  self.module = build_module({"OPENCODE_API_VERSION": "2"})
+                  self.clock = FakeClock()
+                  self.module.time = self.clock
+                  self.real_fetch_usage_page_v2 = self.module.fetch_usage_page_v2
+              def scan(self, api):
+                  self.module.fetch_usage_page_v2 = api
+                  self.module.poll_usage()
+                  return self.module.state
+              def seed(self):
+                  self.scan(FakeV2UsageApi([
+                      ([make_row("synthetic-v2-seed-a", 1400000000500, input=5)], "cursor-seed"),
+                      ([], None)]))
+                  return snapshot(self.module)
+              def assert_down(self, state, before, truncated, errors):
+                  self.assertEqual((state["usage_up"], state["usage_scan_truncated"],
+                                    state["usage_scan_errors"]), (0, truncated, errors))
+                  self.assertEqual(snapshot(self.module), before)
+
+          class TestV2Paging(ExporterV2TestCase):
+              def test_pages_terminate_on_empty_page_then_delta(self):
+                  base = 1700000000000
+                  rows = [make_row("synthetic-v2-%04d" % i, base + i,
+                                   project_id="proj-alpha" if i % 2 else "proj-beta")
+                          for i in range(1501)]
+                  api = FakeV2UsageApi([(rows[:1000], "cursor-b"),
+                                        (rows[1000:], "cursor-c"),
+                                        ([], None)])
+                  state = self.scan(api)
+                  self.assertEqual((state["usage_up"], state["usage_scan_pages"],
+                                    state["usage_sessions"], state["usage_projects"],
+                                    sum(state["usage_totals"].values())), (1, 3, 1501, 2, 0.0))
+                  self.assertEqual([(limit, cursor) for limit, cursor in api.calls],
+                                   [(1000, None), (1000, "cursor-b"), (1000, "cursor-c")])
+                  grown = [make_row("synthetic-v2-%04d" % i, base + 10000 + i, input=3)
+                           for i in range(1501)]
+                  grown.append(make_row("synthetic-v2-new", base + 20000, input=10 ** 9))
+                  self.clock.wall += 30.0
+                  state = self.scan(FakeV2UsageApi([(grown[:1000], "cursor-d"),
+                                                    (grown[1000:], "cursor-e"),
+                                                    ([], None)]))
+                  self.assertEqual((state["usage_totals"]["input"], state["usage_sessions"]),
+                                   (1501 * 3, 1502))
+              def test_first_page_empty_is_valid_complete_scan(self):
+                  state = self.scan(FakeV2UsageApi([]))
+                  self.assertEqual((state["usage_up"], state["usage_scan_pages"],
+                                    state["usage_sessions"]), (1, 1, 0))
+              def test_duplicate_session_across_pages_counts_once(self):
+                  row = make_row("synthetic-v2-dup", 1600000000000, input=7)
+                  state = self.scan(FakeV2UsageApi([([row], "cursor-b"),
+                                                    ([dict(row)], "cursor-c"),
+                                                    ([], None)]))
+                  self.assertEqual((state["usage_sessions"], state["usage_scan_pages"],
+                                    sum(state["usage_totals"].values())), (1, 3, 0.0))
+
+          class TestV2ProtocolFailures(ExporterV2TestCase):
+              def test_envelope_and_row_failures_error_atomic(self):
+                  row = make_row("synthetic-v2-x", 1500)
+                  payloads = [
+                      ("payload-not-object", []),
+                      ("data-not-list", {"data": {}, "cursor": {}}),
+                      ("missing-cursor", {"data": []}),
+                      ("next-on-empty-page", {"data": [], "cursor": {"next": "cursor-b"}}),
+                      ("missing-next-on-nonempty-page", {"data": [row], "cursor": {}}),
+                      ("empty-cursor", {"data": [row], "cursor": {"next": ""}}),
+                      ("non-string-cursor", {"data": [row], "cursor": {"next": 7}}),
+                      ("iso-timestamp-row", {"data": [dict(row, time={"updated": "2024-01-01T00:00:00Z"})],
+                                             "cursor": {"next": "cursor-b"}}),
+                      ("page-over-limit", {"data": [make_row("synthetic-v2-%04d" % i, 2000 - i)
+                                                     for i in range(1001)],
+                                           "cursor": {"next": "cursor-b"}}),
+                  ]
+                  for name, payload in payloads:
+                      with self.subTest(case=name):
+                          self.setUp()
+                          before = self.seed()
+                          self.module.fetch_usage_page_v2 = self.real_fetch_usage_page_v2
+                          self.module.usage_opener = RecordingOpener(
+                              StaticResponse(json.dumps(payload).encode()))
+                          self.module.poll_usage()
+                          self.assert_down(self.module.state, before, 0, 1)
+                  with self.subTest(case="malformed-json"):
+                      self.setUp()
+                      before = self.seed()
+                      self.module.fetch_usage_page_v2 = self.real_fetch_usage_page_v2
+                      self.module.usage_opener = RecordingOpener(StaticResponse(b"{"))
+                      self.module.poll_usage()
+                      self.assert_down(self.module.state, before, 0, 1)
+              def test_cursor_cycle_fails_closed(self):
+                  before = self.seed()
+                  row = make_row("synthetic-v2-cycle", 1300000000000)
+                  state = self.scan(FakeV2UsageApi([([row], "cursor-loop"),
+                                                    ([dict(row)], "cursor-loop")]))
+                  self.assert_down(state, before, 0, 1)
+              def test_second_page_failure_atomic(self):
+                  before = self.seed()
+                  calls = []
+                  def fail_on_second(limit, cursor, budget_check):
+                      calls.append(1)
+                      if len(calls) > 1:
+                          raise RuntimeError("synthetic failure")
+                      return [make_row("synthetic-v2-a", 1400000000600, input=5)], "cursor-c"
+                  self.assert_down(self.scan(fail_on_second), before, 0, 1)
+              def test_page_bound_incomplete_atomic(self):
+                  self.module.MAX_USAGE_SCAN_PAGES = 2
+                  before = self.seed()
+                  row = make_row("synthetic-v2-p", 1400000000700)
+                  state = self.scan(FakeV2UsageApi([([row], "cursor-x"),
+                                                    ([dict(row)], "cursor-y"),
+                                                    ([], None)]))
+                  self.assert_down(state, before, 1, 0)
+
+          class TestV2Active(ExporterV2TestCase):
+              def test_running_maps_busy_and_retry_series_omitted(self):
+                  def fake_fetch_json(url):
+                      self.assertTrue(url.endswith("/api/session/active"))
+                      return {"data": {"synthetic-run-a": {"type": "running"},
+                                       "synthetic-run-b": {"type": "running"}}}
+                  self.module.fetch_json = fake_fetch_json
+                  self.module.poll_status()
+                  self.assertEqual((self.module.state["up"], self.module.state["busy"],
+                                    self.module.state["retry"]), (1, 2, 0))
+                  body = self.module.metrics_body().decode()
+                  self.assertIn('opencode_active_sessions{state="busy"} 2', body)
+                  self.assertNotIn('state="retry"', body)
+                  for forbidden in ("synthetic-run", "Basic "):
+                      self.assertNotIn(forbidden, body)
+              def test_unexpected_active_state_fails_closed(self):
+                  self.module.fetch_json = lambda url: {"data": {"synthetic-idle": {"type": "idle"}}}
+                  self.module.poll_status()
+                  self.assertEqual((self.module.state["up"], self.module.state["busy"],
+                                    self.module.state["poll_errors"]), (0, 0, 1))
+              def test_invalid_api_version_fails_closed_at_startup(self):
+                  with self.assertRaises(RuntimeError):
+                      build_module({"OPENCODE_API_VERSION": "3"})
+
+          class TestV2Guards(ExporterV2TestCase):
+              def test_v2_url_and_basic_auth_shape(self):
+                  self.module.usage_opener = RecordingOpener(StaticResponse(
+                      json.dumps({"data": [], "cursor": {}}).encode()))
+                  self.module.poll_usage()
+                  url, headers = self.module.usage_opener.requests[0]
+                  self.assertEqual(url, "http://opencode.opencode.svc:4096/api/session?limit=1000")
+                  authorization = {k.lower(): v for k, v in headers.items()}.get("authorization", "")
+                  self.assertTrue(authorization.startswith("Basic "))
+                  self.assertEqual((self.module.state["usage_up"],
+                                    self.module.state["usage_sessions"]), (1, 0))
+
           class TestContracts(unittest.TestCase):
               def test_deployment_and_checksum_contract(self):
                   container = next(c for c in DEPLOYMENT["spec"]["template"]["spec"]["containers"]
                                    if c["name"] == "exporter")
                   env = {item["name"]: item.get("value")
                          for item in container["env"] if "value" in item}
-                  for name, value in (("SESSION_LIST_LIMIT", "1000"),
+                  for name, value in (("OPENCODE_API_VERSION", "1"),
+                                      ("SESSION_LIST_LIMIT", "1000"),
                                       ("REQUEST_TIMEOUT_SECONDS", "5"),
                                       ("MAX_USAGE_SCAN_PAGES", "20"),
                                       ("MAX_USAGE_SCAN_SESSIONS", "10000"),
@@ -750,7 +911,7 @@ jobs:
           source = copy.deepcopy(exporter)
           pod_ann = source["spec"]["template"]["metadata"].setdefault("annotations", {})
           pod_ann[sentinel_key] = "sentinel"
-          expected = dict(pod_ann) | {revision_key: "token-telemetry-v1"}
+          expected = dict(pod_ann) | {revision_key: "token-telemetry-v2"}
           tmp, rendered, control = render(source)
           got = rendered.get("opencode-session-metrics")
           check(got is not None, "exporter Deployment missing from rendered overlay")
@@ -772,7 +933,7 @@ jobs:
           tmp, rendered, _ = render(bare)
           got = rendered.get("opencode-session-metrics")
           check(got is not None and got["spec"]["template"]["metadata"].get("annotations")
-                == {revision_key: "token-telemetry-v1"},
+                == {revision_key: "token-telemetry-v2"},
                 "patch must create the annotations map when absent")
           tmp.cleanup()
           if errors:
