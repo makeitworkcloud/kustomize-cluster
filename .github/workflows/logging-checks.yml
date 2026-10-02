@@ -783,7 +783,7 @@ jobs:
           def crq(name, ns, owner, issuer, usages, isca=None, controller=True):
             d = {'apiVersion': 'cert-manager.io/v1', 'kind': 'CertificateRequest', 'metadata': {'name': name, 'namespace': ns, 'ownerReferences': [{ 'apiVersion': 'cert-manager.io/v1', 'kind': 'Certificate', 'name': owner, 'controller': controller}]}, 'spec': {'request': req, 'issuerRef': issuer, 'usages': usages}}
             if isca is not None:
-                d['spec']['isDA'] = isca
+                d['spec']['isCA'] = isca
             return d
           put('cr-loki.yaml', crq('ci-cr-loki', 'logging', 'loki-server', CA, ['server auth']))
           put('cr-root.yaml', crq('ci-cr-root', 'cert-manager', 'logging-root-ca', SELF, ['signing', 'cert sign', 'crl sign'], isca=True))
