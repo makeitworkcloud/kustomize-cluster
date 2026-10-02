@@ -198,17 +198,20 @@ selected.
 
 V2 rollout gate (owner-approved 2026-10-02): the rollout branch couples the
 selector flip (`OPENCODE_API_VERSION: "2"`) with the `opencode` Application
-pin to chart `opencode-server 0.5.0` in one reviewed commit, so a single main
-sync rolls the server and the exporter protocol selection together. The
-exporter source still supports protocol 1 and its in-code default remains 1;
-the deployed selector is now 2, and the earlier manual-flip sequencing note
-is retired as historical. The generated chart updater will find this branch
-already carrying the 0.5.0 pin and reuse the pre-existing draft pull request
-coupled here before charts pull request #123 merges and publishes producer
-2.0.22 as chart 0.5.0, so the updater race is prevented rather than trusted.
-Chart publication of 0.5.0 is not yet done — the live cluster still runs
-0.4.8 — and no other future gate is claimed beyond the normal repository CI.
-The owner explicitly waived backup/restore for this rollout on 2026-10-02:
-no verified recovery guarantee exists, and the untested OAuth seed-rotation
-compatibility risk is accepted. After rollout, re-run the exporter
-verification above and expect the absent `retry` series.
+pin to chart `opencode-server 0.5.0` in one reviewed PR/merge selecting both
+desired versions; Application/resource reconciliation is not atomic or
+ordered by Git coupling, a temporary version mismatch may fail the polls
+closed, and the server and exporter must be verified separately after
+rollout. The exporter source still supports protocol 1 and its in-code
+default remains 1; the deployed selector is now 2, and the earlier
+manual-flip sequencing note is retired as historical. The generated chart
+updater will find this branch already carrying the 0.5.0 pin and reuse the
+pre-existing draft pull request coupled here before charts pull request #123
+merges and publishes producer 2.0.22 as chart 0.5.0, so the updater race is
+prevented rather than trusted. Chart publication of 0.5.0 is not yet done —
+the live cluster still runs 0.4.8 — and no other future gate is claimed
+beyond the normal repository CI. The owner explicitly waived backup/restore
+for this rollout on 2026-10-02: no verified recovery guarantee exists, and
+the untested OAuth seed-rotation compatibility risk is accepted. After
+rollout, re-run the exporter verification above and expect the absent
+`retry` series.

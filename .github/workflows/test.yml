@@ -908,6 +908,12 @@ jobs:
                   digest = hashlib.sha256(EXPORTER_SOURCE.encode("utf-8")).hexdigest()
                   self.assertEqual(annotations.get("checksum/opencode-session-metrics"), digest,
                                    "checksum/opencode-session-metrics must equal sha256 of exporter.py")
+              def test_chart_pin_and_selector_coupled(self):
+                  app = yaml.safe_load(Path("workloads/apps/opencode-app.yaml").read_text())
+                  chart = next(s for s in app["spec"]["sources"] if s.get("chart") == "opencode-server")
+                  selector = next(e["value"] for e in DEPLOYMENT["spec"]["template"]["spec"]["containers"][0]["env"]
+                                  if e["name"] == "OPENCODE_API_VERSION")
+                  self.assertEqual((chart["targetRevision"], selector), ("0.5.0", "2"))
               def test_dashboard_gates_uid_and_panel17_restored(self):
                   document = yaml.safe_load(
                       Path("workloads/grafana/opencode-dashboard.yaml").read_text())
