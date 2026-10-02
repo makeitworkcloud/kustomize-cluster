@@ -150,9 +150,11 @@ spec:
             type: deployment
             replicas: 1
             # Reloader reads controller (Deployment) annotations, not pod
-            # annotations: roll on mounted client TLS secret renewal.
+            # annotations. Named-resource pattern: roll ONLY on renewal of
+            # the mounted client TLS secret (config rolls via the chart's own
+            # config-reloader sidecar).
             extraAnnotations:
-              reloader.stakater.com/auto: "true"
+              secret.reloader.stakater.com/reload: "loki-alloy-client"
             volumes:
               extra:
                 - name: client-tls
@@ -191,16 +193,18 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: logging
-  # Reloader (controller reloadStrategy=annotations) stamps the system-managed
-  # reloader.stakater.com/last-reloaded-from annotation onto the pod template
-  # when a mounted TLS secret renews; ArgoCD must not treat that legitimate
-  # controller-generated annotation as drift. Nothing else is ignored.
+  # Controller-generated fields on TLS renewal must not register as drift:
+  # with the env-vars strategy Reloader injects STAKATER_LOKI_ALLOY_CLIENT_SECRET
+  # (SHA1 of the secret data) into the mounting container; with the
+  # annotations strategy it stamps last-reloaded-from on the pod template.
+  # Nothing else is ignored.
   ignoreDifferences:
     - group: apps
       kind: Deployment
       name: alloy
       namespace: logging
       jqPathExpressions:
+        - '.spec.template.spec.containers[] | select(.name == "alloy") | .env[] | select(.name == "STAKATER_LOKI_ALLOY_CLIENT_SECRET")'
         - '.spec.template.metadata.annotations["reloader.stakater.com/last-reloaded-from"]'
   syncPolicy:
     automated:
