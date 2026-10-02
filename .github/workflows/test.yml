@@ -1347,9 +1347,11 @@ jobs:
                                    ("app.kubernetes.io/instance", "loki"),
                                    ("app.kubernetes.io/component", "single-binary")):
                   check(pod_labels.get(label) == value, "pod label %s=%s" % (label, value))
-              check(sts["metadata"].get("annotations", {}).get("reloader.stakater.com/auto") == "true",
-                    "StatefulSet must carry reloader.stakater.com/auto so mounted leaf TLS "
-                    "secret renewals roll the controller")
+              sts_annotations = sts["metadata"].get("annotations", {})
+              check(sts_annotations.get("secret.reloader.stakater.com/reload") == "loki-server-tls",
+                    "StatefulSet must scope Reloader to the named server TLS secret only")
+              check("reloader.stakater.com/auto" not in sts_annotations,
+                    "StatefulSet must not opt into Reloader's broad auto reload")
               loki_container = next((c for c in sts["spec"]["template"]["spec"]["containers"]
                                      if c["name"] == "loki"), None)
               check(loki_container is not None, "loki container missing")
@@ -1455,9 +1457,11 @@ jobs:
               dep = deps[0]
               check(dep["metadata"]["name"] == "alloy", "Deployment name must be alloy")
               check(dep["spec"].get("replicas") == 1, "alloy must run exactly 1 replica")
-              check(dep["metadata"].get("annotations", {}).get("reloader.stakater.com/auto") == "true",
-                    "Deployment must carry reloader.stakater.com/auto so mounted client TLS "
-                    "secret renewals roll the controller")
+              dep_annotations = dep["metadata"].get("annotations", {})
+              check(dep_annotations.get("secret.reloader.stakater.com/reload") == "loki-alloy-client",
+                    "Deployment must scope Reloader to the named client TLS secret only")
+              check("reloader.stakater.com/auto" not in dep_annotations,
+                    "Deployment must not opt into Reloader's broad auto reload")
               spec = dep["spec"]["template"]["spec"]
               check(spec.get("securityContext", {}).get("runAsNonRoot") is True
                     and spec.get("securityContext", {}).get("runAsUser") == 473,
@@ -1620,6 +1624,42 @@ jobs:
                     "jobLabel must pin the scrape job to the Service label")
           check(any(d.get("kind") == "PrometheusRule" for d in monitoring),
                 "logging PrometheusRule must remain present")
+
+          # Reloader and ArgoCD ignore-differences contract: the named-secret
+          # reload annotations must stay scoped to the two owned controllers,
+          # and the only ignored drift is controller-generated: the Reloader
+          # env hash in the mounting container plus last-reloaded-from.
+          for path, kind, name, container, env_name in (
+                  ("workloads/apps/loki-app.yaml", "StatefulSet", "loki", "loki",
+                   "STAKATER_LOKI_SERVER_TLS_SECRET"),
+                  ("workloads/apps/alloy-app.yaml", "Deployment", "alloy", "alloy",
+                   "STAKATER_LOKI_ALLOY_CLIENT_SECRET")):
+              app = yaml.safe_load(Path(path).read_text())
+              app_name = app["metadata"]["name"]
+              ignores = app["spec"].get("ignoreDifferences")
+              check(isinstance(ignores, list) and len(ignores) == 1,
+                    "%s must declare exactly one ignoreDifferences entry" % app_name)
+              if isinstance(ignores, list) and len(ignores) == 1:
+                  entry = ignores[0]
+                  check(set(entry) == {"group", "kind", "name", "namespace",
+                                       "jqPathExpressions"},
+                        "%s ignoreDifferences entry must not broaden scope" % app_name)
+                  check(entry.get("group") == "apps" and entry.get("kind") == kind
+                        and entry.get("name") == name and entry.get("namespace") == "logging",
+                        "%s ignoreDifferences must target exactly %s %s in logging"
+                        % (app_name, kind, name))
+                  env_path = ('.spec.template.spec.containers[] | select(.name == "%s") '
+                              '| .env[] | select(.name == "%s")' % (container, env_name))
+                  check(entry.get("jqPathExpressions") == [
+                      env_path,
+                      '.spec.template.metadata.annotations'
+                      '["reloader.stakater.com/last-reloaded-from"]',
+                  ],
+                  "%s must ignore only the Reloader env hash in container %s plus the "
+                  "last-reloaded-from annotation" % (app_name, container))
+              options = app["spec"].get("syncPolicy", {}).get("syncOptions") or []
+              check("RespectIgnoreDifferences=true" in options,
+                    "%s must keep RespectIgnoreDifferences=true" % app_name)
 
           if errors:
               for e in errors:
