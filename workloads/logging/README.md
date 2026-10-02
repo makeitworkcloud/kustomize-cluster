@@ -148,17 +148,21 @@ collector's permissions.
 
 ## Validation and remaining gates
 
-The committed logging checks are not yet compatible with the two-phase staging.
-A corrected combined CI candidate has been prepared but could not be published
-through the current single-file tool payload limit. Do not call this branch
-CI-ready or open its PR until the CI update and final reviews are complete.
+The reusable validation workflow is now published: `.github/workflows/test.yml`
+calls `.github/workflows/logging-checks.yml` at the same committed revision; the
+existing test jobs are retained. The reusable workflow is `workflow_call`-only
+with `contents: read` and no Secret exchange. CI has not yet executed on this
+branch and no PR is open; final reviews and passing CI remain required before
+calling this branch CI-ready.
 
 The intended checks render pinned Loki, Alloy and prospective Reloader values;
 validate native Alloy/Loki configuration; test synthetic mTLS authorized
 push/query and TLS-level rejection; verify operational-route separation and
-remote RPC refusal; and exercise the real admission policies on an isolated
-Kubernetes API with positive, negative, escape and unrelated-resource controls.
-Synthetic CI keys/kubeconfig material must never be printed or uploaded.
+remote RPC refusal; and exercise the real staged source admission guard policies
+(Phase 1) on a native Kind isolated Kubernetes API at version 1.31 with positive,
+negative, escape and unrelated-resource controls — this is not proof of actual
+target policy enforcement. Synthetic CI keys/kubeconfig material must never be
+printed or uploaded.
 
 CI does not prove target policy enforcement, cert-manager issuance/renewal,
 real scrape discovery, bound-volume retention, production source safety, disk
