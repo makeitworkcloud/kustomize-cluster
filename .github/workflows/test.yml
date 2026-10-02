@@ -1290,22 +1290,41 @@ jobs:
           alloy_src, alloy_values = chart_source(
               "workloads/apps/alloy-app.yaml", "alloy", "1.13.0",
               "https://grafana.github.io/helm-charts")
+          reloader_app = yaml.safe_load(
+              Path("operators/reloader/application.yaml").read_text())
+          reloader_src = reloader_app["spec"]["source"]
+          reloader_values = reloader_src.get("helm", {}).get("valuesObject")
+          check(reloader_src.get("chart") == "reloader"
+                and reloader_src.get("repoURL") == "https://stakater.github.io/stakater-charts"
+                and reloader_src.get("targetRevision") == "2.2.16",
+                "reloader Application must pin chart reloader 2.2.16 from the "
+                "stakater vendor repo")
+          check(isinstance(reloader_values, dict),
+                "reloader Application must carry a helm valuesObject")
+          reloader_namespace = reloader_app["spec"]["destination"]["namespace"]
           if errors:
               for e in errors:
                   print("LOGGING-SOURCE-INVALID: %s" % e)
               sys.exit(1)
           (out / "loki-values.yaml").write_text(loki_values)
           (out / "alloy-values.yaml").write_text(alloy_values)
+          (out / "reloader-values.yaml").write_text(
+              yaml.safe_dump(reloader_values, sort_keys=False))
           (out / "sources.env").write_text(
               "LOKI_REPO_URL=%s\nLOKI_CHART_VERSION=%s\nALLOY_REPO_URL=%s\n"
               "ALLOY_CHART_VERSION=%s\nNAMESPACE=logging\n"
+              "RELOADER_REPO_URL=%s\nRELOADER_CHART_VERSION=%s\nRELOADER_NAMESPACE=%s\n"
               % (shlex.quote(loki_src["repoURL"]), shlex.quote(loki_src["targetRevision"]),
-                 shlex.quote(alloy_src["repoURL"]), shlex.quote(alloy_src["targetRevision"])))
-          print("OK: Applications pin loki 18.13.7 / alloy 1.13.0; values extracted verbatim")
+                 shlex.quote(alloy_src["repoURL"]), shlex.quote(alloy_src["targetRevision"]),
+                 shlex.quote(reloader_src["repoURL"]), shlex.quote(reloader_src["targetRevision"]),
+                 shlex.quote(reloader_namespace)))
+          print("OK: Applications pin loki 18.13.7 / alloy 1.13.0 / reloader 2.2.16; "
+                "values extracted verbatim")
           EOF
           . "$RENDER/sources.env"
           helm repo add loki-vendor "$LOKI_REPO_URL"
           helm repo add alloy-vendor "$ALLOY_REPO_URL"
+          helm repo add stakater-vendor "$RELOADER_REPO_URL"
           helm repo update >/dev/null
           helm template loki loki-vendor/loki --version "$LOKI_CHART_VERSION" \
             --namespace "$NAMESPACE" --values "$RENDER/loki-values.yaml" \
@@ -1313,7 +1332,10 @@ jobs:
           helm template alloy alloy-vendor/alloy --version "$ALLOY_CHART_VERSION" \
             --namespace "$NAMESPACE" --values "$RENDER/alloy-values.yaml" \
             > "$RENDER/alloy-rendered.yaml"
-          echo "rendered $(grep -c '^kind:' "$RENDER/loki-rendered.yaml") loki and $(grep -c '^kind:' "$RENDER/alloy-rendered.yaml") alloy documents"
+          helm template reloader stakater-vendor/reloader --version "$RELOADER_CHART_VERSION" \
+            --namespace "$RELOADER_NAMESPACE" --values "$RENDER/reloader-values.yaml" \
+            > "$RENDER/reloader-rendered.yaml"
+          echo "rendered $(grep -c '^kind:' "$RENDER/loki-rendered.yaml") loki, $(grep -c '^kind:' "$RENDER/alloy-rendered.yaml") alloy and $(grep -c '^kind:' "$RENDER/reloader-rendered.yaml") reloader documents"
 
       - name: Assert rendered chart and companion manifest contract
         run: |
@@ -1333,6 +1355,12 @@ jobs:
                         if isinstance(d, dict)]
           loki_values = yaml.safe_load((render / "loki-values.yaml").read_text())
           alloy_values = yaml.safe_load((render / "alloy-values.yaml").read_text())
+          reloader_docs = [d for d in yaml.safe_load_all((render / "reloader-rendered.yaml").read_text())
+                           if isinstance(d, dict)]
+          reloader_app = yaml.safe_load(
+              Path("operators/reloader/application.yaml").read_text())
+          reloader_values = reloader_app["spec"]["source"]["helm"]["valuesObject"]
+          reloader_namespace = reloader_app["spec"]["destination"]["namespace"]
 
           # Loki workload: exactly one monolithic StatefulSet, 1 replica.
           stss = [d for d in loki_docs if d.get("kind") == "StatefulSet"]
@@ -1624,6 +1652,68 @@ jobs:
                     "jobLabel must pin the scrape job to the Service label")
           check(any(d.get("kind") == "PrometheusRule" for d in monitoring),
                 "logging PrometheusRule must remain present")
+
+          # Reloader operator contract: the canonical Application keeps the
+          # scoped watchlist (grafana, opencode, logging), stays off global
+          # watching and auto-reload-all, and keeps the default reload
+          # strategy, so only named Secret opt-in annotations roll workloads.
+          reloader_expected = {
+              "autoReloadAll": False, "watchGlobally": False,
+              "namespaces": ["grafana", "opencode", "logging"],
+              "reloadOnCreate": True, "reloadOnDelete": True,
+              "syncAfterRestart": True,
+          }
+          check(reloader_values.get("reloader") == reloader_expected,
+                "operators/reloader values must stay exactly the canonical scoped "
+                "contract %s, got %s" % (reloader_expected, reloader_values.get("reloader")))
+          # The chart always adds the release namespace to the scoped watch
+          # set (meta-info ConfigMap, HA leases, events), so Roles, bindings
+          # and the --namespaces flag cover the requested list plus it.
+          watch_namespaces = sorted(set(reloader_expected["namespaces"]) | {reloader_namespace})
+          roles = [d for d in reloader_docs if d.get("kind") == "Role"]
+          bindings = [d for d in reloader_docs if d.get("kind") == "RoleBinding"]
+          check(not [d for d in reloader_docs
+                     if d.get("kind") in ("ClusterRole", "ClusterRoleBinding")],
+                "watchGlobally=false must render no cluster-scoped RBAC (no global "
+                "Secret read expansion)")
+          watch_roles = [r for r in roles
+                         if any("secrets" in (rule.get("resources") or [])
+                                for rule in r.get("rules") or [])]
+          watch_namespaces_rendered = sorted(
+              r["metadata"]["namespace"] for r in watch_roles)
+          check(len(watch_roles) == len(watch_namespaces)
+                and watch_namespaces_rendered == watch_namespaces,
+                "scoped watch Roles must exist exactly in %s (requested namespaces "
+                "plus the release namespace), got %s"
+                % (watch_namespaces, watch_namespaces_rendered))
+          for role in roles:
+              for rule in role.get("rules") or []:
+                  if "secrets" in (rule.get("resources") or []):
+                      check(not ({"create", "update", "patch", "delete",
+                                  "deletecollection"} & set(rule.get("verbs") or [])),
+                            "Role %s in %s must never mutate Secrets"
+                            % (role["metadata"]["name"], role["metadata"]["namespace"]))
+          watch_bindings = [b for b in bindings
+                            if b["metadata"]["name"].endswith("-role-binding")]
+          check(sorted(b["metadata"]["namespace"] for b in watch_bindings) == watch_namespaces
+                and all(b.get("roleRef", {}).get("kind") == "Role" for b in watch_bindings)
+                and all((b.get("subjects") or [{}])[0].get("namespace") == reloader_namespace
+                        for b in watch_bindings),
+                "one RoleBinding per watched namespace must bind the namespaced Role "
+                "to the operator ServiceAccount")
+          reloader_dep = next(d for d in reloader_docs if d.get("kind") == "Deployment")
+          reloader_args = (reloader_dep["spec"]["template"]["spec"]["containers"][0]
+                           .get("args") or [])
+          check("--namespaces=%s" % ",".join(watch_namespaces) in reloader_args,
+                "the Deployment watch flag must cover exactly %s, got %s"
+                % (watch_namespaces, reloader_args))
+          for flag in ("--reload-on-create=true", "--reload-on-delete=true",
+                       "--sync-after-restart=true"):
+              check(flag in reloader_args, "the Deployment must keep %s" % flag)
+          check(not any(a.startswith("--auto-reload-all") for a in reloader_args),
+                "auto-reload-all must stay off: only named Secret opt-in reloads")
+          check(not any(a.startswith("--reload-strategy") for a in reloader_args),
+                "the default reload strategy (named annotations) must stay")
 
           # Reloader and ArgoCD ignore-differences contract: the named-secret
           # reload annotations must stay scoped to the two owned controllers,
