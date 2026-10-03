@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-python@06da6279cdbca41027908073e81a4544dc79c06b
         with:
           python-version: "3.12"
-      - name: Render charts, extract inputs, prospective watch
+      - name: Render charts, extract inputs, registered watch
         run: |
           set -euo pipefail
           W="${RUNNER_TEMP}/logging-ci"
@@ -33,7 +33,7 @@ jobs:
           command -v docker openssl curl kustomize kind >/dev/null || exit 1
           python -m pip install --quiet --require-hashes -r .github/requirements-ci.txt
           python - "$RENDER" <<'EOF'
-          import shlex, sys, yaml
+          import shlex, subprocess, sys, yaml
           from pathlib import Path
           out = Path(sys.argv[1])
           errors = []
@@ -50,7 +50,9 @@ jobs:
             return src, values
           loki_src, loki_values = chart_source( 'workloads/apps/loki-app.yaml', 'loki', '18.13.7', 'https://grafana-community.github.io/helm-charts')
           alloy_src, alloy_values = chart_source( 'workloads/apps/alloy-app.yaml', 'alloy', '1.13.0', 'https://grafana.github.io/helm-charts')
-          reloader_app = yaml.safe_load( Path('operators/reloader/application.yaml').read_text())
+          reloader_app = yaml.safe_load(subprocess.check_output(
+              ['kustomize', 'build', 'operators/reloader'], text=True))
+          (out / 'reloader-application.yaml').write_text(yaml.safe_dump(reloader_app, sort_keys=False))
           reloader_src = reloader_app['spec']['source']
           reloader_values = reloader_src.get('helm', {}).get('valuesObject')
           check(reloader_src.get('chart') == 'reloader' and reloader_src.get('repoURL') == 'https://stakater.github.io/stakater-charts' and reloader_src.get('targetRevision') == '2.2.16', 'reloader Application must pin reloader 2.2.16 stakater')
@@ -172,10 +174,10 @@ jobs:
           (work / 'pki-server.ext').write_text( "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\n" "extendedKeyUsage=serverAuth\nsubjectAltName=%s\n" % san)
           (work / 'pki-client.ext').write_text( "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\n" "extendedKeyUsage=clientAuth\n")
           EOF
-      - name: Assert chart and staging contracts
+      - name: Assert chart and activation contracts
         run: |
           python - "${RUNNER_TEMP}/logging-render" <<'EOF'
-          import sys, yaml
+          import re, shlex, sys, yaml
           from pathlib import Path
           render = Path(sys.argv[1])
           errors = []
@@ -185,7 +187,7 @@ jobs:
           loki_values = yaml.safe_load((render / 'loki-values.yaml').read_text())
           alloy_values = yaml.safe_load((render / 'alloy-values.yaml').read_text())
           reloader_docs = [d for d in yaml.safe_load_all((render / 'reloader-rendered.yaml').read_text()) if isinstance(d, dict)]
-          reloader_app = yaml.safe_load( Path('operators/reloader/application.yaml').read_text())
+          reloader_app = yaml.safe_load((render / 'reloader-application.yaml').read_text())
           reloader_values = reloader_app['spec']['source']['helm']['valuesObject']
           reloader_namespace = reloader_app['spec']['destination']['namespace']
           stss = [d for d in loki_docs if d.get('kind') == 'StatefulSet']
@@ -382,8 +384,8 @@ jobs:
             check(root['spec'].get('privateKey') == {'algorithm': 'ECDSA', 'size': 256, 'rotationPolicy': 'Never'}, 'root key Never')
           lci = next((x for x in pki if x.get('kind') == 'ClusterIssuer' and x['metadata'].get('name') == 'logging-ca'), None)
           check(lci is not None and lci.get('spec', {}).get('ca', {}).get('secretName') == 'logging-root-ca', 'ca<-root')
-          exp = {'autoReloadAll': False, 'watchGlobally': False, 'namespaces': ['grafana', 'opencode'], 'reloadOnCreate': True, 'reloadOnDelete': True, 'syncAfterRestart': True}
-          check(reloader_values.get('reloader') == exp, 'reloader values == canonical base-2 contract, got %s' % reloader_values.get('reloader'))
+          exp = {'autoReloadAll': False, 'watchGlobally': False, 'namespaces': ['grafana', 'opencode', 'logging'], 'reloadOnCreate': True, 'reloadOnDelete': True, 'syncAfterRestart': True}
+          check(reloader_values.get('reloader') == exp, 'effective reloader values == activation contract, got %s' % reloader_values.get('reloader'))
           watch = sorted(set(exp['namespaces']) | {reloader_namespace})
           roles = [x for x in reloader_docs if x.get('kind') == 'Role']
           binds = [x for x in reloader_docs if x.get('kind') == 'RoleBinding']
@@ -450,16 +452,26 @@ jobs:
                 o = app['spec'].get('syncPolicy', {}).get('syncOptions') or []
                 check('RespectIgnoreDifferences=true' in o, '%s RespectIgnore' % an)
           apps = yaml.safe_load( Path('workloads/apps/kustomization.yaml').read_text()).get('resources') or []
-          check('loki-app.yaml' not in apps and 'alloy-app.yaml' not in apps, 'Phase 1: loki/alloy apps unregistered')
+          check(apps.count('loki-app.yaml') == 1 and apps.count('alloy-app.yaml') == 1, 'Activation: loki/alloy apps registered exactly once')
           gres = yaml.safe_load( Path('workloads/grafana/kustomization.yaml').read_text()).get('resources') or []
-          check('loki-datasource.yaml' not in gres and 'loki-client-certificate.yaml' not in gres, 'Phase 1: grafana logging files unregistered')
+          check(gres.count('loki-datasource.yaml') == 1 and gres.count('loki-client-certificate.yaml') == 1, 'Activation: grafana logging files registered exactly once')
           cmk = yaml.safe_load( Path('operators/cert-manager/kustomization.yaml').read_text())
           cres = cmk.get('resources') or []
           check('logging-admission.yaml' in cres, 'admission active')
-          check('logging-pki.yaml' not in cres, 'pki unreferenced')
+          check(cres.count('logging-pki.yaml') == 1, 'Activation: pki registered exactly once')
           rk = yaml.safe_load(Path('operators/reloader/kustomization.yaml').read_text())
-          refs = (rk.get('resources') or []) + [p.get('path') for p in (rk.get('patches') or []) if isinstance(p, dict)]
-          check('logging-watch-patch.yaml' not in refs, 'patch unreferenced')
+          check([p.get('path') for p in (rk.get('patches') or []) if isinstance(p, dict)].count('logging-watch-patch.yaml') == 1 and 'logging-watch-patch.yaml' not in (rk.get('resources') or []), 'Activation: watch patch registered exactly once as a patch, never a duplicate resource')
+          gate = yaml.safe_load(Path('workloads/apps/wait-for-crds.yaml').read_text())
+          command = gate['spec']['template']['spec']['containers'][0]['command']
+          check(command[:2] == ['/bin/bash', '-c'] and len(command) == 3, 'CRD gate uses the reviewed Bash command')
+          def gate_crds(script):
+            match = re.search(r'(?ms)^\s*CRDS=\((.*?)^\s*\)', script)
+            return shlex.split(match.group(1), comments=True) if match else []
+          crds = gate_crds(command[-1])
+          for crd in ('certificates.cert-manager.io', 'clusterissuers.cert-manager.io', 'servicemonitors.monitoring.coreos.com', 'prometheusrules.monitoring.coreos.com', 'grafanadatasources.grafana.integreatly.org'):
+            check(crds.count(crd) == 1, 'Activation: executable CRD array includes %s exactly once' % crd)
+          check('prometheusrules.monitoring.coreos.com' not in gate_crds('CRDS=(\n# prometheusrules.monitoring.coreos.com\n)\n'), 'comment-only CRD negative control')
+          check(gate_crds('CRDS=(\nprometheusrules.monitoring.coreos.com\n)\n') == ['prometheusrules.monitoring.coreos.com'], 'CRD parser positive control')
           base = sorted(yaml.safe_load( Path('operators/reloader/application.yaml').read_text()) ['spec']['source']['helm']['valuesObject']['reloader']['namespaces'])
           check(base == ['grafana', 'opencode'], 'base-2 watchlist, got %s' % base)
           adm = [x for x in yaml.safe_load_all( Path('operators/cert-manager/logging-admission.yaml').read_text()) if isinstance(x, dict)]
