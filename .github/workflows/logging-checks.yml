@@ -177,7 +177,7 @@ jobs:
       - name: Assert chart and activation contracts
         run: |
           python - "${RUNNER_TEMP}/logging-render" <<'EOF'
-          import sys, yaml
+          import re, shlex, sys, yaml
           from pathlib import Path
           render = Path(sys.argv[1])
           errors = []
@@ -460,11 +460,18 @@ jobs:
           check('logging-admission.yaml' in cres, 'admission active')
           check(cres.count('logging-pki.yaml') == 1, 'Activation: pki registered exactly once')
           rk = yaml.safe_load(Path('operators/reloader/kustomization.yaml').read_text())
-          refs = (rk.get('resources') or []) + [p.get('path') for p in (rk.get('patches') or []) if isinstance(p, dict)]
           check([p.get('path') for p in (rk.get('patches') or []) if isinstance(p, dict)].count('logging-watch-patch.yaml') == 1 and 'logging-watch-patch.yaml' not in (rk.get('resources') or []), 'Activation: watch patch registered exactly once as a patch, never a duplicate resource')
-          gate = Path('workloads/apps/wait-for-crds.yaml').read_text()
+          gate = yaml.safe_load(Path('workloads/apps/wait-for-crds.yaml').read_text())
+          command = gate['spec']['template']['spec']['containers'][0]['command']
+          check(command[:2] == ['/bin/bash', '-c'] and len(command) == 3, 'CRD gate uses the reviewed Bash command')
+          def gate_crds(script):
+            match = re.search(r'(?ms)^\s*CRDS=\((.*?)^\s*\)', script)
+            return shlex.split(match.group(1), comments=True) if match else []
+          crds = gate_crds(command[-1])
           for crd in ('certificates.cert-manager.io', 'clusterissuers.cert-manager.io', 'servicemonitors.monitoring.coreos.com', 'prometheusrules.monitoring.coreos.com', 'grafanadatasources.grafana.integreatly.org'):
-            check(crd in gate, 'Activation: CRD gate includes %s' % crd)
+            check(crds.count(crd) == 1, 'Activation: executable CRD array includes %s exactly once' % crd)
+          check('prometheusrules.monitoring.coreos.com' not in gate_crds('CRDS=(\n# prometheusrules.monitoring.coreos.com\n)\n'), 'comment-only CRD negative control')
+          check(gate_crds('CRDS=(\nprometheusrules.monitoring.coreos.com\n)\n') == ['prometheusrules.monitoring.coreos.com'], 'CRD parser positive control')
           base = sorted(yaml.safe_load( Path('operators/reloader/application.yaml').read_text()) ['spec']['source']['helm']['valuesObject']['reloader']['namespaces'])
           check(base == ['grafana', 'opencode'], 'base-2 watchlist, got %s' % base)
           adm = [x for x in yaml.safe_load_all( Path('operators/cert-manager/logging-admission.yaml').read_text()) if isinstance(x, dict)]
