@@ -368,6 +368,8 @@ jobs:
           check(j.get('tlsAuth') is True and j.get('tlsAuthWithCACert') is True and j.get('tlsSkipVerify') is False and j.get('serverName') == 'loki.logging.svc', 'ds mTLS')
           evf = [ {'targetPath': 'secureJsonData.%s' % p, 'valueFrom': {'secretKeyRef': {'name': 'loki-grafana-client', 'key': k}}} for p, k in (('tlsClientCert', 'tls.crt'), ('tlsClientKey', 'tls.key'), ('tlsCACert', 'ca.crt'))]
           check(ds['spec'].get('valuesFrom') == evf, 'ds 3 valuesFrom')
+          expected_secure = {p: '${%s}' % k for p, k in (('tlsClientCert', 'tls.crt'), ('tlsClientKey', 'tls.key'), ('tlsCACert', 'ca.crt'))}
+          check(d.get('secureJsonData') == expected_secure, 'ds secure TLS placeholders exist and match the referenced Secret keys')
           gc = yaml.safe_load( Path('workloads/grafana/loki-client-certificate.yaml').read_text())
           check(gc['metadata'].get('name') == 'grafana-loki-client' and gc['metadata'].get('namespace') == 'grafana' and gc['spec'].get('secretName') == 'loki-grafana-client', 'g-cert secret')
           check(gc['spec'].get('usages') == ['client auth'], 'grafana cert client auth')

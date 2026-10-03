@@ -27,6 +27,10 @@ spec:
       tlsSkipVerify: false
       serverName: loki.logging.svc
       maxLines: 1000
+    secureJsonData:
+      tlsClientCert: '${tls.crt}'
+      tlsClientKey: '${tls.key}'
+      tlsCACert: '${ca.crt}'
   valuesFrom:
     - targetPath: secureJsonData.tlsClientCert
       valueFrom:
