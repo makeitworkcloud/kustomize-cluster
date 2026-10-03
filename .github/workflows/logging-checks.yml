@@ -241,7 +241,7 @@ jobs:
           if cds:
             cfg = cds[0]
             check(cfg == structured, 'config == structuredConfig verbatim')
-            for path, want in [ ('auth_enabled', False), ('server.http_listen_address', '0.0.0.0'), ('server.http_listen_port', 3100), ('server.register_instrumentation', True), ('server.grpc_listen_address', '127.0.0.1'), ('server.grpc_listen_port', 9095), ('server.http_tls_config.client_auth_type', 'RequireAndVerifyClientCert'), ('server.http_tls_config.cert_file', '/etc/loki/server-tls/tls.crt'), ('server.http_tls_config.key_file', '/etc/loki/server-tls/tls.key'), ('server.http_tls_config.client_ca_file', '/etc/loki/server-tls/ca.crt'), ('internal_server.enable', True), ('internal_server.http_listen_address', '0.0.0.0'), ('internal_server.http_listen_port', 3101), ('internal_server.register_instrumentation', False), ('common.instance_addr', '127.0.0.1'), ('frontend_worker.frontend_address', '127.0.0.1:9095'), ('memberlist.bind_addr', ['127.0.0.1']), ('memberlist.join_members', []), ('limits_config.retention_period', '720h'), ('limits_config.max_query_lookback', '720h'), ('limits_config.ingestion_rate_mb', 0.02), ('limits_config.ingestion_burst_size_mb', 1), ('limits_config.max_streams_per_user', 1000), ('limits_config.max_line_size', 4096), ('limits_config.per_stream_rate_limit', 20480), ('limits_config.per_stream_rate_limit_burst', 1048576), ('compactor.retention_enabled', True), ('compactor.delete_request_store', 'filesystem'), ]:
+            for path, want in [ ('auth_enabled', False), ('server.http_listen_address', '0.0.0.0'), ('server.http_listen_port', 3100), ('server.register_instrumentation', True), ('server.grpc_listen_address', '127.0.0.1'), ('server.grpc_listen_port', 9095), ('server.http_tls_config.client_auth_type', 'RequireAndVerifyClientCert'), ('server.http_tls_config.cert_file', '/etc/loki/server-tls/tls.crt'), ('server.http_tls_config.key_file', '/etc/loki/server-tls/tls.key'), ('server.http_tls_config.client_ca_file', '/etc/loki/server-tls/ca.crt'), ('internal_server.enable', True), ('internal_server.http_listen_address', '0.0.0.0'), ('internal_server.http_listen_port', 3101), ('internal_server.register_instrumentation', False), ('common.instance_addr', '127.0.0.1'), ('frontend_worker.frontend_address', '127.0.0.1:9095'), ('memberlist.bind_addr', ['127.0.0.1']), ('memberlist.join_members', []), ('limits_config.discover_service_name', []), ('limits_config.retention_period', '720h'), ('limits_config.max_query_lookback', '720h'), ('limits_config.ingestion_rate_mb', 0.02), ('limits_config.ingestion_burst_size_mb', 1), ('limits_config.max_streams_per_user', 1000), ('limits_config.max_line_size', 4096), ('limits_config.per_stream_rate_limit', 20480), ('limits_config.per_stream_rate_limit_burst', 1048576), ('compactor.retention_enabled', True), ('compactor.delete_request_store', 'filesystem'), ]:
                 node = cfg
                 for part in path.split('.'):
                     node = node[part]
@@ -822,7 +822,7 @@ jobs:
           [ "$valid" = "0 200" ] || fail "valid client metrics post-negatives"
           TOKEN="ci-synthetic-line-$(date +%s)-$$"
           TIMESTAMP=$(date +%s%N)
-          PAYLOAD=$(printf '{"streams":[{"stream":{"ci_job":"loki-ci","namespace":"ci","application":"ci-fixture","container":"ci"},"values":[["%s","%s"]]}]}' "$TIMESTAMP" "$TOKEN")
+          PAYLOAD=$(printf '{"streams":[{"stream":{"cluster":"ci","namespace":"ci","application":"ci-fixture","container":"ci"},"values":[["%s","%s"]]}]}' "$TIMESTAMP" "$TOKEN")
           pushstatus=$(code -X POST -H 'Content-Type: application/json' -d "$PAYLOAD" \
           "${R[@]}" "${CA[@]}" \
           "${VC[@]}" \
@@ -831,12 +831,23 @@ jobs:
           sleep 2
           QUERY=$(curl -sS --max-time 10 "${R[@]}" \
           "${CA[@]}" "${VC[@]}" \
-          -G --data-urlencode 'query={ci_job="loki-ci"}' \
+          -G --data-urlencode 'query={cluster="ci",application="ci-fixture"}' \
           $U/loki/api/v1/query_range)
           echo "$QUERY" | grep -q '"status":"success"' \
           || fail "LogQL query over mTLS must succeed"
           echo "$QUERY" | grep -q "$TOKEN" \
           || fail "line not returned"
+          SERIES=$(curl -fsS --max-time 10 "${R[@]}" \
+          "${CA[@]}" "${VC[@]}" \
+          -G --data-urlencode 'match[]={cluster="ci",application="ci-fixture"}' \
+          $U/loki/api/v1/series)
+          SERIES_JSON="$SERIES" python - <<'EOF'
+          import json, os
+          response = json.loads(os.environ['SERIES_JSON'])
+          expected = {'cluster': 'ci', 'namespace': 'ci', 'application': 'ci-fixture', 'container': 'ci'}
+          if response.get('status') != 'success' or response.get('data') != [expected]:
+              raise SystemExit('LOKI-RUNTIME-INVALID: indexed series must contain exactly the four approved labels')
+          EOF
           CONTAINER_IP=$(docker inspect -f \
           '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' loki-ci)
           [ -n "$CONTAINER_IP" ] || fail "could not resolve the loki-ci bridge IP"

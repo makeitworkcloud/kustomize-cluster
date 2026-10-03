@@ -176,6 +176,7 @@ spec:
               querier:
                 max_concurrent: 4
               limits_config:
+                discover_service_name: []
                 # 30-day retention target is nominal: the 100Gi PVC is not a
                 # quota and node-local storage is the real ceiling.
                 retention_period: 720h
