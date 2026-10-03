@@ -21,7 +21,7 @@ jobs:
         with:
           version: v4.3.0
       - name: Setup Python
-        uses: actions/setup-python@337b0725b8770380d7cde73cfef696f1295727eb
+        uses: actions/setup-python@06da6279cdbca41027908073e81a4544dc79c06b
         with:
           python-version: "3.12"
       - name: Render charts, extract inputs, prospective watch
