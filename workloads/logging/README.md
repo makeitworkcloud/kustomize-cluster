@@ -1,16 +1,25 @@
 # Cluster logging
 
 The approved design is cluster-wide reviewed-source eligibility, 30-day retention
-and an initial 100Gi node-local allocation. This activation branch registers the existing Loki,
-Alloy, PKI and Grafana configuration for review. It enables no production log
-source and does not publish a chart or image. Upstream chart pins are unchanged
-and already published. Preparation is not deployment: keep this PR draft and
-merge-blocked until the target admission and issuer-inventory gates below pass.
+and an initial 100Gi node-local allocation. PR [#277](https://github.com/makeitworkcloud/kustomize-cluster/pull/277)
+registered Loki, Alloy, PKI, Grafana integration and the Reloader logging scope
+on `main` at `a242264` for an owner-approved validation-only rollout. No production
+log source is enabled and no new chart or image is published. Upstream chart
+pins are unchanged. Reconciliation and readiness do not prove the log data path.
 
 Follow [Adding a workload](../../docs/adding-a-workload.md) and
 [Rollout and rollback](../../docs/rollout-and-rollback.md).
 
 ## Two-phase delivery gate
+
+**Validation-only exception, 2026-10-03:** the owner explicitly waived the
+pre-activation target admission denial/allowed-control and decisive issuer-alias
+inventory gates for PR #277, then approved its merge and automatic rollout.
+The PR records the exception; those tests are **not passed**. The CA, storage
+and runtime resources are real despite the testing purpose. The normal gate
+below remains the contract for future activation; this one-time exception does
+not permit removing policies, retrieving credentials, expanding RBAC, opting
+in production sources, creating a synthetic source or manually syncing.
 
 **Phase 1 is merged:** PR [#274](https://github.com/makeitworkcloud/kustomize-cluster/pull/274)
 registered only [native admission policies](../../operators/cert-manager/logging-admission.yaml)
@@ -43,27 +52,26 @@ identity selection. The approved controller-Pod client preflight stopped because
 `kubectl` was not found in its PATH; no target admission requests ran. An approved,
 capable test client is still required. Do not substitute persistent apply.
 
-This activation branch registers [logging PKI](../../operators/cert-manager/logging-pki.yaml),
+The validation rollout registers [logging PKI](../../operators/cert-manager/logging-pki.yaml),
 [Loki](../apps/loki-app.yaml), [Alloy](../apps/alloy-app.yaml), the
 [Grafana client Certificate](../grafana/loki-client-certificate.yaml) and
 [Loki datasource](../grafana/loki-datasource.yaml), and applies the
 [Reloader watch patch](../../operators/reloader/logging-watch-patch.yaml).
-These registrations must not reach `main` before the gate passes and the owner
-approves merge and automatic rollout. Source opt-ins remain separate
-owner-reviewed changes after backend acceptance.
+These registrations reached `main` under the explicit PR #277 exception above.
+Source opt-ins remain separate owner-reviewed changes after backend acceptance.
 
 ## Ownership and reconciliation
 
-| Producer/integration | Consumer | Desired state in this branch; live acceptance |
+| Producer/integration | Consumer | Observed validation rollout, 2026-10-03 |
 | --- | --- | --- |
-| Loki chart 18.13.7, app 3.7.8 | Loki Application | Published upstream; unchanged pin, Application registered here; not rolled out |
-| Alloy chart 1.13.0, app v1.20.0 | Alloy Application | Published upstream; unchanged pin, Application registered here; not rolled out |
+| Loki chart 18.13.7, app 3.7.8 | Loki Application | Published upstream; unchanged pin, Application reconciled/Healthy at `a242264` |
+| Alloy chart 1.13.0, app v1.20.0 | Alloy Application | Published upstream; unchanged pin, Application reconciled/Healthy at `a242264` |
 | Native admission policies (5) and bindings (5) | Target API server | Unchanged; phase one Synced, target request enforcement unproven |
-| Dedicated cert-manager PKI (5 named Certificate profiles) | Workload Certificates | Registered here; issuance unverified, no keys retrieved |
-| Logging overlays | Chart-backed workloads in namespace `logging` | Selected by registered children; runtime health unverified |
-| Prometheus client Certificate and Loki ServiceMonitor | Cluster Prometheus in `monitoring` | Selected by Loki child; actual HTTPS scraping unverified |
-| Grafana datasource/client Certificate | Main authenticated Grafana | Registered here; public status Grafana excluded; live datasource absent in last inventory |
-| Reloader chart 2.2.16 | Certificate renewal | Unchanged pin/strategy; registered patch adds only `logging`; live reload unverified |
+| Dedicated cert-manager PKI (5 named Certificate profiles) | Workload Certificates | Five named Certificates Ready; no keys retrieved |
+| Logging overlays | Chart-backed workloads in namespace `logging` | Selected at `a242264`; Loki/Alloy Pods Ready |
+| Prometheus client Certificate and Loki ServiceMonitor | Cluster Prometheus in `monitoring` | Selected by Loki child; HTTPS/mTLS metrics scrape up |
+| Grafana datasource/client Certificate | Main authenticated Grafana | Selected on main Grafana only; datasource listed but TLS health failed before this fix |
+| Reloader chart 2.2.16 | Certificate renewal | Unchanged pin/strategy; effective watch includes `logging`; renewal/reload unverified |
 | OpenCode chart, storage, credentials and exporter | OpenCode | Unchanged; no OpenCode log source enabled |
 
 One object has one owner. A repository overlay does not implicitly patch another
@@ -104,15 +112,15 @@ five bindings and adds no controller. Unrelated PKI is out of
 scope. Existing RBAC remains necessary; these controls do not defend against a
 compromised CA controller or administrator able to alter policy/read the CA key.
 
-Only after approved activation does cert-manager generate dedicated keys:
+Following approved activation, cert-manager owns dedicated key generation:
 `logging-root-ca` in `cert-manager`, `loki-server-tls`/`loki-alloy-client` and
 `loki-prometheus-client` in `logging`, and `loki-grafana-client` in `grafana`.
 The [Prometheus Certificate](loki/metrics-client-certificate.yaml) is named
 `prometheus-client` in `logging`, with CN `prometheus.logging`, only `client auth`,
 ECDSA P-256, `Always` key rotation, duration `2160h`, renew-before `360h` and
-issuer `logging-ca`. It is referenced only by the staged Loki child overlay;
-this does not register the Loki Application. No production keys are generated,
-retrieved, printed, decrypted or committed by this preparation workflow.
+issuer `logging-ca`. It is referenced by the Loki child overlay. Runtime key
+generation is owned by cert-manager; keys are never retrieved, printed, decrypted or committed by this
+validation workflow.
 
 The root lasts ten years and retains its key; root trust migration is manual and
 reviewed, not automatic. Leaf duration is 90 days with key rotation. Alloy mounts
@@ -124,8 +132,8 @@ and feeds the generated scrape configuration and TLS assets to Prometheus.
 The same-namespace `loki-prometheus-client` references supply `ca.crt`, `tls.crt`
 and `tls.key`; SNI is `loki.logging.svc` and verification is not skipped. Operator
 reconciliation handles this client rather than Reloader; actual generation,
-rotation, propagation and successful scraping remain future live acceptance
-proofs, without Secret-data retrieval.
+rotation and propagation remain later acceptance gates. A successful current
+metrics scrape does not prove renewal, without Secret-data retrieval.
 
 The registered Reloader patch adds only `logging` to the existing namespace scope,
 without changing chart version or global strategy. Named leaf Secret annotations
@@ -133,6 +141,26 @@ select renewal consumers. Applications ignore only the exact controller-generate
 renewal hash entries and documented annotation, not general environment, Secret
 or configuration changes. Verify actual issuance, renewal, trust propagation and
 reload before claiming those mechanisms work; never delete the CA as a shortcut.
+
+## Grafana TLS substitution and health acceptance
+
+The pinned Grafana Operator v5.24.0 substitutes `valuesFrom` into existing
+string fields; it does not create a missing target. The datasource must declare
+`secureJsonData.tlsClientCert`, `tlsClientKey` and `tlsCACert` as `${tls.crt}`,
+`${tls.key}` and `${ca.crt}` respectively, matching its generated Secret key
+references. These are substitution strings, not credentials. See the
+[pinned upstream implementation](https://github.com/grafana/grafana-operator/blob/065a718a1fe83728d08054c299de7f8577e88f79/controllers/datasource_controller.go)
+and [maintained example](https://github.com/grafana/grafana-operator/blob/065a718a1fe83728d08054c299de7f8577e88f79/examples/datasource/datasource_variables/README.md).
+
+A datasource can be synchronized and listed while its secure fields remain
+unset. After approved rollout, confirm only the `secureJsonFields` presence
+flags for all three TLS fields, then authenticated datasource health and the
+Loki build-info proxy response. Never retrieve the actual secure values or
+Secret data. Keep `tlsSkipVerify: false` and the existing verified server name;
+do not restart Grafana or rotate keys to mask provisioning errors. These
+checks prove the Grafana consumer boundary, not Alloy ingestion. The operator
+source logs substituted values at debug verbosity; keep that verbosity off and
+never enable debug or retrieve operator payload logs to inspect credentials.
 
 ## Retention and capacity
 
@@ -197,11 +225,13 @@ collector's permissions.
 
 The reusable workflow `.github/workflows/logging-checks.yml` is called by
 `.github/workflows/test.yml` at the same revision with `contents: read` and no
-Secret exchange. This branch replaces phase-one staging assertions with exact
-activation-registration checks, renders the effective registered Reloader
-Kustomization, and includes PrometheusRule in the existing workload CRD gate.
+Secret exchange. The activation change replaced phase-one staging assertions
+with exact activation-registration checks, renders the effective registered
+Reloader Kustomization, and includes PrometheusRule in the existing workload CRD
+gate. The datasource fix adds an exact assertion for all three secure TLS
+placeholder strings matching the referenced Secret keys.
 The chart pins, native TLS/configuration tests and isolated admission cases are
-unchanged. Pull-request CI is required for this activation revision; earlier
+unchanged. Pull-request CI is required for this datasource-fix revision; earlier
 results are not evidence that the new revision passed.
 
 Phase-one PR [#274](https://github.com/makeitworkcloud/kustomize-cluster/pull/274)
@@ -240,15 +270,17 @@ CI does not prove target policy enforcement, cert-manager issuance/renewal,
 real scrape discovery, bound-volume retention, production source safety, disk
 growth or 30-day deletion. Those are separate live gates using authorized
 Argo/Kubernetes/Grafana evidence and approved protocol tests, with no implicit
-exec, restart, key dump or paid inference. The target policy denial proof must
-precede logging issuer activation, not merely precede source opt-in.
+exec, restart, key dump or paid inference. The normal target policy denial gate
+precedes issuer activation, not merely source opt-in; PR #277 used the explicit one-time owner exception above.
 
 ## End-to-end acceptance after approved activation
 
-1. Before merge, record target policy-specific unauthorized denial, an authorized
-   allowed control and the completed root-issuer alias inventory. Passing CI or
-   policy status is not a substitute. Obtain owner approval for merge and the
-   resulting automatic rollout; do not manually sync to bypass this gate.
+1. For future activation, record target policy-specific unauthorized denial, an
+   authorized allowed control and the root-issuer alias inventory before merge.
+   Passing CI or policy status is not a substitute. PR #277 used the one-time
+   owner exception above; do not reinterpret it as passed enforcement or general
+   permission. Obtain explicit merge/automatic-rollout approval for each change;
+   do not manually sync to bypass the gate.
 2. Verify the selected chart artifacts and Git revision separately from root
    submission. Confirm `gitops-operators`, `gitops-workloads`, Loki, Alloy,
    Grafana and Reloader reconciliation and resource health; independent
