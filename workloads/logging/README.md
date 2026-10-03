@@ -210,8 +210,14 @@ Every source requires review and a later Pod-template annotation
 `arc-runners` and containers named `runner` remain hard-denied even if annotated.
 Removing those exclusions is a separate decision.
 
-Indexed labels are only cluster, namespace, application and container. Pod names
-and UIDs are internal API targeting metadata. Downstream redaction does not prove
+Indexed labels are only cluster, namespace, application and container. Alloy
+keeps this source label set; Loki also explicitly disables automatic
+`service_name` enrichment with `limits_config.discover_service_name: []`. The
+[pinned Loki 3.7.8 contract](https://github.com/grafana/loki/blob/09e6ce2ff1bdc19763a10265b870c86f51c98655/pkg/validation/limits.go)
+defines an empty list as disabling that label. This affects future ingestion,
+not existing streams, and does not remove a label explicitly supplied by a
+client. The approved-source pipeline remains the label-filtering owner. Pod
+names and UIDs are internal API targeting metadata. Downstream redaction does not prove
 source content safe: prompts, outputs, tool arguments/results, credentials,
 session/user IDs and directories remain excluded. No raw logs belong in PRs,
 chat or knowledge. No paid inference is needed for tests.
@@ -230,8 +236,15 @@ with exact activation-registration checks, renders the effective registered
 Reloader Kustomization, and includes PrometheusRule in the existing workload CRD
 gate. The datasource fix adds an exact assertion for all three secure TLS
 placeholder strings matching the referenced Secret keys.
-The chart pins, native TLS/configuration tests and isolated admission cases are
-unchanged. Pull-request CI is required for this datasource-fix revision; earlier
+The chart pins and isolated admission cases are unchanged. The isolated native
+Loki test now pushes exactly the four approved labels and checks `/series` over
+mTLS for that exact indexed set, in addition to retrieving the synthetic line.
+The rendered-config assertion requires the explicit empty service-name discovery
+list. These tests distinguish index labels from structured metadata such as
+`detected_level`; query results alone can show both. Standard LogQL selectors
+remain usable without `service_name`; service-oriented Grafana Explore Logs
+navigation is not an acceptance guarantee for this four-label contract.
+Pull-request CI is required for this label-contract revision; earlier
 results are not evidence that the new revision passed.
 
 Phase-one PR [#274](https://github.com/makeitworkcloud/kustomize-cluster/pull/274)
@@ -274,6 +287,18 @@ exec, restart, key dump or paid inference. The normal target policy denial gate
 precedes issuer activation, not merely source opt-in; PR #277 used the explicit one-time owner exception above.
 
 ## End-to-end acceptance after approved activation
+
+**Dated observation, 2026-10-03 at `02eefe8`:** a separately approved temporary
+source completed a 60-second run; all twelve synthetic Pod-log lines reached
+Alloy, Loki and the main authenticated Grafana datasource. The source was
+deleted and its absence confirmed. That data-path test passed, but `/series`
+showed an additional indexed `service_name`, so strict four-label conformity
+did not pass. The prepared enrichment correction is not live acceptance: after
+its separately approved rollout, use a newly approved source/application label
+and bounded query window to verify the exact `/series` index-label set. Old
+streams retain their labels, so do not delete logs or storage to hide them.
+Renewal, negative-TLS live checks, admission enforcement, capacity and retention
+remain separate evidence limits.
 
 1. For future activation, record target policy-specific unauthorized denial, an
    authorized allowed control and the root-issuer alias inventory before merge.
