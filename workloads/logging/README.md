@@ -118,8 +118,8 @@ Following approved activation, cert-manager owns dedicated key generation:
 The [Prometheus Certificate](loki/metrics-client-certificate.yaml) is named
 `prometheus-client` in `logging`, with CN `prometheus.logging`, only `client auth`,
 ECDSA P-256, `Always` key rotation, duration `2160h`, renew-before `360h` and
-issuer `logging-ca`. It is referenced by the Loki child overlay. Runtime key generation is owned by
-cert-manager; keys are never retrieved, printed, decrypted or committed by this
+issuer `logging-ca`. It is referenced by the Loki child overlay. Runtime key
+generation is owned by cert-manager; keys are never retrieved, printed, decrypted or committed by this
 validation workflow.
 
 The root lasts ten years and retains its key; root trust migration is manual and
@@ -231,7 +231,7 @@ Reloader Kustomization, and includes PrometheusRule in the existing workload CRD
 gate. The datasource fix adds an exact assertion for all three secure TLS
 placeholder strings matching the referenced Secret keys.
 The chart pins, native TLS/configuration tests and isolated admission cases are
-unchanged. Pull-request CI is required for this activation revision; earlier
+unchanged. Pull-request CI is required for this datasource-fix revision; earlier
 results are not evidence that the new revision passed.
 
 Phase-one PR [#274](https://github.com/makeitworkcloud/kustomize-cluster/pull/274)
@@ -270,8 +270,8 @@ CI does not prove target policy enforcement, cert-manager issuance/renewal,
 real scrape discovery, bound-volume retention, production source safety, disk
 growth or 30-day deletion. Those are separate live gates using authorized
 Argo/Kubernetes/Grafana evidence and approved protocol tests, with no implicit
-exec, restart, key dump or paid inference. The normal target policy denial gate precedes issuer activation, not merely
-source opt-in; PR #277 used the explicit one-time owner exception above.
+exec, restart, key dump or paid inference. The normal target policy denial gate
+precedes issuer activation, not merely source opt-in; PR #277 used the explicit one-time owner exception above.
 
 ## End-to-end acceptance after approved activation
 
