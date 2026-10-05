@@ -58,6 +58,16 @@ spec:
         prometheus:
           prometheusSpec:
             retention: 7d
+            additionalScrapeConfigs:
+              - job_name: hero-node-exporter
+                scrape_interval: 30s
+                scrape_timeout: 10s
+                metrics_path: /metrics
+                scheme: http
+                static_configs:
+                  - targets: ["192.168.122.1:9100"]
+                    labels:
+                      instance: hero
             resources:
               requests:
                 cpu: 100m
