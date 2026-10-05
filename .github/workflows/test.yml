@@ -1194,20 +1194,6 @@ jobs:
       - name: pre-commit tests
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
 
-  # DisCode gates. discode-static asserts the approved active posture
-  # (replicas 1, child Application registered exactly once, the dedicated
-  # SOPS creation rule first-match contract for the bot Secret,
-  # owner-approved-ID TOML shape via the stdlib tomllib) and extracts
-  # the build-discode init script path-limited from
-  # workloads/discode/deployment.yaml, cross-checking the init image,
-  # archive URL, and digest literals. It also verifies the committed bot
-  # Secret's encrypted shape (parse, SOPS envelope markers, and
-  # creation-rule recipient match) without decryption or value logging:
-  # a shape proof, not token validity or decryptability.
-  # discode-build runs that script inside the same digest-pinned Node image
-  # via a job container, as root in an ephemeral runner (the pod runs
-  # uid 1000): it validates the build path, not the pod security context or
-  # any runtime credential behavior.
   ci-logging:
     uses: ./.github/workflows/logging-checks.yml
     permissions:
