@@ -225,9 +225,9 @@ or dump it. No credentials, new image, chart upgrade, retention change, or
 replacement of the existing in-cluster Node Exporter job is involved. Host
 installation and firewall ownership remain in `hero-host-config`.
 
-PR CI parses the Application and embedded Helm values and checks the exact
-Hero job with negative fixtures. It does not render Helm, run Prometheus, or
-verify network isolation. After a separately approved merge, main CI requests
+PR CI runs the existing YAML, repository-hygiene and manifest checks. It does
+not validate the embedded scrape configuration, render Helm, run Prometheus,
+or verify network isolation. After a separately approved merge, main CI requests
 root reconciliation automatically. Verify `gitops-operators` at the tested Git
 SHA and the `kube-prometheus-stack` child at the unchanged chart version with
 the intended Helm values. The chart revision alone does not prove job selection.
