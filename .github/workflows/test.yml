@@ -1191,6 +1191,53 @@ jobs:
           print("OK: opencode-memory-pilot staged contract and inactivity verified")
           EOF
 
+      - name: Validate Hero Node Exporter scrape contract
+        run: |
+          python - <<'EOF'
+          import copy
+          from pathlib import Path
+          import yaml
+
+          app = yaml.safe_load(Path("operators/kube-prometheus-stack/application.yaml").read_text())
+          source = app["spec"]["source"]
+          assert source["chart"] == "kube-prometheus-stack"
+          assert source["repoURL"] == "https://prometheus-community.github.io/helm-charts"
+          values = yaml.safe_load(source["helm"]["values"])
+          spec = values["prometheus"]["prometheusSpec"]
+          assert not spec.get("additionalScrapeConfigsSecret", {}).get("enabled", False)
+          expected = {
+              "job_name": "hero-node-exporter",
+              "scrape_interval": "30s",
+              "scrape_timeout": "10s",
+              "metrics_path": "/metrics",
+              "scheme": "http",
+              "static_configs": [{"targets": ["192.168.122.1:9100"],
+                                  "labels": {"instance": "hero"}}],
+          }
+
+          def valid(jobs):
+              return (isinstance(jobs, list)
+                      and all(isinstance(job, dict) for job in jobs)
+                      and len({job.get("job_name") for job in jobs}) == len(jobs)
+                      and [job for job in jobs
+                           if job.get("job_name") == "hero-node-exporter"] == [expected])
+
+          jobs = spec.get("additionalScrapeConfigs")
+          assert valid(jobs), "Hero scrape job must retain its exact isolated endpoint and bounds"
+          for key, value in (("scheme", "https"), ("scrape_timeout", "60s"),
+                             ("job_name", "other"), ("metrics_path", "/")):
+              altered = copy.deepcopy(expected)
+              altered[key] = value
+              assert not valid([altered])
+          altered = copy.deepcopy(expected)
+          altered["static_configs"][0]["targets"] = ["192.168.1.123:9100"]
+          assert not valid([altered])
+          assert not valid([])
+          assert not valid([expected, expected])
+          assert not valid("hero-node-exporter")
+          print("OK: Hero scrape contract and rejection fixtures validated")
+          EOF
+
       - name: pre-commit tests
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
 
