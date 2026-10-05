@@ -913,7 +913,7 @@ jobs:
                   chart = next(s for s in app["spec"]["sources"] if s.get("chart") == "opencode-server")
                   selector = next(e["value"] for e in DEPLOYMENT["spec"]["template"]["spec"]["containers"][0]["env"]
                                   if e["name"] == "OPENCODE_API_VERSION")
-                  self.assertEqual((chart["targetRevision"], selector), ("0.5.0", "2"))
+                  self.assertEqual((chart["targetRevision"], selector), ("0.5.1", "2"))
               def test_dashboard_gates_uid_and_panel17_restored(self):
                   document = yaml.safe_load(
                       Path("workloads/grafana/opencode-dashboard.yaml").read_text())
