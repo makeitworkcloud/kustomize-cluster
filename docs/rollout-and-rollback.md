@@ -215,3 +215,40 @@ for this rollout on 2026-10-02: no verified recovery guarantee exists, and
 the untested OAuth seed-rotation compatibility risk is accepted. After
 rollout, re-run the exporter verification above and expect the absent
 `retry` series.
+
+## Verify the physical Hero Node Exporter target
+
+`operators/kube-prometheus-stack/application.yaml` selects Hero through the
+pinned chart's `prometheus.prometheusSpec.additionalScrapeConfigs` setting. The
+upstream chart owns the generated scrape-configuration Secret; do not hand-edit
+or dump it. No credentials, new image, chart upgrade, retention change, or
+replacement of the existing in-cluster Node Exporter job is involved. Host
+installation and firewall ownership remain in `hero-host-config`.
+
+PR CI parses the Application and embedded Helm values and checks the exact
+Hero job with negative fixtures. It does not render Helm, run Prometheus, or
+verify network isolation. After a separately approved merge, main CI requests
+root reconciliation automatically. Verify `gitops-operators` at the tested Git
+SHA and the `kube-prometheus-stack` child at the unchanged chart version with
+the intended Helm values. The chart revision alone does not prove job selection.
+
+Check root and child sync/health, Prometheus and StatefulSet health, then verify
+`up{job="hero-node-exporter",instance="hero"}` is 1 and
+`node_exporter_build_info{job="hero-node-exporter",instance="hero"}` is present.
+Confirm fresh, advancing sample timestamps across at least two scrape intervals
+rather than relying on old samples or a one-off HTTP probe.
+
+The listener is Hero's isolated bridge endpoint, not its LAN or WARP SSH endpoint.
+Revalidate the translated source after node/network changes; its DHCP address
+has no verified reservation. Do not broaden the host rule to a subnet merely
+to recover a failed target. Denied-access acceptance is separate: an existing
+authorized external test client must reach the actual listener with a confirmed
+nonallowed source, correlated with arrival at Hero and a successful allowed
+control. Timeout without arrival is not proof of firewall rejection. Same-node
+pods may share the allowed source, and Hero-local delivery or requests to a
+non-listening address do not prove external rejection. New probes, privileged
+captures, or network changes require exact operation/target approval.
+
+Rollback removes this job through a reviewed GitOps change and the same
+reconciliation chain. It does not uninstall the host exporter or undo its
+firewall rules; those are separately approved Hero IaC operations.
