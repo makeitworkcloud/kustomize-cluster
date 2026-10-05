@@ -14,5 +14,4 @@ resources:
   - mcp-gateway-app.yaml
   - gotenberg-app.yaml
   - opencode-app.yaml
-  - discode-app.yaml
   - ../argocd
