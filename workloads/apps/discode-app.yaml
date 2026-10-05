@@ -1,7 +1,4 @@
 ---
-# Registered child Application for the DisCode workload
-# (workloads/discode). Manages no custom resources, so no
-# SkipDryRunOnMissingResource.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -21,6 +18,7 @@ spec:
   syncPolicy:
     automated:
       prune: true
+      allowEmpty: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
