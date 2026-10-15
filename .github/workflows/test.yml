@@ -24,7 +24,7 @@ jobs:
         # became unresolvable to runners on 2026-09-09 across regions and
         # retries while the API tag cache still served it; upstream rewrote
         # the tagged commit. Re-pinned to a branch-reachable commit.
-        uses: actions/setup-python@06da6279cdbca41027908073e81a4544dc79c06b
+        uses: actions/setup-python@ff73b2463e2f3baa703f830da214b8dfeeaeccf8
         with:
           python-version: "3.12"
 
