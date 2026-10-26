@@ -11,8 +11,6 @@
 # the external exposure of this browser-capable backend on 2026-09-11;
 # Cloudflare Access remains the edge authentication boundary.
 #
-# Image digest resolved against the registry manifest API (OCI image index,
-# amd64/linux present): sha256 of the v0.0.80 index.
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
@@ -21,7 +19,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  image: mcr.microsoft.com/playwright/mcp:v0.0.80@sha256:dda1f7f9b812e22946635c8af7df9288b96d3b9e3f0f1b8576d6823e2031c1de
+  image: mcr.microsoft.com/playwright/mcp:v0.0.83@sha256:690763cbb437ee7233f538a953bb5390bf03791eb5c965b471e59d17a6132fcb
   transport: streamable-http
   mcpPort: 8080
   args:
@@ -29,7 +27,8 @@ spec:
     - --browser
     - chromium
     - --no-sandbox
-    # Enable the PDF capability (browser_page_pdf). Core automation tools are
+    - --no-webmcp
+    # Enable the PDF capability (browser_pdf_save). Core automation tools are
     # always on; pdf is opt-in per upstream README.
     - --caps
     - pdf
@@ -53,10 +52,9 @@ spec:
     # mcp-playwright-config for rationale and contents).
     - --config
     - /config/config.json
-    # Tool output files (browser_pdf_save, screenshots) default to the process
-    # working directory (/home/node — read-only rootfs). Redirect to the
-    # writable /tmp emptyDir (observed 2026-09-02: EROFS open
-    # '/home/node/playwright-demo.pdf' with navigate/evaluate already working).
+    # Automatically named outputs use the writable /tmp emptyDir. Explicit
+    # filenames resolve against the workspace root, not --output-dir; use an
+    # absolute /tmp/output/... filename when the root filesystem is read-only.
     - --output-dir
     - /tmp/output
   # ToolHive runs MCP server pods with a read-only root filesystem by
