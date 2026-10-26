@@ -8,7 +8,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "3"
 spec:
-  image: docker.io/grafana/mcp-grafana:1.2.0@sha256:cfae68f893dbe40cb6df69579f78beb226f973ded4436d47c844f91d2f00dc53
+  image: docker.io/grafana/mcp-grafana:2.1.1@sha256:71a3f4e6f412d253611314233df709ec2571fb50e39742d23fa2940f670646dc
   transport: streamable-http
   mcpPort: 8000
   args:
@@ -18,9 +18,13 @@ spec:
     # upstream server otherwise permits only loopback Host headers.
     - --allowed-hosts
     - "*"
+    - --enabled-tools
+    - search,datasource,incident,prometheus,loki,alerting,dashboard,folder,oncall,asserts,pyroscope,navigation,tempo,annotations,rendering,snapshot,plugin,api,config,provisioning
   env:
     - name: GRAFANA_URL
       value: http://grafana-service.grafana.svc.cluster.local:3000
+    - name: GRAFANA_USAGE_STATS
+      value: disabled
   secrets:
     - name: mcp-grafana-service-account-token
       key: token
