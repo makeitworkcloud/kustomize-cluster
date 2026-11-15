@@ -159,14 +159,17 @@ jobs:
           for name in sorted(old):
               before, after = old[name], new[name]
               for key in ('group', 'scope', 'names', 'conversion', 'preserveUnknownFields'):
-                  require(before.get(key) == after.get(key), name + ': identity/conversion changed: ' + key)
+                  if before.get(key) != after.get(key):
+                      differences.append(name + ': identity/conversion changed: ' + key)
               versions = lambda spec: {v['name']: v for v in spec['versions']}
               previous, target = versions(before), versions(after)
-              require(set(previous) == set(target), name + ': version inventory changed')
-              for version in sorted(previous):
+              if set(previous) != set(target):
+                  differences.append(name + ': version inventory changed')
+              for version in sorted(set(previous) & set(target)):
                   a, b = previous[version], target[version]
                   for key in ('served', 'storage', 'deprecated', 'deprecationWarning', 'subresources'):
-                      require(a.get(key) == b.get(key), name + ': version contract changed: ' + key)
+                      if a.get(key) != b.get(key):
+                          differences.append(name + '/' + version + ': version contract changed: ' + key)
                   compare_schema(a['schema']['openAPIV3Schema'], b['schema']['openAPIV3Schema'],
                                  name + '/' + version)
           for difference in differences[:100]:
