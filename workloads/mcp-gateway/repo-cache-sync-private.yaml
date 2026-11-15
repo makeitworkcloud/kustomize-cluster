@@ -36,7 +36,7 @@ spec:
     spec:
       containers:
         - name: sync-agent-knowledge
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/agent-knowledge
             - --ref=HEAD
@@ -96,7 +96,7 @@ spec:
               mountPath: /etc/git-secret
               readOnly: true
         - name: sync-channel-project
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/channel-project
             - --ref=HEAD

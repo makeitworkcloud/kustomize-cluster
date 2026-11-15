@@ -49,7 +49,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: sync-charts
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/charts
             - --ref=HEAD
@@ -104,7 +104,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-cflan
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/cflan
             - --ref=HEAD
@@ -159,7 +159,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-dotgithub
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/.github
             - --ref=HEAD
@@ -214,7 +214,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-images
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/images
             - --ref=HEAD
@@ -269,7 +269,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-kustomize-cluster
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/kustomize-cluster
             - --ref=HEAD
@@ -324,7 +324,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-shared-workflows
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/shared-workflows
             - --ref=HEAD
@@ -379,7 +379,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-terraform-libvirt-domain
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/terraform-libvirt-domain
             - --ref=HEAD
@@ -434,7 +434,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-tfroot-aws
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/tfroot-aws
             - --ref=HEAD
@@ -489,7 +489,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-tfroot-cloudflare
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/tfroot-cloudflare
             - --ref=HEAD
@@ -544,7 +544,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-tfroot-gcp
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/tfroot-gcp
             - --ref=HEAD
@@ -599,7 +599,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-tfroot-github
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/tfroot-github
             - --ref=HEAD
@@ -654,7 +654,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-tfroot-libvirt
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/tfroot-libvirt
             - --ref=HEAD
@@ -709,7 +709,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-tfroot-namecheap
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/tfroot-namecheap
             - --ref=HEAD
@@ -764,7 +764,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-www
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/www
             - --ref=HEAD

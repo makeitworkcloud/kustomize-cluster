@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: sync-xnoto-dotgithub
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/.github
             - --ref=HEAD
@@ -74,7 +74,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-alacritty-theme-linux-vconsole
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/alacritty-theme-linux-vconsole
             - --ref=HEAD
@@ -129,7 +129,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-brewfile
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/brewfile
             - --ref=HEAD
@@ -184,7 +184,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-claude-config
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/claude-config
             - --ref=HEAD
@@ -239,7 +239,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-codex-config
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/codex-config
             - --ref=HEAD
@@ -294,7 +294,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-dotfiles
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/dotfiles
             - --ref=HEAD
@@ -349,7 +349,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-herofand
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/herofand
             - --ref=HEAD
@@ -404,7 +404,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-homebrew-opencode-agent-hub
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/homebrew-opencode-agent-hub
             - --ref=HEAD
@@ -459,7 +459,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-llama-hero
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/llama-hero
             - --ref=HEAD
@@ -514,7 +514,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-mcp-gateway
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/mcp-gateway
             - --ref=HEAD
@@ -569,7 +569,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-messaging-service
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/messaging-service
             - --ref=HEAD
@@ -624,7 +624,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-opencode-agent-hub
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/opencode-agent-hub
             - --ref=HEAD
@@ -679,7 +679,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-opencode-config
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/opencode-config
             - --ref=HEAD
@@ -734,7 +734,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-opencode-llama-config
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/opencode-llama-config
             - --ref=HEAD
@@ -789,7 +789,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-xnoto-xbox-media-utils
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/xnoto/xbox-media-utils
             - --ref=HEAD
