@@ -4,8 +4,9 @@ The approved design is cluster-wide reviewed-source eligibility, 30-day retentio
 and an initial 100Gi node-local allocation. PR [#277](https://github.com/makeitworkcloud/kustomize-cluster/pull/277)
 registered Loki, Alloy, PKI, Grafana integration and the Reloader logging scope
 on `main` at `a242264` for an owner-approved validation-only rollout. No production
-log source is enabled and no new chart or image is published. That rollout did not change upstream chart pins. The current Reloader
-chart selection is described below. Reconciliation and readiness do not prove the log data path.
+log source is enabled and no new chart or image is published. That rollout did
+not change upstream chart pins. The current Reloader chart selection is described
+below. Reconciliation and readiness do not prove the log data path.
 
 Follow [Adding a workload](../../docs/adding-a-workload.md) and
 [Rollout and rollback](../../docs/rollout-and-rollback.md).
