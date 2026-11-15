@@ -55,7 +55,7 @@ jobs:
           (out / 'reloader-application.yaml').write_text(yaml.safe_dump(reloader_app, sort_keys=False))
           reloader_src = reloader_app['spec']['source']
           reloader_values = reloader_src.get('helm', {}).get('valuesObject')
-          check(reloader_src.get('chart') == 'reloader' and reloader_src.get('repoURL') == 'https://stakater.github.io/stakater-charts' and reloader_src.get('targetRevision') == '2.2.16', 'reloader Application must pin reloader 2.2.16 stakater')
+          check(reloader_src.get('chart') == 'reloader' and reloader_src.get('repoURL') == 'https://stakater.github.io/stakater-charts' and reloader_src.get('targetRevision') == '2.2.20', 'reloader Application must pin reloader 2.2.20 stakater')
           check(isinstance(reloader_values, dict), 'reloader Application must carry a helm valuesObject')
           reloader_namespace = reloader_app['spec']['destination']['namespace']
           if errors:
@@ -400,8 +400,8 @@ jobs:
                 if 'secrets' in (ru.get('resources') or []):
                     check(not ({'create', 'update', 'patch', 'delete', 'deletecollection'} & set(ru.get('verbs') or [])), 'watch Role never mutates secrets: %s' % r['metadata']['name'])
           # Semantic roleRef matching; no chart name-suffix assumptions. The
-          # pinned stakater reloader 2.2.16 (tag chart-v2.2.16, commit
-          # 655a2b38) renders per-namespace <fullname>-role-binding entries
+          # pinned stakater reloader 2.2.20 (tag chart-v2.2.20) renders
+          # per-namespace <fullname>-role-binding entries
           # PLUS an always-on <fullname>-metadata-role-binding in the release
           # namespace (configmaps role), so name/namespace-count filters
           # cannot express the contract. Instead every RoleBinding must
@@ -514,7 +514,7 @@ jobs:
             sys.exit('PROSPECTIVE-INVALID: activation patch must extend the watch to ' 'grafana+logging+opencode exactly, got %s' % prospective)
           (w / 'reloader-prospective-values.yaml').write_text(yaml.safe_dump( effective['spec']['source']['helm']['valuesObject'], sort_keys=False))
           EOF
-          helm template reloader-prospective stakater-vendor/reloader --version 2.2.16 \
+          helm template reloader-prospective stakater-vendor/reloader --version 2.2.20 \
           --namespace reloader --values "$W/reloader-prospective-values.yaml" \
           > "$W/reloader-prospective-rendered.yaml"
           python - "$W" <<'EOF'
@@ -532,7 +532,7 @@ jobs:
           args = dep['spec']['template']['spec']['containers'][0].get('args') or []
           check('--namespaces=grafana,logging,opencode,reloader' in args, 'prospective Deployment watch flag must be exact, got %s' % args)
           # Same semantic SA/roleRef contract as the base render (chart
-          # 2.2.16 also emits a metadata-role-binding in the release
+          # 2.2.20 also emits a metadata-role-binding in the release
           # namespace here): every RoleBinding binds an existing rendered
           # Role in its own namespace, its only subject is the operator
           # ServiceAccount from the prospective Deployment in the reloader
