@@ -73,7 +73,7 @@ jobs:
       - name: Compare ToolHive CRD schemas before controller promotion
         run: |
           python - <<'EOF'
-          import subprocess, yaml
+          import re, subprocess, yaml
           from pathlib import Path
 
           def require(condition, message):
@@ -96,8 +96,8 @@ jobs:
               require(result.returncode == 0, 'render failed for ' + version + ' (payload suppressed)')
               # Helm reports the pulled OCI digest on stderr. Report only that
               # public digest line; never echo arbitrary Helm failure payloads.
-              digests = [line.split(':', 1)[1].strip() for line in result.stderr.splitlines()
-                         if line.startswith('Digest: sha256:')]
+              digests = [match.group(1) for line in result.stderr.splitlines()
+                         if (match := re.fullmatch(r'Digest: (sha256:[0-9a-f]{64})', line))]
               require(len(digests) == 1, 'one OCI chart digest for ' + version)
               print('ToolHive CRD chart', version, digests[0])
               docs = [d for d in yaml.safe_load_all(result.stdout) if isinstance(d, dict)]
@@ -117,19 +117,44 @@ jobs:
                   return
               properties = before.get('properties', {})
               target = after.get('properties', {})
+              for name in sorted(set(target) - set(properties)):
+                  differences.append(path + '.' + name + ': property added; review defaults and constraints')
               for name, schema in properties.items():
                   if name not in target:
                       differences.append(path + '.' + name + ': property removed')
                   else:
                       compare_schema(schema, target[name], path + '.' + name)
-              if not set(after.get('required', [])) <= set(before.get('required', [])):
-                  differences.append(path + ': required set tightened')
+              if set(after.get('required', [])) != set(before.get('required', [])):
+                  differences.append(path + ': required set changed')
               if 'items' in before or 'items' in after:
                   compare_schema(before.get('items'), after.get('items'), path + '[]')
               constraints = (set(before) | set(after)) - notes - {'properties', 'required', 'items'}
               for key in sorted(constraints):
                   if before.get(key) != after.get(key) or (key in before) != (key in after):
                       differences.append(path + ': constraint changed: ' + key)
+
+          # Exercise the comparator itself before interpreting vendor schemas.
+          fixture = {'type': 'object', 'properties': {'value': {'type': 'string'}}, 'required': ['value']}
+          variants = [
+              {'type': 'object', 'properties': {}, 'required': ['value']},
+              {**fixture, 'properties': {**fixture['properties'], 'extra': {'type': 'string', 'default': 'x'}}},
+              {**fixture, 'required': []},
+              {**fixture, 'required': ['value', 'extra']},
+              {**fixture, 'properties': {'value': {'type': 'integer'}}},
+              {**fixture, 'properties': {'value': {'type': 'string', 'default': 'x'}}},
+              {**fixture, 'x-kubernetes-validations': [{'rule': 'true'}]},
+          ]
+          for index, variant in enumerate(variants):
+              differences.clear()
+              compare_schema(fixture, variant, 'fixture')
+              require(bool(differences), 'comparator mutation fixture ' + str(index))
+          differences.clear()
+          compare_schema({'type': 'array', 'items': {'type': 'string'}},
+                         {'type': 'array', 'items': {'type': 'integer'}}, 'fixture')
+          require(bool(differences), 'comparator array mutation fixture')
+          differences.clear()
+          compare_schema(fixture, {**fixture, 'description': 'documentation-only'}, 'fixture')
+          require(not differences, 'description-only fixture must remain excluded')
 
           for name in sorted(old):
               before, after = old[name], new[name]
