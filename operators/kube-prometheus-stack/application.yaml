@@ -14,7 +14,7 @@ spec:
   source:
     chart: kube-prometheus-stack
     repoURL: https://prometheus-community.github.io/helm-charts
-    targetRevision: 84.4.0
+    targetRevision: 93.3.0
     helm:
       releaseName: kube-prometheus-stack
       values: |
@@ -50,12 +50,22 @@ spec:
                 memory: 32Mi
 
         prometheusOperator:
+          admissionWebhooks:
+            patch:
+              # Preserve the existing Opaque Secret and ca/cert/key layout.
+              # Vendor-supported opt-out of TLS Secret migration/deletion.
+              secretType: ""
           resources:
             requests:
               cpu: 50m
               memory: 128Mi
 
         prometheus:
+          serviceAccount:
+            createTokenSecret: false
+          controlPlaneScrapeClass:
+            # Reuse the rotating projected token; do not create a static token.
+            enabled: true
           prometheusSpec:
             retention: 7d
             additionalScrapeConfigs:
