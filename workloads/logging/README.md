@@ -4,8 +4,8 @@ The approved design is cluster-wide reviewed-source eligibility, 30-day retentio
 and an initial 100Gi node-local allocation. PR [#277](https://github.com/makeitworkcloud/kustomize-cluster/pull/277)
 registered Loki, Alloy, PKI, Grafana integration and the Reloader logging scope
 on `main` at `a242264` for an owner-approved validation-only rollout. No production
-log source is enabled and no new chart or image is published. Upstream chart
-pins are unchanged. Reconciliation and readiness do not prove the log data path.
+log source is enabled and no new chart or image is published. That rollout did not change upstream chart pins. The current Reloader
+chart selection is described below. Reconciliation and readiness do not prove the log data path.
 
 Follow [Adding a workload](../../docs/adding-a-workload.md) and
 [Rollout and rollback](../../docs/rollout-and-rollback.md).
@@ -61,6 +61,13 @@ These registrations reached `main` under the explicit PR #277 exception above.
 Source opt-ins remain separate owner-reviewed changes after backend acceptance.
 
 ## Ownership and reconciliation
+
+The Reloader [Application](../../operators/reloader/application.yaml) selects
+chart 2.2.20, and the [logging checks](../../.github/workflows/logging-checks.yml)
+use the same version for base and prospective renders. Desired-state selection
+does not establish reconciliation, health or renewal/reload behavior. The table
+below records observations from 2026-10-03 and intentionally retains the
+historical Reloader 2.2.16 pin.
 
 | Producer/integration | Consumer | Observed validation rollout, 2026-10-03 |
 | --- | --- | --- |
@@ -135,8 +142,11 @@ reconciliation handles this client rather than Reloader; actual generation,
 rotation and propagation remain later acceptance gates. A successful current
 metrics scrape does not prove renewal, without Secret-data retrieval.
 
-The registered Reloader patch adds only `logging` to the existing namespace scope,
-without changing chart version or global strategy. Named leaf Secret annotations
+The registered Reloader patch added only `logging` to the namespace scope during
+the validation rollout, without changing the chart version or global strategy at
+that time. The [Reloader overlay](../../operators/reloader/kustomization.yaml)
+already selects `logging-watch-patch.yaml`. The chart upgrade changes neither
+this watch selection nor the global strategy. Named leaf Secret annotations
 select renewal consumers. Applications ignore only the exact controller-generated
 renewal hash entries and documented annotation, not general environment, Secret
 or configuration changes. Verify actual issuance, renewal, trust propagation and
@@ -236,9 +246,12 @@ with exact activation-registration checks, renders the effective registered
 Reloader Kustomization, and includes PrometheusRule in the existing workload CRD
 gate. The datasource fix adds an exact assertion for all three secure TLS
 placeholder strings matching the referenced Secret keys.
-The chart pins and isolated admission cases are unchanged. The isolated native
-Loki test now pushes exactly the four approved labels and checks `/series` over
-mTLS for that exact indexed set, in addition to retrieving the synthetic line.
+The Loki and Alloy chart pins and isolated admission cases are unchanged.
+Reloader's base and prospective renders use chart 2.2.20 with the existing
+assertions unchanged. These desired CI checks do not themselves prove a
+successful run or runtime acceptance. The isolated native Loki test pushes
+exactly the four approved labels and checks `/series` over mTLS for that exact
+indexed set, in addition to retrieving the synthetic line.
 The rendered-config assertion requires the explicit empty service-name discovery
 list. These tests distinguish index labels from structured metadata such as
 `detected_level`; query results alone can show both. Standard LogQL selectors
