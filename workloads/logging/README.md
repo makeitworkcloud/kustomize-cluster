@@ -66,9 +66,12 @@ Source opt-ins remain separate owner-reviewed changes after backend acceptance.
 The Reloader [Application](../../operators/reloader/application.yaml) selects
 chart 2.2.20, and the [logging checks](../../.github/workflows/logging-checks.yml)
 use the same version for base and prospective renders. Desired-state selection
-does not establish reconciliation, health or renewal/reload behavior. The table
-below records observations from 2026-10-03 and intentionally retains the
-historical Reloader 2.2.16 pin.
+does not establish reconciliation, health or renewal/reload behavior. The Alloy
+[Application](../apps/alloy-app.yaml) selects chart 1.16.0 (app v1.22.0); coupled
+logging checks select the same chart and application versions. This selection
+is not deployment or functional-acceptance evidence. The table below records
+observations from 2026-10-03 and intentionally retains the historical Reloader
+2.2.16 and Alloy 1.13.0 (app v1.20.0) pins.
 
 | Producer/integration | Consumer | Observed validation rollout, 2026-10-03 |
 | --- | --- | --- |
@@ -247,10 +250,15 @@ with exact activation-registration checks, renders the effective registered
 Reloader Kustomization, and includes PrometheusRule in the existing workload CRD
 gate. The datasource fix adds an exact assertion for all three secure TLS
 placeholder strings matching the referenced Secret keys.
-The Loki and Alloy chart pins and isolated admission cases are unchanged.
-Reloader's base and prospective renders use chart 2.2.20 with the existing
-assertions unchanged. These desired CI checks do not themselves prove a
-successful run or runtime acceptance. The isolated native Loki test pushes
+The Loki chart pin and isolated admission cases are unchanged. Alloy checks
+render chart 1.16.0 and validate native app v1.22.0, retaining the existing
+generally-available stability, pipeline, TLS, RBAC and source opt-in contracts;
+no WAL or optional resize/distroless setting is enabled. The chart selects
+config-reloader v0.94.2. Reloader's base and prospective renders use chart 2.2.20
+with the existing assertions unchanged. These desired CI checks do not
+themselves prove a successful run or runtime acceptance. Collection/reconnect
+acceptance remains separate and requires exact approval for any synthetic
+source; this upgrade does not opt in sources or relax excluded namespaces. The isolated native Loki test pushes
 exactly the four approved labels and checks `/series` over mTLS for that exact
 indexed set, in addition to retrieving the synthetic line.
 The rendered-config assertion requires the explicit empty service-name discovery
