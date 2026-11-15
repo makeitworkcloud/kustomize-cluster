@@ -65,6 +65,91 @@ jobs:
           print(f"OK: all kustomization references resolve across {len(files)} kustomizations")
           EOF
 
+      - name: Setup Helm for ToolHive CRD compatibility renders
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.0
+
+      - name: Compare ToolHive CRD schemas before controller promotion
+        run: |
+          python - <<'EOF'
+          import subprocess, yaml
+          from pathlib import Path
+
+          def require(condition, message):
+              if not condition:
+                  raise SystemExit('TOOLHIVE-CRD-CHECK: ' + message)
+
+          app = yaml.safe_load(Path('operators/toolhive/toolhive-crds-app.yaml').read_text())
+          source = app['spec']['source']
+          require(source['repoURL'] == 'ghcr.io/stacklok/toolhive'
+                  and source['chart'] == 'toolhive-operator-crds', 'official CRD chart source')
+          require(source['targetRevision'] == '0.65.0', 'reviewed target version')
+          require(source['helm'] == {'releaseName': 'toolhive-operator-crds'}, 'no chart value overrides')
+          charts = []
+          for version in ('0.46.0', source['targetRevision']):
+              result = subprocess.run([
+                  'helm', 'template', 'toolhive-operator-crds',
+                  'oci://ghcr.io/stacklok/toolhive/toolhive-operator-crds',
+                  '--version', version, '--kube-version', '1.31.13', '--include-crds',
+              ], capture_output=True, text=True, timeout=180)
+              require(result.returncode == 0, 'render failed for ' + version + ' (payload suppressed)')
+              # Helm reports the pulled OCI digest on stderr. Report only that
+              # public digest line; never echo arbitrary Helm failure payloads.
+              digests = [line.split(':', 1)[1].strip() for line in result.stderr.splitlines()
+                         if line.startswith('Digest: sha256:')]
+              require(len(digests) == 1, 'one OCI chart digest for ' + version)
+              print('ToolHive CRD chart', version, digests[0])
+              docs = [d for d in yaml.safe_load_all(result.stdout) if isinstance(d, dict)]
+              require(all(d.get('kind') == 'CustomResourceDefinition' for d in docs), 'CRD-only chart')
+              crds = {d['metadata']['name']: d['spec'] for d in docs}
+              require(len(crds) == len(docs) == 14, 'exact fourteen unique CRDs')
+              charts.append(crds)
+          old, new = charts
+          require(set(old) == set(new), 'unchanged CRD inventory')
+          differences = []
+          notes = {'description', 'title', 'example', 'examples', 'externalDocs', '$comment'}
+
+          def compare_schema(before, after, path):
+              if not isinstance(before, dict) or not isinstance(after, dict):
+                  if before != after:
+                      differences.append(path + ': schema shape changed')
+                  return
+              properties = before.get('properties', {})
+              target = after.get('properties', {})
+              for name, schema in properties.items():
+                  if name not in target:
+                      differences.append(path + '.' + name + ': property removed')
+                  else:
+                      compare_schema(schema, target[name], path + '.' + name)
+              if not set(after.get('required', [])) <= set(before.get('required', [])):
+                  differences.append(path + ': required set tightened')
+              if 'items' in before or 'items' in after:
+                  compare_schema(before.get('items'), after.get('items'), path + '[]')
+              constraints = (set(before) | set(after)) - notes - {'properties', 'required', 'items'}
+              for key in sorted(constraints):
+                  if before.get(key) != after.get(key) or (key in before) != (key in after):
+                      differences.append(path + ': constraint changed: ' + key)
+
+          for name in sorted(old):
+              before, after = old[name], new[name]
+              for key in ('group', 'scope', 'names', 'conversion', 'preserveUnknownFields'):
+                  require(before.get(key) == after.get(key), name + ': identity/conversion changed: ' + key)
+              versions = lambda spec: {v['name']: v for v in spec['versions']}
+              previous, target = versions(before), versions(after)
+              require(set(previous) == set(target), name + ': version inventory changed')
+              for version in sorted(previous):
+                  a, b = previous[version], target[version]
+                  for key in ('served', 'storage', 'deprecated', 'deprecationWarning', 'subresources'):
+                      require(a.get(key) == b.get(key), name + ': version contract changed: ' + key)
+                  compare_schema(a['schema']['openAPIV3Schema'], b['schema']['openAPIV3Schema'],
+                                 name + '/' + version)
+          for difference in differences[:100]:
+              print('REVIEW-REQUIRED:', difference)
+          require(not differences, str(len(differences)) + ' schema changes need explicit compatibility review')
+          print('OK: conservative schema comparison only; no apply, existing-resource or old-controller test')
+          EOF
+
       - name: Validate OpenCode dashboard and auth-boundary probes
         run: |
           python - <<'EOF'
