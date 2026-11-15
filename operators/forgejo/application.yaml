@@ -27,7 +27,7 @@ spec:
         strategy:
           type: Recreate
         image:
-          tag: 15.0.8-rootless
+          tag: 15.0.11-rootless
         gitea:
           # OIDC sign-in via ArgoCD's embedded Dex (`dex` auth source).
           # The chart's init container runs `gitea admin auth add-oauth`

@@ -12,7 +12,7 @@ namespace: tor-controller
 images:
   - name: gcr.io/kubebuilder/kube-rbac-proxy
     newName: quay.io/brancz/kube-rbac-proxy
-    newTag: v0.18.0
+    newTag: v0.23.1
 
 patches:
   # The upstream binding still names tor-controller-system after the override.
