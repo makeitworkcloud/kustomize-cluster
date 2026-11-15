@@ -225,11 +225,16 @@ or dump it. No credentials, new image, chart upgrade, retention change, or
 replacement of the existing in-cluster Node Exporter job is involved. Host
 installation and firewall ownership remain in `hero-host-config`.
 
-PR CI runs the existing YAML, repository-hygiene and manifest checks. It does
-not validate the embedded scrape configuration, render Helm, run Prometheus,
-or verify network isolation. After a separately approved merge, main CI requests
+PR CI runs the existing YAML, repository-hygiene and manifest checks. Monitoring
+compatibility checks additionally render baseline chart `84.4.0` and selected
+chart `93.3.0` for Kubernetes `1.31.13`. They assert projected-token scrape-class
+routing, admission Job and legacy certificate-key contracts, ServiceAccount and
+ServiceMonitor inventories, reviewed RBAC changes, and ten CRDs with expected
+served/storage versions and required scrape-class schema fields. Rendering does
+not apply CRDs, run Prometheus, prove admission or token renewal, verify
+backup/restore, or establish network isolation. After a separately approved merge, main CI requests
 root reconciliation automatically. Verify `gitops-operators` at the tested Git
-SHA and the `kube-prometheus-stack` child at the unchanged chart version with
+SHA and the `kube-prometheus-stack` child at the selected chart version with
 the intended Helm values. The chart revision alone does not prove job selection.
 
 Check root and child sync/health, Prometheus and StatefulSet health, then verify
@@ -252,3 +257,39 @@ captures, or network changes require exact operation/target approval.
 Rollback removes this job through a reviewed GitOps change and the same
 reconciliation chain. It does not uninstall the host exporter or undo its
 firewall rules; those are separately approved Hero IaC operations.
+
+## Monitoring chart upgrade gates
+
+The maintained upstream chart is selected by
+`operators/kube-prometheus-stack/application.yaml`, reconciled through
+`gitops-operators` and its independent `kube-prometheus-stack` child. Passing
+main CI submits root sync operations; it does not await health.
+
+The `84.4.0` to `93.3.0` upgrade disables static ServiceAccount token creation,
+enables the control-plane projected-token scrape class, and keeps the previous
+Opaque admission Secret layout through an empty `patch.secretType`. These are
+[vendor-supported compatibility settings](https://github.com/prometheus-community/helm-charts/blob/f7c2da805a5bf25a51ed10e6d9b73d6d83d3ce0f/charts/kube-prometheus-stack/values.yaml).
+The inherited kubelet `insecureSkipVerify: true` and CoreDNS HTTP behavior
+remain unchanged; token routing is not improved TLS verification.
+
+Before merge, require passing render CI, k3s compatibility evidence, CRD/hook
+coordination, and a persisted-state/storage/recovery assessment. Where no
+verified recovery exists, obtain an explicit owner waiver rather than imply
+that a chart-pin rollback restores data. Confirm CRDs support the selected
+scrape-class fields before the controller and custom-resource consumers use
+them. Review the chart-managed CRD and hook delivery path: `helm template`
+does not apply resources, and sync waves do not order independent Applications.
+
+After an approved merge, separately verify:
+
+- root Git revision, child chart revision, successful operations, and health;
+- expected CRD inventory, Established conditions, and stored versions;
+- operator, Prometheus, and Alertmanager health and expected images;
+- apiserver, kubelet, CoreDNS, and Hero scrape health with advancing timestamps;
+- the independent Loki monitor and unchanged OpenCode pod.
+
+Token renewal and admission enforcement need separate, approved functional
+evidence; readiness and render assertions do not prove either. Do not retrieve
+Secret values or run mutating probes as routine acceptance. Restore the prior
+pin only through a reviewed GitOps change after checking current CRD/data
+compatibility; a Git revert does not reverse CRD or data migrations.

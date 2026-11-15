@@ -53,7 +53,7 @@ spec:
           admissionWebhooks:
             patch:
               # Preserve the existing Opaque Secret and ca/cert/key layout.
-              # Vendor-supported opt-out of TLS Secret migration/deletion.
+              # Vendor opt-out: helm-charts@f7c2da8, kube-prometheus-stack/values.yaml.
               secretType: ""
           resources:
             requests:
@@ -64,7 +64,7 @@ spec:
           serviceAccount:
             createTokenSecret: false
           controlPlaneScrapeClass:
-            # Reuse the rotating projected token; do not create a static token.
+            # Projected-token alternative: same vendor values.yaml as above.
             enabled: true
           prometheusSpec:
             retention: 7d
