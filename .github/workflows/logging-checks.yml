@@ -49,7 +49,7 @@ jobs:
             check(app['spec']['destination']['namespace'] == ns, '%s ns %s' % (path, ns))
             return src, values
           loki_src, loki_values = chart_source( 'workloads/apps/loki-app.yaml', 'loki', '18.13.7', 'https://grafana-community.github.io/helm-charts')
-          alloy_src, alloy_values = chart_source( 'workloads/apps/alloy-app.yaml', 'alloy', '1.13.0', 'https://grafana.github.io/helm-charts')
+          alloy_src, alloy_values = chart_source( 'workloads/apps/alloy-app.yaml', 'alloy', '1.16.0', 'https://grafana.github.io/helm-charts')
           reloader_app = yaml.safe_load(subprocess.check_output(
               ['kustomize', 'build', 'operators/reloader'], text=True))
           (out / 'reloader-application.yaml').write_text(yaml.safe_dump(reloader_app, sort_keys=False))
@@ -137,14 +137,14 @@ jobs:
           check(all(a == '-config.expand-env=true' or a.startswith(('-config.file=', '-target=', '-memberlist.advertise-addr=')) for a in loki_args), 'native run mirrors only -config.file plus the documented exact flags; other chart ' 'args need explicit mirroring or a documented gate first: %s' % loki_args)
           dep = next(d for d in alloy_docs if d.get('kind') == 'Deployment')
           alloy_container = next(c for c in dep['spec']['template']['spec']['containers'] if c['name'] == 'alloy')
-          check(alloy_container['image'].endswith('grafana/alloy:v1.20.0'), 'alloy image must be grafana/alloy:v1.20.0, got %s' % alloy_container['image'])
+          check(alloy_container['image'].endswith('grafana/alloy:v1.22.0'), 'alloy image must be grafana/alloy:v1.22.0, got %s' % alloy_container['image'])
           tls = config['server']['http_tls_config']
           check(tls.get('client_auth_type') == 'RequireAndVerifyClientCert', 'native config must require and verify client certificates')
           check(config['common']['path_prefix'] == '/var/loki', 'path_prefix must be /var/loki so the ephemeral data mount matches')
           # The pinned alloy chart renders config.alloy through a |- literal
           # block (strip-final-newline chomping): grafana/alloy commit
-          # 389e3d59e9c73ade9f91b72f35353267ded3dc29 (chart 1.13.0 release,
-          # app v1.20.0), operations/helm/charts/alloy/templates/configmap.yaml:
+          # 3e1d273630813f778e360861019193863ab91b2e (chart 1.16.0 release,
+          # app v1.22.0), operations/helm/charts/alloy/templates/configmap.yaml:
           #   {{ include "alloy.config-map.key" . }}: |-
           #     {{- (tpl $values.configMap.content .) | nindent 4 }}
           # so the rendered ConfigMap string may differ from the values
@@ -265,7 +265,7 @@ jobs:
             alloy_container = next((c for c in spec['containers'] if c['name'] == 'alloy'), None)
             check(alloy_container is not None, 'alloy container missing')
             if alloy_container:
-                check(alloy_container['image'].endswith('grafana/alloy:v1.20.0'), 'alloy image v1.20.0, got %s' % alloy_container['image'])
+                check(alloy_container['image'].endswith('grafana/alloy:v1.22.0'), 'alloy image v1.22.0, got %s' % alloy_container['image'])
                 check(not alloy_container.get('resources'), 'alloy no resources')
                 check(alloy_container.get('securityContext', {}) .get('readOnlyRootFilesystem') is True, 'alloy ro rootfs')
             for v in spec.get('volumes', []):
