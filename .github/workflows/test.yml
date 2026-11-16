@@ -110,9 +110,20 @@ jobs:
           differences = []
           notes = {'description', 'title', 'example', 'examples', 'externalDocs', '$comment'}
 
+          def same_value(before, after):
+              if type(before) is not type(after):
+                  return False
+              if isinstance(before, dict):
+                  return before.keys() == after.keys() and all(
+                      same_value(before[key], after[key]) for key in before)
+              if isinstance(before, list):
+                  return len(before) == len(after) and all(
+                      same_value(left, right) for left, right in zip(before, after))
+              return before == after
+
           def compare_schema(before, after, path):
               if not isinstance(before, dict) or not isinstance(after, dict):
-                  if before != after:
+                  if not same_value(before, after):
                       differences.append(path + ': schema shape changed')
                   return
               properties = before.get('properties', {})
@@ -130,7 +141,7 @@ jobs:
                   compare_schema(before.get('items'), after.get('items'), path + '[]')
               constraints = (set(before) | set(after)) - notes - {'properties', 'required', 'items'}
               for key in sorted(constraints):
-                  if before.get(key) != after.get(key) or (key in before) != (key in after):
+                  if not same_value(before.get(key), after.get(key)) or (key in before) != (key in after):
                       differences.append(path + ': constraint changed: ' + key)
 
           # Exercise the comparator itself before interpreting vendor schemas.
@@ -156,10 +167,26 @@ jobs:
           compare_schema(fixture, {**fixture, 'description': 'documentation-only'}, 'fixture')
           require(not differences, 'description-only fixture must remain excluded')
 
+          type_mutations = [
+              (True, 1),
+              ({'default': {'enabled': True}}, {'default': {'enabled': 1}}),
+              ({'default': [{'enabled': False}]}, {'default': [{'enabled': 0}]}),
+              ({'enum': [True]}, {'enum': [1]}),
+          ]
+          for index, (before, after) in enumerate(type_mutations):
+              differences.clear()
+              compare_schema(before, after, 'fixture')
+              require(bool(differences), 'type-sensitive mutation fixture ' + str(index))
+          differences.clear()
+          compare_schema({'default': {'enabled': True, 'count': 1}},
+                         {'default': {'count': 1, 'enabled': True}}, 'fixture')
+          require(not differences, 'mapping order must not create a schema difference')
+          print('OK: comparator mutation and type-sensitive equality controls passed')
+
           for name in sorted(old):
               before, after = old[name], new[name]
               for key in ('group', 'scope', 'names', 'conversion', 'preserveUnknownFields'):
-                  if before.get(key) != after.get(key):
+                  if not same_value(before.get(key), after.get(key)):
                       differences.append(name + ': identity/conversion changed: ' + key)
               versions = lambda spec: {v['name']: v for v in spec['versions']}
               previous, target = versions(before), versions(after)
@@ -168,11 +195,11 @@ jobs:
               for version in sorted(set(previous) & set(target)):
                   a, b = previous[version], target[version]
                   for key in ('served', 'storage', 'deprecated', 'deprecationWarning', 'subresources'):
-                      if a.get(key) != b.get(key):
+                      if not same_value(a.get(key), b.get(key)):
                           differences.append(name + '/' + version + ': version contract changed: ' + key)
                   compare_schema(a['schema']['openAPIV3Schema'], b['schema']['openAPIV3Schema'],
                                  name + '/' + version)
-          for difference in differences[:100]:
+          for difference in differences[:200]:
               print('REVIEW-REQUIRED:', difference)
           require(not differences, str(len(differences)) + ' schema changes need explicit compatibility review')
           print('OK: conservative schema comparison only; no apply, existing-resource or old-controller test')
