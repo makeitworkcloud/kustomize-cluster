@@ -65,6 +65,146 @@ jobs:
           print(f"OK: all kustomization references resolve across {len(files)} kustomizations")
           EOF
 
+      - name: Setup Helm for ToolHive CRD compatibility renders
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.0
+
+      - name: Compare ToolHive CRD schemas before controller promotion
+        run: |
+          python - <<'EOF'
+          import re, subprocess, yaml
+          from pathlib import Path
+
+          def require(condition, message):
+              if not condition:
+                  raise SystemExit('TOOLHIVE-CRD-CHECK: ' + message)
+
+          app = yaml.safe_load(Path('operators/toolhive/toolhive-crds-app.yaml').read_text())
+          source = app['spec']['source']
+          require(source['repoURL'] == 'ghcr.io/stacklok/toolhive'
+                  and source['chart'] == 'toolhive-operator-crds', 'official CRD chart source')
+          require(source['targetRevision'] == '0.65.0', 'reviewed target version')
+          require(source['helm'] == {'releaseName': 'toolhive-operator-crds'}, 'no chart value overrides')
+          charts = []
+          for version in ('0.46.0', source['targetRevision']):
+              result = subprocess.run([
+                  'helm', 'template', 'toolhive-operator-crds',
+                  'oci://ghcr.io/stacklok/toolhive/toolhive-operator-crds',
+                  '--version', version, '--kube-version', '1.31.13', '--include-crds',
+              ], capture_output=True, text=True, timeout=180)
+              require(result.returncode == 0, 'render failed for ' + version + ' (payload suppressed)')
+              # Helm reports the pulled OCI digest on stderr. Report only that
+              # public digest line; never echo arbitrary Helm failure payloads.
+              digests = [match.group(1) for line in result.stderr.splitlines()
+                         if (match := re.fullmatch(r'Digest: (sha256:[0-9a-f]{64})', line))]
+              require(len(digests) == 1, 'one OCI chart digest for ' + version)
+              print('ToolHive CRD chart', version, digests[0])
+              docs = [d for d in yaml.safe_load_all(result.stdout) if isinstance(d, dict)]
+              require(all(d.get('kind') == 'CustomResourceDefinition' for d in docs), 'CRD-only chart')
+              crds = {d['metadata']['name']: d['spec'] for d in docs}
+              require(len(crds) == len(docs) == 14, 'exact fourteen unique CRDs')
+              charts.append(crds)
+          old, new = charts
+          require(set(old) == set(new), 'unchanged CRD inventory')
+          differences = []
+          notes = {'description', 'title', 'example', 'examples', 'externalDocs', '$comment'}
+
+          def same_value(before, after):
+              if type(before) is not type(after):
+                  return False
+              if isinstance(before, dict):
+                  return before.keys() == after.keys() and all(
+                      same_value(before[key], after[key]) for key in before)
+              if isinstance(before, list):
+                  return len(before) == len(after) and all(
+                      same_value(left, right) for left, right in zip(before, after))
+              return before == after
+
+          def compare_schema(before, after, path):
+              if not isinstance(before, dict) or not isinstance(after, dict):
+                  if not same_value(before, after):
+                      differences.append(path + ': schema shape changed')
+                  return
+              properties = before.get('properties', {})
+              target = after.get('properties', {})
+              for name in sorted(set(target) - set(properties)):
+                  differences.append(path + '.' + name + ': property added; review defaults and constraints')
+              for name, schema in properties.items():
+                  if name not in target:
+                      differences.append(path + '.' + name + ': property removed')
+                  else:
+                      compare_schema(schema, target[name], path + '.' + name)
+              if set(after.get('required', [])) != set(before.get('required', [])):
+                  differences.append(path + ': required set changed')
+              if 'items' in before or 'items' in after:
+                  compare_schema(before.get('items'), after.get('items'), path + '[]')
+              constraints = (set(before) | set(after)) - notes - {'properties', 'required', 'items'}
+              for key in sorted(constraints):
+                  if not same_value(before.get(key), after.get(key)) or (key in before) != (key in after):
+                      differences.append(path + ': constraint changed: ' + key)
+
+          # Exercise the comparator itself before interpreting vendor schemas.
+          fixture = {'type': 'object', 'properties': {'value': {'type': 'string'}}, 'required': ['value']}
+          variants = [
+              {'type': 'object', 'properties': {}, 'required': ['value']},
+              {**fixture, 'properties': {**fixture['properties'], 'extra': {'type': 'string', 'default': 'x'}}},
+              {**fixture, 'required': []},
+              {**fixture, 'required': ['value', 'extra']},
+              {**fixture, 'properties': {'value': {'type': 'integer'}}},
+              {**fixture, 'properties': {'value': {'type': 'string', 'default': 'x'}}},
+              {**fixture, 'x-kubernetes-validations': [{'rule': 'true'}]},
+          ]
+          for index, variant in enumerate(variants):
+              differences.clear()
+              compare_schema(fixture, variant, 'fixture')
+              require(bool(differences), 'comparator mutation fixture ' + str(index))
+          differences.clear()
+          compare_schema({'type': 'array', 'items': {'type': 'string'}},
+                         {'type': 'array', 'items': {'type': 'integer'}}, 'fixture')
+          require(bool(differences), 'comparator array mutation fixture')
+          differences.clear()
+          compare_schema(fixture, {**fixture, 'description': 'documentation-only'}, 'fixture')
+          require(not differences, 'description-only fixture must remain excluded')
+
+          type_mutations = [
+              (True, 1),
+              ({'default': {'enabled': True}}, {'default': {'enabled': 1}}),
+              ({'default': [{'enabled': False}]}, {'default': [{'enabled': 0}]}),
+              ({'enum': [True]}, {'enum': [1]}),
+          ]
+          for index, (before, after) in enumerate(type_mutations):
+              differences.clear()
+              compare_schema(before, after, 'fixture')
+              require(bool(differences), 'type-sensitive mutation fixture ' + str(index))
+          differences.clear()
+          compare_schema({'default': {'enabled': True, 'count': 1}},
+                         {'default': {'count': 1, 'enabled': True}}, 'fixture')
+          require(not differences, 'mapping order must not create a schema difference')
+          print('OK: comparator mutation and type-sensitive equality controls passed')
+
+          for name in sorted(old):
+              before, after = old[name], new[name]
+              for key in ('group', 'scope', 'names', 'conversion', 'preserveUnknownFields'):
+                  if not same_value(before.get(key), after.get(key)):
+                      differences.append(name + ': identity/conversion changed: ' + key)
+              versions = lambda spec: {v['name']: v for v in spec['versions']}
+              previous, target = versions(before), versions(after)
+              if set(previous) != set(target):
+                  differences.append(name + ': version inventory changed')
+              for version in sorted(set(previous) & set(target)):
+                  a, b = previous[version], target[version]
+                  for key in ('served', 'storage', 'deprecated', 'deprecationWarning', 'subresources'):
+                      if not same_value(a.get(key), b.get(key)):
+                          differences.append(name + '/' + version + ': version contract changed: ' + key)
+                  compare_schema(a['schema']['openAPIV3Schema'], b['schema']['openAPIV3Schema'],
+                                 name + '/' + version)
+          for difference in differences[:200]:
+              print('REVIEW-REQUIRED:', difference)
+          require(not differences, str(len(differences)) + ' schema changes need explicit compatibility review')
+          print('OK: conservative schema comparison only; no apply, existing-resource or old-controller test')
+          EOF
+
       - name: Validate OpenCode dashboard and auth-boundary probes
         run: |
           python - <<'EOF'
