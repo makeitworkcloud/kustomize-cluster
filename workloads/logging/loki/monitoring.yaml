@@ -1,0 +1,134 @@
+---
+# Metrics scrape path for Loki over the existing mTLS boundary: the main
+# server (3100) requires and verifies client certificates
+# (RequireAndVerifyClientCert) and serves /metrics behind it. The native
+# internal server (3101) stays operational-only (probes hit /ready) with
+# register_instrumentation: false and is intentionally NOT exposed by any
+# Service: on the internal server that single flag gates BOTH /metrics AND
+# /debug/pprof (pinned Loki 3.7.8 vendor server.go), so instrumenting 3101
+# would expose unauthenticated profiling.
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki-metrics
+  namespace: logging
+  labels:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: loki
+    app.kubernetes.io/component: single-binary
+    logging.makeitwork.cloud/job: loki
+    logging.makeitwork.cloud/metrics: mtls
+  annotations:
+    # KubeLinter dangling-service exception (canonical ownership exception,
+    # not live-pod proof): the backing pods are owned and rendered by the
+    # upstream Loki Helm chart (Argo app loki, release "loki", single-binary
+    # chart), which is not present in this repo, so the selector below
+    # intentionally matches chart-rendered pod labels that repo KubeLinter
+    # cannot see. The selector is native and verified by the Helm render in
+    # logging-checks.yml.
+    ignore-check.kube-linter.io/dangling-service: "pods owned by upstream Loki Helm chart (Argo app loki, release loki), not by this repo"
+spec:
+  type: ClusterIP
+  ports:
+    - name: https-metrics
+      port: 3100
+      targetPort: 3100
+      protocol: TCP
+  # Matches the chart-rendered pod labels (release name "loki").
+  selector:
+    app.kubernetes.io/name: loki
+    app.kubernetes.io/instance: loki
+    app.kubernetes.io/component: single-binary
+---
+# Scraped by the cluster Prometheus (kube-prometheus-stack) over HTTPS with
+# the dedicated prometheus-client certificate (metrics-client-certificate.yaml,
+# Secret loki-prometheus-client in this same namespace; the Prometheus
+# Operator resolves same-namespace Secret references natively). The operator
+# watches its ServiceMonitor TLS Secret references and rolls the scrape
+# config itself, so no Reloader involvement for this client Secret.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: loki
+  namespace: logging
+  labels:
+    release: kube-prometheus-stack
+spec:
+  jobLabel: logging.makeitwork.cloud/job
+  selector:
+    matchLabels:
+      logging.makeitwork.cloud/metrics: mtls
+  endpoints:
+    - port: https-metrics
+      scheme: https
+      path: /metrics
+      interval: 30s
+      tlsConfig:
+        ca:
+          secret:
+            name: loki-prometheus-client
+            key: ca.crt
+        cert:
+          secret:
+            name: loki-prometheus-client
+            key: tls.crt
+        keySecret:
+          name: loki-prometheus-client
+          key: tls.key
+        serverName: loki.logging.svc
+        insecureSkipVerify: false
+---
+# Informational signals only: no automatic mutation is configured; response is
+# a manual source opt-out or retention review per the runbook (owner action).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: loki-logging
+  namespace: logging
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: logging.storage
+      rules:
+        - alert: LoggingStorageHeadroomLow
+          expr: |
+            node_filesystem_avail_bytes{mountpoint="/var/lib/rancher"}
+              / node_filesystem_size_bytes{mountpoint="/var/lib/rancher"} < 0.2
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Logging data filesystem below 20% free
+            description: Node-local logging storage is running low. Manual action only — review opt-in sources or retention. No automatic mutation occurs.
+        - alert: LoggingLokiIngestDiscards
+          expr: |
+            sum(rate(loki_discarded_samples_total{namespace="logging"}[5m])) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Loki is discarding or rejecting log samples
+            description: Ingest rate, stream-count or line-size limits are dropping data. Review sources and consider opting out noisy producers.
+        - alert: LoggingLokiDown
+          expr: |
+            absent(up{namespace="logging", job="loki"}) or sum(up{namespace="logging", job="loki"}) == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: Loki metrics endpoint is down or missing
+            description: The Loki mTLS metrics endpoint (port 3100) is not being scraped.
+    - name: logging.collector
+      rules:
+        # job="alloy" is the prometheus-operator default from the chart
+        # Service name; Alloy component metric names are CI/live-discovery gated.
+        - alert: LoggingAlloyDown
+          expr: |
+            absent(up{namespace="logging", job="alloy"}) or sum(up{namespace="logging", job="alloy"}) == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: Alloy collector is down or not scraped
+            description: The Alloy metrics endpoint (port 12345) is not being scraped.

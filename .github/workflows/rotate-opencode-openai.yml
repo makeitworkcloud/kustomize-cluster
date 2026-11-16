@@ -1,0 +1,226 @@
+---
+name: rotate-opencode-openai
+
+# Rotates the OpenAI OAuth grant in workloads/opencode/opencode-openai-secret.yaml.
+# Dispatch manually, then authorize at the URL shown in the run summary. The run
+# regenerates the SOPS Secret (encryption only; no age key in CI), opens a pull
+# request, and enables auto-merge as the makeitworkbot App, which branch
+# protection allows to complete the merge once the required test check passes.
+# Deployment then follows the normal Argo CD + Reloader + init-container chain.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rotate-opencode-openai
+  cancel-in-progress: false
+
+env:
+  # Keep in lockstep with the opencode-server chart image version; login-method
+  # labels and device-flow behavior are CLI behavior that can change per release.
+  OPENCODE_VERSION: "1.18.23"
+  SOPS_VERSION: "3.13.3"
+
+jobs:
+  rotate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Install opencode CLI (pinned)
+        run: |
+          npm install --global "opencode-ai@${OPENCODE_VERSION}"
+          opencode --version
+
+      - name: Install sops (pinned, checksum-verified)
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}"
+          curl -fsSLO "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64"
+          curl -fsSLO "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.checksums.txt"
+          sha256sum -c "sops-v${SOPS_VERSION}.checksums.txt" --ignore-missing
+          mv "sops-v${SOPS_VERSION}.linux.amd64" /usr/local/bin/sops
+          chmod +x /usr/local/bin/sops
+          sops --version
+
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Create scoped GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: "4745727"
+          private-key: ${{ secrets.CHART_UPDATER_GITHUB_APP_PRIVATE_KEY }}
+          owner: makeitworkcloud
+          repositories: kustomize-cluster
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Headless OpenAI login (device flow)
+        timeout-minutes: 10
+        env:
+          HOME: ${{ runner.temp }}/opencode-home
+        run: |
+          set -uo pipefail
+          mkdir -p "${HOME}"
+          opencode auth login \
+            --provider openai \
+            --method "ChatGPT Pro/Plus (headless)" >login-output.log 2>&1 &
+          LOGIN_PID=$!
+
+          url=""
+          code=""
+          for _ in $(seq 1 45); do
+            url="$(grep -m1 -o 'https://auth\.openai\.com/codex/device' login-output.log || true)"
+            code="$(grep -m1 -oE 'Enter code: [A-Z0-9-]+' login-output.log || true)"
+            if [ -n "${url}" ] && [ -n "${code}" ]; then
+              break
+            fi
+            kill -0 "${LOGIN_PID}" 2>/dev/null || break
+            sleep 2
+          done
+
+          if [ -z "${url}" ] || [ -z "${code}" ]; then
+            echo "::error::Device-flow URL or code not observed; login failed to start."
+            kill "${LOGIN_PID}" 2>/dev/null || true
+            exit 1
+          fi
+
+          {
+            echo "## OpenAI grant rotation - authorize this device"
+            echo ""
+            echo "1. Open: ${url}"
+            echo "2. ${code}"
+            echo ""
+            echo "The run continues automatically once authorization completes. The code expires in minutes."
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+          if ! wait "${LOGIN_PID}"; then
+            echo "::error::opencode auth login exited non-zero (failure or timeout)."
+            exit 1
+          fi
+
+          AUTH_FILE="${HOME}/.local/share/opencode/auth.json"
+          if [ ! -s "${AUTH_FILE}" ]; then
+            echo "::error::auth.json was not written by the login flow."
+            exit 1
+          fi
+          echo "AUTH_FILE=${AUTH_FILE}" >>"${GITHUB_ENV}"
+
+      - name: Regenerate SOPS Secret (encryption only)
+        run: |
+          set -euo pipefail
+          REV="$(date -u +%F)-${GITHUB_RUN_NUMBER}"
+          export REV
+          python3 - <<'PY'
+          import json
+          import os
+
+          with open(os.environ["AUTH_FILE"], "r", encoding="utf-8") as fh:
+              auth = fh.read()
+
+          manifest = f"""apiVersion: v1
+          kind: Secret
+          metadata:
+              name: opencode-openai-auth
+              namespace: opencode
+              annotations:
+                  argocd.argoproj.io/sync-wave: "0"
+          type: Opaque
+          stringData:
+              # Independent OAuth grant for the cluster backend only. Refresh tokens rotate
+              # on use, so this must never be a copy of the workstation auth.json entry;
+              # when rotating it, add a non-secret auth-seed-revision in the same change.
+              # The chart will atomically re-seed the PVC only when that revision changes.
+              auth.json: {json.dumps(auth)}
+              auth-seed-revision: {os.environ["REV"]}
+          """
+
+          with open("workloads/opencode/opencode-openai-secret.yaml", "w", encoding="utf-8") as fh:
+              fh.write(manifest)
+          PY
+          sops --encrypt --in-place workloads/opencode/opencode-openai-secret.yaml
+
+          # Structural verification without decryption; this runner holds no age key.
+          grep -q 'auth\.json: ENC\[AES256_GCM' workloads/opencode/opencode-openai-secret.yaml
+          grep -q "auth-seed-revision: ${REV}" workloads/opencode/opencode-openai-secret.yaml
+          grep -q 'recipient: age152ek83tm4fj5u70r3fecytn4kg7c5xca24erjchxexx4pfqg6das7q763l' workloads/opencode/opencode-openai-secret.yaml
+          echo "Secret regenerated; auth-seed-revision ${REV}"
+
+      - name: Commit, pull request, auto-merge (as makeitworkbot)
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          REPO="makeitworkcloud/kustomize-cluster"
+          REV="$(date -u +%F)-${GITHUB_RUN_NUMBER}"
+          BRANCH="automation/rotate-opencode-openai-${GITHUB_RUN_NUMBER}"
+
+          git config user.name "makeitworkbot[bot]"
+          git config user.email "321979582+makeitworkbot[bot]@users.noreply.github.com"
+          git config credential.helper \
+            '!f() { echo "username=x-access-token"; echo "password=${GH_TOKEN}"; }; f'
+          git checkout -b "${BRANCH}"
+          git add workloads/opencode/opencode-openai-secret.yaml
+          git commit -m "rotate(opencode): refresh OpenAI OAuth grant via device flow (${REV})"
+          git push origin "${BRANCH}"
+
+          cat >pr-body.md <<EOF
+          ## Summary
+
+          Automated rotation of the OpenAI OAuth grant for the cluster backend, generated by the rotate-opencode-openai workflow run ${GITHUB_RUN_NUMBER} using the opencode CLI device flow. Replaces the encrypted auth.json and bumps auth-seed-revision to ${REV} in the same change, so the opencode-server init container re-seeds the home PVC credential after merge.
+
+          ## Type of change
+
+          - [x] GitOps desired state (manifests, kustomize, charts, SOPS/KSOPS secrets)
+
+          ## Validation
+
+          - [x] Required pull-request checks pass - auto-merge fires only once the required test (pre-commit) check passes
+          - [x] Generated or centrally distributed files were regenerated by their owning automation, not hand-edited - the SOPS Secret is regenerated by the rotation workflow; no generated files touched
+
+          ## Impact and rollout
+
+          KSOPS regenerates the opencode-openai-auth Secret, Reloader restarts the opencode Deployment (namespace-scoped opt-in), and the init container re-seeds the credential because the revision changed. Chart pins unchanged. Follow-up verification: opencode Application sync/health, pod restart, OpenAI provider behavior.
+
+          Rollback: restore the previous encrypted grant and change auth-seed-revision to a new value in the same change.
+
+          ## Safety and secrets
+
+          - [x] Contains no plaintext secrets - the decrypted grant existed only in ephemeral runner memory, never echoed, logged, or uploaded; this commit is ciphertext plus the deliberately non-secret revision key
+          - [x] No local OpenTofu init/plan/apply/destroy/import/state operations were run or claimed
+          - [x] Breaking or irreversible effects are described above with rollback notes
+
+          Agent disclosure: produced by the rotate-opencode-openai workflow acting as makeitworkbot; the device-flow authorization was completed by the owner.
+          EOF
+
+          gh pr create --repo "${REPO}" --base main --head "${BRANCH}" \
+            --title "rotate(opencode): refresh OpenAI OAuth grant (${REV})" \
+            --body-file pr-body.md
+          gh pr merge --repo "${REPO}" "${BRANCH}" --squash --auto --delete-branch
+
+          # Required checks are strict: if main moves under this branch, update it so
+          # the eligible auto-merge can complete; otherwise just wait for the merge.
+          PR_NUMBER="$(gh pr view --repo "${REPO}" "${BRANCH}" --json number --jq .number)"
+          deadline=$((SECONDS + 300))
+          while [ "${SECONDS}" -lt "${deadline}" ]; do
+            STATE="$(gh pr view --repo "${REPO}" "${PR_NUMBER}" --json state --jq .state)"
+            if [ "${STATE}" = "MERGED" ]; then
+              echo "Pull request #${PR_NUMBER} merged; Argo CD will reconcile main."
+              exit 0
+            fi
+            MSS="$(gh pr view --repo "${REPO}" "${PR_NUMBER}" --json mergeStateStatus --jq .mergeStateStatus)"
+            if [ "${MSS}" = "BEHIND" ]; then
+              echo "Branch fell behind main; updating branch."
+              gh api --repo "${REPO}" -X PUT "pulls/${PR_NUMBER}/update-branch" >/dev/null || true
+            fi
+            sleep 15
+          done
+          if [ "$(gh pr view --repo "${REPO}" "${PR_NUMBER}" --json autoMergeRequest --jq '.autoMergeRequest != null')" = "true" ]; then
+            echo "Auto-merge remains enabled on #${PR_NUMBER}; it will merge when eligible."
+          else
+            echo "::error::Auto-merge is not enabled on #${PR_NUMBER}; manual merge required."
+            exit 1
+          fi

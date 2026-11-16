@@ -1,27 +1,26 @@
+# Hosted remote MCP backends, each externally reachable through its dedicated
+# direct route in tunnel-binding.yaml. Credential-bearing backends keep their
+# cluster-owned Secrets, referenced by unchanged field names.
 ---
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: makeitwork-context7
+  name: context7
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   remoteUrl: https://mcp.context7.com/mcp
   transport: streamable-http
 ---
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: makeitwork-parallel-search
+  name: parallel-search
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   remoteUrl: https://search.parallel.ai/mcp
   transport: streamable-http
   headerForward:
@@ -35,13 +34,11 @@ spec:
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: makeitwork-apify
+  name: apify
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   remoteUrl: "https://mcp.apify.com/?tools=actors,apify/facebook-marketplace-scraper,apify/google-maps-scraper&telemetry-enabled=false"
   transport: streamable-http
   headerForward:

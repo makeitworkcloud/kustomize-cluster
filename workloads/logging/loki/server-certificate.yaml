@@ -1,0 +1,29 @@
+---
+# Loki server certificate for mTLS on port 3100, issued by the dedicated
+# logging CA (operators/cert-manager/logging-pki.yaml). 90-day leaf with
+# private key rotation on every renewal; Reloader rolls the StatefulSet.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: loki-server
+  namespace: logging
+spec:
+  secretName: loki-server-tls
+  commonName: loki.logging.svc
+  dnsNames:
+    - loki.logging.svc
+    - loki.logging.svc.cluster.local
+    - loki-headless.logging.svc
+    - loki-headless.logging.svc.cluster.local
+  usages:
+    - server auth
+  duration: 2160h # 90 days
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: logging-ca
+    kind: ClusterIssuer
+    group: cert-manager.io

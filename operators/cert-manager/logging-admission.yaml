@@ -1,0 +1,426 @@
+---
+# Native in-tree admission guardrails for the staged logging PKI: no new
+# controller, image or webhook. ValidatingAdmissionPolicy is GA since
+# Kubernetes 1.30 (cluster runs k3s v1.31.13). Reference:
+#   https://kubernetes.io/docs/reference/access-authn-authz/validating-admission-policy/
+# Scope is ONLY the dedicated logging issuers (logging-selfsigned, logging-ca)
+# and the logging-root-ca trust anchor in namespace cert-manager; unrelated
+# cert-manager issuers, Certificates, CertificateRequests and other CSR
+# signers never match. issuerRef.kind absent means a namespaced Issuer
+# (cert-manager default) and therefore does NOT match the protected
+# ClusterIssuers; issuerRef.group absent defaults to cert-manager.io.
+# Match conditions consider the OLD object on UPDATE so a protected object
+# cannot escape the policy by changing its issuerRef away from the logging
+# issuers. "Metadata-only update" is verified by explicit deep spec equality
+# (object.spec == oldObject.spec), not by generation semantics.
+# The ClusterIssuer and namespaced Issuer guards additionally match ANY
+# issuer (not only the approved names) whose spec.ca.secretName references
+# the shared logging-root-ca Secret: an alias issuer of any other name that
+# points at the root CA secret can sign new trusted clients without reading
+# the private key material itself, so it is denied for every actor including
+# Argo CD. Pre-existing aliases cannot be expanded or newly created; a name
+# and secret-reference inventory (no key reads) is required before any future
+# activation. cert-manager resolves cluster resources in its own namespace
+# (--cluster-resource-namespace=$(POD_NAMESPACE), i.e. cert-manager).
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: logging-certificate
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["cert-manager.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["certificates"]
+  matchConditions:
+    - name: logging-pki-scope
+      expression: >-
+        (has(object.spec.issuerRef) && has(object.spec.issuerRef.name) &&
+         (object.spec.issuerRef.name == 'logging-ca' || object.spec.issuerRef.name == 'logging-selfsigned') &&
+         has(object.spec.issuerRef.kind) && object.spec.issuerRef.kind == 'ClusterIssuer' &&
+         (!has(object.spec.issuerRef.group) || object.spec.issuerRef.group == 'cert-manager.io')) ||
+        (request.namespace == 'cert-manager' &&
+         ((has(object.spec.secretName) && object.spec.secretName == 'logging-root-ca') ||
+          object.metadata.name == 'logging-root-ca')) ||
+        (request.operation == 'UPDATE' && oldObject != null &&
+         ((has(oldObject.spec.issuerRef) && has(oldObject.spec.issuerRef.name) &&
+           (oldObject.spec.issuerRef.name == 'logging-ca' || oldObject.spec.issuerRef.name == 'logging-selfsigned') &&
+           has(oldObject.spec.issuerRef.kind) && oldObject.spec.issuerRef.kind == 'ClusterIssuer' &&
+           (!has(oldObject.spec.issuerRef.group) || oldObject.spec.issuerRef.group == 'cert-manager.io')) ||
+          (request.namespace == 'cert-manager' &&
+           ((has(oldObject.spec.secretName) && oldObject.spec.secretName == 'logging-root-ca') ||
+            oldObject.metadata.name == 'logging-root-ca'))))
+  variables:
+    - name: isArgo
+      expression: >-
+        request.userInfo.username == 'system:serviceaccount:argocd:argocd-argocd-application-controller'
+    - name: metadataOnlyUpdate
+      expression: >-
+        request.operation == 'UPDATE' && oldObject != null && object.spec == oldObject.spec
+    - name: refSelfSigned
+      expression: >-
+        has(object.spec.issuerRef) && object.spec.issuerRef.name == 'logging-selfsigned' &&
+        has(object.spec.issuerRef.kind) && object.spec.issuerRef.kind == 'ClusterIssuer' &&
+        has(object.spec.issuerRef.group) && object.spec.issuerRef.group == 'cert-manager.io'
+    - name: refCA
+      expression: >-
+        has(object.spec.issuerRef) && object.spec.issuerRef.name == 'logging-ca' &&
+        has(object.spec.issuerRef.kind) && object.spec.issuerRef.kind == 'ClusterIssuer' &&
+        has(object.spec.issuerRef.group) && object.spec.issuerRef.group == 'cert-manager.io'
+    - name: leafKeyLifetime
+      expression: >-
+        has(object.spec.duration) && object.spec.duration == '2160h' &&
+        has(object.spec.renewBefore) && object.spec.renewBefore == '360h' &&
+        has(object.spec.privateKey) && has(object.spec.privateKey.algorithm) &&
+        object.spec.privateKey.algorithm == 'ECDSA' &&
+        has(object.spec.privateKey.size) && object.spec.privateKey.size == 256 &&
+        has(object.spec.privateKey.rotationPolicy) && object.spec.privateKey.rotationPolicy == 'Always' &&
+        (!has(object.spec.isCA) || object.spec.isCA == false)
+    - name: isRootCA
+      expression: >-
+        object.metadata.name == 'logging-root-ca' && request.namespace == 'cert-manager' &&
+        has(object.spec.secretName) && object.spec.secretName == 'logging-root-ca' &&
+        variables.refSelfSigned &&
+        has(object.spec.isCA) && object.spec.isCA == true &&
+        has(object.spec.commonName) && object.spec.commonName == 'logging-root-ca' &&
+        has(object.spec.usages) && size(object.spec.usages) == 3 &&
+        object.spec.usages.all(u, u in ['signing', 'cert sign', 'crl sign']) &&
+        object.spec.usages.exists(u, u == 'signing') &&
+        object.spec.usages.exists(u, u == 'cert sign') &&
+        object.spec.usages.exists(u, u == 'crl sign') &&
+        has(object.spec.duration) && object.spec.duration == '87600h' &&
+        has(object.spec.renewBefore) && object.spec.renewBefore == '720h' &&
+        has(object.spec.privateKey) && has(object.spec.privateKey.algorithm) && object.spec.privateKey.algorithm == 'ECDSA' &&
+        has(object.spec.privateKey.size) && object.spec.privateKey.size == 256 &&
+        has(object.spec.privateKey.rotationPolicy) && object.spec.privateKey.rotationPolicy == 'Never' &&
+        has(object.spec.secretTemplate) && has(object.spec.secretTemplate.annotations) &&
+        object.spec.secretTemplate.annotations['argocd.argoproj.io/sync-options'] == 'Prune=false,Delete=false'
+    - name: isLokiServer
+      expression: >-
+        object.metadata.name == 'loki-server' && request.namespace == 'logging' &&
+        has(object.spec.secretName) && object.spec.secretName == 'loki-server-tls' &&
+        variables.refCA && variables.leafKeyLifetime &&
+        has(object.spec.commonName) && object.spec.commonName == 'loki.logging.svc' &&
+        has(object.spec.dnsNames) && size(object.spec.dnsNames) == 4 &&
+        object.spec.dnsNames.all(d, d in ['loki.logging.svc', 'loki.logging.svc.cluster.local', 'loki-headless.logging.svc', 'loki-headless.logging.svc.cluster.local']) &&
+        has(object.spec.usages) && size(object.spec.usages) == 1 && object.spec.usages.all(u, u == 'server auth')
+    - name: isAlloyClient
+      expression: >-
+        object.metadata.name == 'alloy-client' && request.namespace == 'logging' &&
+        has(object.spec.secretName) && object.spec.secretName == 'loki-alloy-client' &&
+        variables.refCA && variables.leafKeyLifetime &&
+        has(object.spec.commonName) && object.spec.commonName == 'alloy.logging' &&
+        !has(object.spec.dnsNames) &&
+        has(object.spec.usages) && size(object.spec.usages) == 1 && object.spec.usages.all(u, u == 'client auth')
+    - name: isGrafanaClient
+      expression: >-
+        object.metadata.name == 'grafana-loki-client' && request.namespace == 'grafana' &&
+        has(object.spec.secretName) && object.spec.secretName == 'loki-grafana-client' &&
+        variables.refCA && variables.leafKeyLifetime &&
+        has(object.spec.commonName) && object.spec.commonName == 'grafana-client.logging' &&
+        !has(object.spec.dnsNames) &&
+        has(object.spec.usages) && size(object.spec.usages) == 1 && object.spec.usages.all(u, u == 'client auth')
+    - name: isPrometheusClient
+      expression: >-
+        object.metadata.name == 'prometheus-client' && request.namespace == 'logging' &&
+        has(object.spec.secretName) && object.spec.secretName == 'loki-prometheus-client' &&
+        variables.refCA && variables.leafKeyLifetime &&
+        has(object.spec.commonName) && object.spec.commonName == 'prometheus.logging' &&
+        !has(object.spec.dnsNames) &&
+        has(object.spec.usages) && size(object.spec.usages) == 1 && object.spec.usages.all(u, u == 'client auth')
+  validations:
+    - expression: >-
+        variables.metadataOnlyUpdate ||
+        (variables.isArgo && (variables.isRootCA || variables.isLokiServer || variables.isAlloyClient || variables.isGrafanaClient || variables.isPrometheusClient))
+      message: >-
+        Logging PKI Certificates: spec create/change requires the Argo CD
+        application controller identity and one of the approved profiles
+        (logging-root-ca, loki-server, alloy-client, grafana-loki-client,
+        prometheus-client); metadata-only updates (spec deep-equal to the
+        old object) stay permitted for controller renewal and finalizer
+        bookkeeping.
+---
+# CertificateRequests are created by the cert-manager controller on behalf of
+# a Certificate; the raw CSR bytes are operator-produced and not parsed here.
+# Trust is bounded by: controller identity + controlling ownerReference to an
+# approved Certificate + namespace/issuer/usages/isCA profile consistency.
+# The OLD object is matched on UPDATE for defense even though the spec is
+# immutable upstream. usages/isCA are correlated EXACTLY with the controlling
+# ownerReference: the logging-root-ca request must be a CA with the full
+# three-usage CA set, a loki-server-owned request must be a leaf with exactly
+# 'server auth', and an alloy-client, grafana-loki-client or
+# prometheus-client-owned request must be a leaf with exactly 'client auth';
+# a missing or subset usage list, or a usage/owner mismatch, is denied even
+# for the cert-manager identity.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: logging-certificaterequest
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["cert-manager.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["certificaterequests"]
+  matchConditions:
+    - name: logging-pki-scope
+      expression: >-
+        (has(object.spec.issuerRef) && has(object.spec.issuerRef.name) &&
+         (object.spec.issuerRef.name == 'logging-ca' || object.spec.issuerRef.name == 'logging-selfsigned') &&
+         has(object.spec.issuerRef.kind) && object.spec.issuerRef.kind == 'ClusterIssuer' &&
+         (!has(object.spec.issuerRef.group) || object.spec.issuerRef.group == 'cert-manager.io')) ||
+        (request.operation == 'UPDATE' && oldObject != null &&
+         has(oldObject.spec.issuerRef) && has(oldObject.spec.issuerRef.name) &&
+         (oldObject.spec.issuerRef.name == 'logging-ca' || oldObject.spec.issuerRef.name == 'logging-selfsigned') &&
+         has(oldObject.spec.issuerRef.kind) && oldObject.spec.issuerRef.kind == 'ClusterIssuer' &&
+         (!has(oldObject.spec.issuerRef.group) || oldObject.spec.issuerRef.group == 'cert-manager.io'))
+  variables:
+    - name: isCertManager
+      expression: >-
+        request.userInfo.username == 'system:serviceaccount:cert-manager:cert-manager'
+    - name: metadataOnlyUpdate
+      expression: >-
+        request.operation == 'UPDATE' && oldObject != null && object.spec == oldObject.spec
+    - name: controlledByRoot
+      expression: >-
+        object.spec.issuerRef.name == 'logging-selfsigned' &&
+        request.namespace == 'cert-manager' &&
+        has(object.metadata.ownerReferences) &&
+        object.metadata.ownerReferences.exists(o,
+          o.apiVersion == 'cert-manager.io/v1' && o.kind == 'Certificate' &&
+          has(o.controller) && o.controller == true &&
+          o.name == 'logging-root-ca')
+    - name: controlledByServer
+      expression: >-
+        object.spec.issuerRef.name == 'logging-ca' &&
+        request.namespace == 'logging' &&
+        has(object.metadata.ownerReferences) &&
+        object.metadata.ownerReferences.exists(o,
+          o.apiVersion == 'cert-manager.io/v1' && o.kind == 'Certificate' &&
+          has(o.controller) && o.controller == true &&
+          o.name == 'loki-server')
+    - name: controlledByClient
+      expression: >-
+        object.spec.issuerRef.name == 'logging-ca' &&
+        has(object.metadata.ownerReferences) &&
+        object.metadata.ownerReferences.exists(o,
+          o.apiVersion == 'cert-manager.io/v1' && o.kind == 'Certificate' &&
+          has(o.controller) && o.controller == true &&
+          ((o.name == 'alloy-client' && request.namespace == 'logging') ||
+           (o.name == 'grafana-loki-client' && request.namespace == 'grafana') ||
+           (o.name == 'prometheus-client' && request.namespace == 'logging')))
+    - name: requestProfile
+      expression: >-
+        (variables.controlledByRoot &&
+         has(object.spec.isCA) && object.spec.isCA == true &&
+         has(object.spec.usages) && size(object.spec.usages) == 3 &&
+         object.spec.usages.all(u, u in ['signing', 'cert sign', 'crl sign']) &&
+         object.spec.usages.exists(u, u == 'signing') &&
+         object.spec.usages.exists(u, u == 'cert sign') &&
+         object.spec.usages.exists(u, u == 'crl sign')) ||
+        (variables.controlledByServer &&
+         (!has(object.spec.isCA) || object.spec.isCA == false) &&
+         has(object.spec.usages) && size(object.spec.usages) == 1 &&
+         object.spec.usages.all(u, u == 'server auth')) ||
+        (variables.controlledByClient &&
+         (!has(object.spec.isCA) || object.spec.isCA == false) &&
+         has(object.spec.usages) && size(object.spec.usages) == 1 &&
+         object.spec.usages.all(u, u == 'client auth'))
+  validations:
+    - expression: >-
+        variables.isCertManager &&
+        (variables.metadataOnlyUpdate || variables.requestProfile)
+      message: >-
+        Logging PKI CertificateRequests: every operation requires the
+        cert-manager controller identity; create/spec-change additionally
+        requires a controlling ownerReference to the matching approved
+        Certificate with the exact usages/isCA profile for that owner
+        (root CA: isCA with signing/cert sign/crl sign; loki-server leaf:
+        exactly 'server auth'; alloy-client, grafana-loki-client or
+        prometheus-client leaf: exactly 'client auth'). A forged
+        ownerReference does not help a different requester.
+---
+# ClusterIssuer guard: matches the two approved names AND any ClusterIssuer
+# whose ca.secretName references the shared logging-root-ca Secret (the OLD
+# object too, so an existing object cannot escape by editing away). A
+# differently-named alias that points at logging-root-ca matches the
+# condition but fails the fixed name/scheme validation below, and is denied
+# for every actor including Argo CD: names are immutable, so no profile-valid
+# alias can ever be admitted. Metadata-only (spec deep-equal) updates stay
+# permitted so regular controllers can touch status and bookkeeping.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: logging-clusterissuer
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["cert-manager.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["clusterissuers"]
+  matchConditions:
+    - name: logging-pki-scope
+      expression: >-
+        object.metadata.name == 'logging-selfsigned' || object.metadata.name == 'logging-ca' ||
+        (has(object.spec.ca) && has(object.spec.ca.secretName) &&
+         object.spec.ca.secretName == 'logging-root-ca') ||
+        (request.operation == 'UPDATE' && oldObject != null &&
+         has(oldObject.spec.ca) && has(oldObject.spec.ca.secretName) &&
+         oldObject.spec.ca.secretName == 'logging-root-ca')
+  variables:
+    - name: isArgo
+      expression: >-
+        request.userInfo.username == 'system:serviceaccount:argocd:argocd-argocd-application-controller'
+    - name: metadataOnlyUpdate
+      expression: >-
+        request.operation == 'UPDATE' && oldObject != null && object.spec == oldObject.spec
+  validations:
+    - expression: >-
+        variables.metadataOnlyUpdate ||
+        (variables.isArgo &&
+         ((object.metadata.name == 'logging-selfsigned' && has(object.spec.selfSigned)) ||
+          (object.metadata.name == 'logging-ca' && has(object.spec.ca) &&
+           has(object.spec.ca.secretName) && object.spec.ca.secretName == 'logging-root-ca')))
+      message: >-
+        Logging PKI ClusterIssuers: spec create/change requires the Argo CD
+        application controller identity and the fixed name/scheme
+        (selfSigned {} for logging-selfsigned; ca.secretName logging-root-ca
+        for logging-ca); any other ClusterIssuer referencing the shared
+        logging-root-ca Secret is denied for every actor. Metadata-only
+        updates (spec deep-equal to the old object) stay permitted.
+---
+# Namespaced Issuer guard: cert-manager resolves ClusterResourceNamespace
+# resources in its own namespace (cert-manager here), so a namespaced Issuer
+# in namespace cert-manager that sets ca.secretName to logging-root-ca is a
+# root-CA alias that can sign new trusted clients without any private-key
+# read. No legitimate flow uses a namespaced root Issuer, so every CREATE or
+# spec-changing UPDATE of such an alias is denied for every actor; the OLD
+# object is matched so an existing object cannot escape by editing away.
+# Namespaced Issuers in other namespaces with the same secret name reference
+# an unrelated secret and do NOT match; other root references are unaffected.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: logging-issuer
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["cert-manager.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["issuers"]
+  matchConditions:
+    - name: cert-manager-root-ca-alias
+      expression: >-
+        request.namespace == 'cert-manager' &&
+        ((has(object.spec.ca) && has(object.spec.ca.secretName) &&
+          object.spec.ca.secretName == 'logging-root-ca') ||
+         (request.operation == 'UPDATE' && oldObject != null &&
+          has(oldObject.spec.ca) && has(oldObject.spec.ca.secretName) &&
+          oldObject.spec.ca.secretName == 'logging-root-ca'))
+  validations:
+    - expression: "false"
+      message: >-
+        Logging PKI Issuers: a namespaced Issuer in namespace cert-manager
+        that references the shared logging-root-ca Secret is a root-CA alias
+        and is denied for every actor; root issuance flows only through the
+        approved ClusterIssuers (logging-selfsigned, logging-ca).
+---
+# cert-manager's use of built-in CertificateSigningRequest resources is
+# experimental and not enabled in this deployment; these policies keep the
+# logging signers closed even if that feature is enabled later. Signer-name
+# format per https://kubernetes.io/docs/reference/access-authn-authz/certificate-signing-requests/
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: logging-csr
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["certificates.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["certificatesigningrequests"]
+  matchConditions:
+    - name: logging-signers
+      expression: >-
+        object.spec.signerName in ['clusterissuers.cert-manager.io/logging-ca', 'clusterissuers.cert-manager.io/logging-selfsigned']
+  validations:
+    - expression: "false"
+      message: >-
+        The built-in CertificateSigningRequest path is disabled for the
+        logging PKI signers; logging issuance flows only through cert-manager
+        Certificate and CertificateRequest resources.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: logging-certificate-binding
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  policyName: logging-certificate
+  validationActions:
+    - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: logging-certificaterequest-binding
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  policyName: logging-certificaterequest
+  validationActions:
+    - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: logging-clusterissuer-binding
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  policyName: logging-clusterissuer
+  validationActions:
+    - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: logging-issuer-binding
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  policyName: logging-issuer
+  validationActions:
+    - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: logging-csr-binding
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  policyName: logging-csr
+  validationActions:
+    - Deny

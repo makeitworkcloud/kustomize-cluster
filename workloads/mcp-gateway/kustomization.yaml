@@ -1,28 +1,28 @@
----
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespace.yaml
-  - mcpgroup.yaml
   - kubernetes-mcpserver.yaml
   - argocd-mcpserver.yaml
   - grafana-remote-proxy.yaml
   - aws-docs-mcpserver.yaml
   - mcp-aws-config.yaml
-  - makeitwork-aws-mcpserver.yaml
+  - aws-mcpserver.yaml
+  - gcp-mcpserver.yaml
+  - gcloud-mcp-serviceaccount.yaml
   - terraform-docs-mcpserver.yaml
   - playwright-config.yaml
   - playwright-mcpserver.yaml
   - makeitwork-github-remote-proxy.yaml
+  - cloudflare-remote-proxy.yaml
   - repo-cache-pvc.yaml
   - repo-cache-sync.yaml
-  - repo-search-toolconfig.yaml
-  - repo-search-mcpserver.yaml
+  - codebase-memory-toolconfig.yaml
+  - codebase-memory-mcpserver.yaml
   - hero-ssh-toolconfig.yaml
   - hero-ssh-mcpserver.yaml
   - remote-proxies.yaml
   - slidespeak-remote-proxy.yaml
-  - vmcp.yaml
   - tunnel-binding.yaml
 configMapGenerator:
   # A content-addressed ConfigMap name changes the MCPServer pod template,
@@ -34,10 +34,34 @@ configMapGenerator:
     options:
       annotations:
         argocd.argoproj.io/sync-wave: "1"
+  # These files are non-secret WIF and command-policy configuration. Their
+  # generated names roll the backend when either contract changes.
+  - name: gcloud-mcp-credentials
+    namespace: mcp
+    files:
+      - credential-configuration.json=gcloud-mcp-credential-configuration.json
+    options:
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
+  - name: gcloud-mcp-config
+    namespace: mcp
+    files:
+      - config.json=gcloud-mcp-config.json
+    options:
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
 configurations:
   - hero-ssh-namereference.yaml
+  - gcloud-mcp-namereference.yaml
 patches:
   - path: repo-cache-sync-xnoto.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: repo-cache-sync
+      namespace: mcp
+  - path: repo-cache-sync-private.yaml
     target:
       group: apps
       version: v1
@@ -57,6 +81,10 @@ patches:
         template:
           spec:
             containers:
+              - name: sync-agent-knowledge
+                resources: null
+              - name: sync-channel-project
+                resources: null
               - name: sync-charts
                 resources: null
               - name: sync-cflan

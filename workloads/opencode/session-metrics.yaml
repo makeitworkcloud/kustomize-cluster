@@ -10,17 +10,32 @@ data:
   exporter.py: |
     import base64
     import json
+    import math
     import os
     import threading
     import time
+    import urllib.parse
     import urllib.request
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+    API_VERSION = os.environ.get("OPENCODE_API_VERSION", "1")
+    if API_VERSION not in ("1", "2"):
+        raise RuntimeError("OPENCODE_API_VERSION must be 1 or 2")
     STATUS_URL = os.environ.get("OPENCODE_STATUS_URL", "http://opencode.opencode.svc:4096/session/status")
+    API_BASE_URL = os.environ.get("OPENCODE_API_BASE_URL", "http://opencode.opencode.svc:4096").rstrip("/")
+    ACTIVE_URL = os.environ.get("OPENCODE_ACTIVE_URL", f"{API_BASE_URL}/api/session/active")
     USERNAME = os.environ.get("OPENCODE_STATUS_USERNAME", "opencode")
     PASSWORD = os.environ.get("OPENCODE_STATUS_PASSWORD", "")
     POLL_INTERVAL_SECONDS = max(float(os.environ.get("POLL_INTERVAL_SECONDS", "5")), 1.0)
+    USAGE_POLL_INTERVAL_SECONDS = max(float(os.environ.get("USAGE_POLL_INTERVAL_SECONDS", "30")), 5.0)
     REQUEST_TIMEOUT_SECONDS = max(float(os.environ.get("REQUEST_TIMEOUT_SECONDS", "5")), 1.0)
+    SESSION_LIST_LIMIT = max(int(os.environ.get("SESSION_LIST_LIMIT", "1000")), 1)
+    MAX_USAGE_SCAN_PAGES = max(int(os.environ.get("MAX_USAGE_SCAN_PAGES", "20")), 1)
+    MAX_USAGE_SCAN_SESSIONS = max(int(os.environ.get("MAX_USAGE_SCAN_SESSIONS", "10000")), 1)
+    USAGE_SCAN_TIMEOUT_SECONDS = max(float(os.environ.get("USAGE_SCAN_TIMEOUT_SECONDS", "15")), 1.0)
+    MAX_RESPONSE_BYTES = max(int(os.environ.get("MAX_RESPONSE_BYTES", "4194304")), 1)
+    MAX_USAGE_CACHE_ENTRIES = 2 * MAX_USAGE_SCAN_SESSIONS
+    TOKEN_KINDS = ("input", "output", "reasoning", "cache_read", "cache_write")
 
     state_lock = threading.Lock()
     state = {
@@ -29,40 +44,385 @@ data:
         "retry": 0,
         "last_success": 0.0,
         "poll_errors": 0,
+        "usage_up": 0,
+        "usage_last_success": 0.0,
+        "usage_scan_errors": 0,
+        "usage_scan_truncated": 0,
+        "usage_projects": 0,
+        "usage_sessions": 0,
+        "usage_initialized": False,
+        "usage_baselines": {},
+        "usage_totals": {kind: 0.0 for kind in TOKEN_KINDS},
+        "usage_baseline_ts": 0.0,
+        "usage_scan_pages": 0,
+        "usage_scan_duration": 0.0,
     }
 
-    def poll_status():
+    def authorization_header():
         credentials = base64.b64encode(f"{USERNAME}:{PASSWORD}".encode()).decode()
+        return f"Basic {credentials}"
+
+    def fetch_json(url, query=None):
+        if query:
+            url = f"{url}?{urllib.parse.urlencode(query)}"
         request = urllib.request.Request(
-            STATUS_URL,
-            headers={"Accept": "application/json", "Authorization": f"Basic {credentials}"},
+            url,
+            headers={"Accept": "application/json", "Authorization": authorization_header()},
         )
+        deadline = time.monotonic() + REQUEST_TIMEOUT_SECONDS
+
+        def budget_check():
+            if time.monotonic() >= deadline:
+                raise RuntimeError("status response time bound exceeded")
+
+        with usage_opener.open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            if response.status != 200:
+                raise RuntimeError("unexpected status response")
+            body = bytearray()
+            read_chunk = getattr(response, "read1", None)
+            while True:
+                budget_check()
+                chunk = read_chunk(65536) if read_chunk is not None else response.read(65536)
+                budget_check()
+                if not chunk:
+                    break
+                body.extend(chunk)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise RuntimeError("status response body exceeded bound")
+            payload = json.loads(bytes(body))
+            budget_check()
+        return payload
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    usage_opener = urllib.request.build_opener(_NoRedirect())
+
+    class UsageProtocolError(RuntimeError):
+        pass
+
+    class IncompleteScan(RuntimeError):
+        pass
+
+    usage_scan_lock = threading.Lock()
+
+    def token_value(container, field):
+        if not isinstance(container, dict):
+            raise UsageProtocolError("unexpected usage token container")
+        value = container.get(field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise UsageProtocolError("unexpected usage token value")
+        value = float(value)
+        if not math.isfinite(value) or value < 0:
+            raise UsageProtocolError("unexpected usage token value")
+        return value
+
+    def parse_usage_entry(entry):
+        if not isinstance(entry, dict):
+            raise UsageProtocolError("unexpected usage entry")
+        session_id = entry.get("id")
+        if not isinstance(session_id, str) or not session_id:
+            raise UsageProtocolError("unexpected usage session id")
+        project_id = entry.get("projectID")
+        if not isinstance(project_id, str) or not project_id:
+            raise UsageProtocolError("unexpected usage project id")
+        time_info = entry.get("time")
+        if not isinstance(time_info, dict):
+            raise UsageProtocolError("unexpected usage time")
+        updated = time_info.get("updated")
+        if isinstance(updated, bool) or not isinstance(updated, int):
+            raise UsageProtocolError("unexpected usage timestamp")
+        if updated < 0 or updated >= 2 ** 53 - 1:
+            raise UsageProtocolError("unexpected usage timestamp")
+        tokens = entry.get("tokens")
+        if not isinstance(tokens, dict):
+            raise UsageProtocolError("unexpected usage tokens")
+        cache = tokens.get("cache")
+        values = {
+            "input": token_value(tokens, "input"),
+            "output": token_value(tokens, "output"),
+            "reasoning": token_value(tokens, "reasoning"),
+            "cache_read": token_value(cache, "read"),
+            "cache_write": token_value(cache, "write"),
+        }
+        return session_id, project_id, updated, values
+
+    def fetch_usage_page(limit, cursor, budget_check):
+        query = {"archived": "true", "limit": str(limit)}
+        if cursor is not None:
+            query["cursor"] = str(cursor)
+        url = f"{API_BASE_URL}/experimental/session?{urllib.parse.urlencode(query)}"
+        request = urllib.request.Request(
+            url,
+            headers={"Accept": "application/json", "Authorization": authorization_header()},
+        )
+        with usage_opener.open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            if response.status != 200:
+                raise UsageProtocolError("unexpected usage response status")
+            next_cursor = response.headers.get("x-next-cursor")
+            body = bytearray()
+            read_chunk = getattr(response, "read1", None)
+            while True:
+                budget_check()
+                chunk = read_chunk(65536) if read_chunk is not None else response.read(65536)
+                budget_check()
+                if not chunk:
+                    break
+                body.extend(chunk)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise UsageProtocolError("usage response body exceeded bound")
+            payload = json.loads(bytes(body))
+            budget_check()
+        if not isinstance(payload, list):
+            raise UsageProtocolError("unexpected usage payload")
+        return payload, next_cursor
+
+    def fetch_usage_page_v2(limit, cursor, budget_check):
+        query = {"limit": str(limit)}
+        if cursor is not None:
+            query["cursor"] = cursor
+        url = f"{API_BASE_URL}/api/session?{urllib.parse.urlencode(query)}"
+        request = urllib.request.Request(
+            url,
+            headers={"Accept": "application/json", "Authorization": authorization_header()},
+        )
+        with usage_opener.open(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            if response.status != 200:
+                raise UsageProtocolError("unexpected usage response status")
+            body = bytearray()
+            read_chunk = getattr(response, "read1", None)
+            while True:
+                budget_check()
+                chunk = read_chunk(65536) if read_chunk is not None else response.read(65536)
+                budget_check()
+                if not chunk:
+                    break
+                body.extend(chunk)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise UsageProtocolError("usage response body exceeded bound")
+            payload = json.loads(bytes(body))
+            budget_check()
+        if not isinstance(payload, dict):
+            raise UsageProtocolError("unexpected usage payload")
+        data = payload.get("data")
+        envelope = payload.get("cursor")
+        if not isinstance(data, list) or not isinstance(envelope, dict):
+            raise UsageProtocolError("unexpected usage envelope")
+        next_cursor = envelope.get("next")
+        if next_cursor is None:
+            if data:
+                raise UsageProtocolError("usage page missing continuation cursor")
+        elif not isinstance(next_cursor, str) or not next_cursor:
+            raise UsageProtocolError("malformed usage page cursor")
+        if not data and next_cursor is not None:
+            raise UsageProtocolError("usage continuation on empty page")
+        return data, next_cursor
+
+    def scan_usage(budget_check):
+        base_limit = min(SESSION_LIST_LIMIT, MAX_USAGE_SCAN_SESSIONS)
+        limit = base_limit
+        cursor = None
+        pages = 0
+        observed = {}
+        projects = set()
+        while True:
+            if pages >= MAX_USAGE_SCAN_PAGES:
+                raise IncompleteScan("usage scan page bound reached")
+            budget_check()
+            payload, next_cursor = fetch_usage_page(limit, cursor, budget_check)
+            if not isinstance(payload, list):
+                raise UsageProtocolError("unexpected usage payload")
+            if len(payload) > limit:
+                raise UsageProtocolError("usage page exceeded requested limit")
+            last_stamp = None
+            for entry in payload:
+                session_id, project_id, updated, values = parse_usage_entry(entry)
+                if cursor is not None and updated >= cursor:
+                    raise UsageProtocolError("usage page violated cursor filter")
+                if last_stamp is not None and updated > last_stamp:
+                    raise UsageProtocolError("usage page ordering violated")
+                last_stamp = updated
+                observed[session_id] = values
+                projects.add(project_id)
+                if len(observed) > MAX_USAGE_SCAN_SESSIONS:
+                    raise IncompleteScan("usage scan session bound reached")
+            pages += 1
+            if next_cursor is None:
+                break
+            if not payload or len(payload) != limit:
+                raise UsageProtocolError("unexpected usage page header")
+            if not (isinstance(next_cursor, str) and next_cursor.isascii() and next_cursor.isdigit()):
+                raise UsageProtocolError("malformed usage page header")
+            boundary = int(next_cursor)
+            if last_stamp is None or boundary != last_stamp:
+                raise UsageProtocolError("usage page header mismatch")
+            next_request_cursor = boundary + 1
+            if cursor is not None and next_request_cursor > cursor:
+                raise UsageProtocolError("usage page header ordering violated")
+            if cursor is not None and next_request_cursor == cursor:
+                # Boundary ties straddle pages because the upstream filter is strict (time_updated < cursor), so
+                # expand the page to cover the whole tie group rather than skip rows, per upstream
+                # handlers/experimental.ts @ https://github.com/anomalyco/opencode/blob/16747470f976aca3d362ad730bcd3fe82ecc2c9a/packages/opencode/src/server/routes/instance/httpapi/handlers/experimental.ts
+                if limit >= MAX_USAGE_SCAN_SESSIONS:
+                    raise IncompleteScan("usage scan tie bound reached")
+                limit = min(limit * 2, MAX_USAGE_SCAN_SESSIONS)
+                continue
+            cursor = next_request_cursor
+            limit = base_limit
+        budget_check()
+        return pages, observed, projects
+
+    def scan_usage_v2(budget_check):
+        # V2 (OpenCode 2.0.22) /api/session contract per packages/protocol/src/groups/session.ts and
+        # packages/server/src/handlers/session.ts @
+        # https://github.com/anomalyco/opencode/tree/527f0b931d1f9b3ebd34e106c51b31ce5db5b075 :
+        # opaque base64url cursor pages with cursor.next exactly on non-empty pages, integer epoch-millis
+        # timestamps, and no archived or project filter on the global list.
+        limit = min(SESSION_LIST_LIMIT, MAX_USAGE_SCAN_SESSIONS)
+        cursor = None
+        pages = 0
+        observed = {}
+        projects = set()
+        seen_cursors = set()
+        while True:
+            if pages >= MAX_USAGE_SCAN_PAGES:
+                raise IncompleteScan("usage scan page bound reached")
+            budget_check()
+            data, next_cursor = fetch_usage_page_v2(limit, cursor, budget_check)
+            if len(data) > limit:
+                raise UsageProtocolError("usage page exceeded requested limit")
+            for entry in data:
+                session_id, project_id, updated, values = parse_usage_entry(entry)
+                observed[session_id] = values
+                projects.add(project_id)
+                if len(observed) > MAX_USAGE_SCAN_SESSIONS:
+                    raise IncompleteScan("usage scan session bound reached")
+            pages += 1
+            if next_cursor is None:
+                break
+            if next_cursor in seen_cursors:
+                raise UsageProtocolError("usage pagination cycle detected")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+        budget_check()
+        return pages, observed, projects
+
+    def apply_usage_scan(pages, observed, projects, duration):
+        now = time.time()
+        with state_lock:
+            totals = dict(state["usage_totals"])
+            baselines = state["usage_baselines"]
+            next_baselines = {}
+            for session_id, entry in baselines.items():
+                if session_id in observed:
+                    continue
+                missed = entry["missed"] + 1
+                if missed < 2:
+                    next_baselines[session_id] = {"tokens": entry["tokens"], "missed": missed}
+            for session_id, current in observed.items():
+                entry = baselines.get(session_id)
+                if entry is None:
+                    next_baselines[session_id] = {"tokens": current, "missed": 0}
+                    continue
+                for kind in TOKEN_KINDS:
+                    totals[kind] += max(current[kind] - entry["tokens"].get(kind, 0.0), 0.0)
+                next_baselines[session_id] = {"tokens": current, "missed": 0}
+            for kind in TOKEN_KINDS:
+                if not math.isfinite(totals[kind]):
+                    raise UsageProtocolError("usage totals exceeded finite range")
+            if len(next_baselines) > MAX_USAGE_CACHE_ENTRIES:
+                raise IncompleteScan("usage scan cache bound reached")
+            state.update(
+                usage_up=1,
+                usage_last_success=now,
+                usage_scan_truncated=0,
+                usage_projects=len(projects),
+                usage_sessions=len(observed),
+                usage_initialized=True,
+                usage_baselines=next_baselines,
+                usage_totals=totals,
+                usage_scan_pages=pages,
+                usage_scan_duration=duration,
+                usage_baseline_ts=state["usage_baseline_ts"] or now,
+            )
+
+    def poll_usage():
+        if not usage_scan_lock.acquire(blocking=False):
+            return
         try:
-            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-                if response.status != 200:
-                    raise RuntimeError("unexpected status response")
-                payload = json.load(response)
-            if not isinstance(payload, dict):
-                raise RuntimeError("unexpected status payload")
-            counts = {"busy": 0, "retry": 0}
-            for session in payload.values():
-                if isinstance(session, dict) and session.get("type") in counts:
-                    counts[session["type"]] += 1
+            started = time.monotonic()
+            deadline = started + USAGE_SCAN_TIMEOUT_SECONDS
+
+            def budget_check():
+                if time.monotonic() >= deadline:
+                    raise IncompleteScan("usage scan time bound reached")
+
+            try:
+                scan = scan_usage_v2 if API_VERSION == "2" else scan_usage
+                pages, observed, projects = scan(budget_check)
+                budget_check()
+                apply_usage_scan(pages, observed, projects, time.monotonic() - started)
+            except IncompleteScan:
+                with state_lock:
+                    state.update(
+                        usage_up=0,
+                        usage_scan_truncated=1,
+                        usage_scan_duration=time.monotonic() - started,
+                    )
+            except Exception:
+                with state_lock:
+                    state.update(
+                        usage_up=0,
+                        usage_scan_truncated=0,
+                        usage_scan_errors=state["usage_scan_errors"] + 1,
+                        usage_scan_duration=time.monotonic() - started,
+                    )
+        finally:
+            usage_scan_lock.release()
+
+    def poll_status():
+        try:
+            if API_VERSION == "2":
+                payload = fetch_json(ACTIVE_URL)
+                if not isinstance(payload, dict):
+                    raise RuntimeError("unexpected active payload")
+                active = payload.get("data")
+                if not isinstance(active, dict):
+                    raise RuntimeError("unexpected active data")
+                for session in active.values():
+                    if not isinstance(session, dict) or session.get("type") != "running":
+                        raise RuntimeError("unexpected active session state")
+                counts = {"busy": len(active), "retry": 0}
+            else:
+                payload = fetch_json(STATUS_URL)
+                if not isinstance(payload, dict):
+                    raise RuntimeError("unexpected status payload")
+                counts = {"busy": 0, "retry": 0}
+                for session in payload.values():
+                    if isinstance(session, dict) and session.get("type") in counts:
+                        counts[session["type"]] += 1
             with state_lock:
                 state.update(up=1, busy=counts["busy"], retry=counts["retry"], last_success=time.time())
         except Exception:
             with state_lock:
                 state.update(up=0, busy=0, retry=0, poll_errors=state["poll_errors"] + 1)
 
-    def poll_forever():
+    def poll_status_forever():
         while True:
             poll_status()
             time.sleep(POLL_INTERVAL_SECONDS)
 
+    def poll_usage_forever():
+        while True:
+            poll_usage()
+            time.sleep(USAGE_POLL_INTERVAL_SECONDS)
+
     def metrics_body():
         with state_lock:
             snapshot = state.copy()
-        return "\n".join([
+            snapshot["usage_totals"] = state["usage_totals"].copy()
+        lines = [
             "# HELP opencode_session_status_up Whether the most recent OpenCode session-status poll succeeded.",
             "# TYPE opencode_session_status_up gauge",
             f"opencode_session_status_up {snapshot['up']}",
@@ -76,8 +436,46 @@ data:
             "# HELP opencode_session_status_poll_errors_total Failed OpenCode session-status polls.",
             "# TYPE opencode_session_status_poll_errors_total counter",
             f"opencode_session_status_poll_errors_total {snapshot['poll_errors']}",
+            "# HELP opencode_llm_tokens_total Aggregate token deltas observed after the exporter initial baseline. Observed deltas only, not provider billing; token history before first observation is excluded.",
+            "# TYPE opencode_llm_tokens_total counter",
+        ]
+        lines.extend(
+            f"opencode_llm_tokens_total{{kind=\"{kind}\"}} {snapshot['usage_totals'][kind]}"
+            for kind in TOKEN_KINDS
+        )
+        lines.extend([
+            "# HELP opencode_session_usage_scan_up Whether the most recent complete OpenCode session-usage scan succeeded.",
+            "# TYPE opencode_session_usage_scan_up gauge",
+            f"opencode_session_usage_scan_up {snapshot['usage_up']}",
+            "# HELP opencode_session_usage_scan_last_success_timestamp_seconds Unix timestamp of the last complete session-usage scan.",
+            "# TYPE opencode_session_usage_scan_last_success_timestamp_seconds gauge",
+            f"opencode_session_usage_scan_last_success_timestamp_seconds {snapshot['usage_last_success']}",
+            "# HELP opencode_session_usage_scan_errors_total Failed OpenCode session-usage scans.",
+            "# TYPE opencode_session_usage_scan_errors_total counter",
+            f"opencode_session_usage_scan_errors_total {snapshot['usage_scan_errors']}",
+            "# HELP opencode_session_usage_scan_truncated Whether the latest session-usage scan attempt stopped at a configured page, session, cache, or time bound.",
+            "# TYPE opencode_session_usage_scan_truncated gauge",
+            f"opencode_session_usage_scan_truncated {snapshot['usage_scan_truncated']}",
+            "# HELP opencode_session_usage_projects Number of distinct projects represented in the last complete global session-usage scan.",
+            "# TYPE opencode_session_usage_projects gauge",
+            f"opencode_session_usage_projects {snapshot['usage_projects']}",
+            "# HELP opencode_session_usage_sessions Number of unique sessions observed in the last complete global session-usage scan.",
+            "# TYPE opencode_session_usage_sessions gauge",
+            f"opencode_session_usage_sessions {snapshot['usage_sessions']}",
+            "# HELP opencode_session_usage_baseline_timestamp_seconds Unix timestamp of the first complete session-usage baseline in this exporter process.",
+            "# TYPE opencode_session_usage_baseline_timestamp_seconds gauge",
+            f"opencode_session_usage_baseline_timestamp_seconds {snapshot['usage_baseline_ts']}",
+            "# HELP opencode_session_usage_scan_pages Validated pages fetched in the last complete session-usage scan.",
+            "# TYPE opencode_session_usage_scan_pages gauge",
+            f"opencode_session_usage_scan_pages {snapshot['usage_scan_pages']}",
+            "# HELP opencode_session_usage_scan_duration_seconds Duration in seconds of the latest session-usage scan attempt.",
+            "# TYPE opencode_session_usage_scan_duration_seconds gauge",
+            f"opencode_session_usage_scan_duration_seconds {snapshot['usage_scan_duration']}",
             "",
-        ]).encode()
+        ])
+        if API_VERSION == "2":
+            lines.remove(f"opencode_active_sessions{{state=\"retry\"}} {snapshot['retry']}")
+        return "\n".join(lines).encode()
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -92,7 +490,6 @@ data:
             else:
                 body = b"not found\n"
                 self.send_response(404)
-                self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -101,7 +498,8 @@ data:
             return
 
     if __name__ == "__main__":
-        threading.Thread(target=poll_forever, daemon=True).start()
+        threading.Thread(target=poll_status_forever, daemon=True).start()
+        threading.Thread(target=poll_usage_forever, daemon=True).start()
         ThreadingHTTPServer(("0.0.0.0", 9108), Handler).serve_forever()
 ---
 apiVersion: apps/v1
@@ -120,6 +518,8 @@ spec:
       app.kubernetes.io/name: opencode-session-metrics
   template:
     metadata:
+      annotations:
+        checksum/opencode-session-metrics: 81db916b5ac84450912393537f51e4feeb83d5e1cea86e24ae6c6bc14faea396
       labels:
         app.kubernetes.io/name: opencode-session-metrics
     spec:
@@ -137,6 +537,10 @@ spec:
           env:
             - name: OPENCODE_STATUS_URL
               value: http://opencode.opencode.svc:4096/session/status
+            - name: OPENCODE_API_BASE_URL
+              value: http://opencode.opencode.svc:4096
+            - name: OPENCODE_API_VERSION
+              value: "2"
             - name: OPENCODE_STATUS_USERNAME
               value: opencode
             - name: OPENCODE_STATUS_PASSWORD
@@ -146,8 +550,20 @@ spec:
                   key: password
             - name: POLL_INTERVAL_SECONDS
               value: "5"
+            - name: USAGE_POLL_INTERVAL_SECONDS
+              value: "30"
             - name: REQUEST_TIMEOUT_SECONDS
               value: "5"
+            - name: SESSION_LIST_LIMIT
+              value: "1000"
+            - name: MAX_USAGE_SCAN_PAGES
+              value: "20"
+            - name: MAX_USAGE_SCAN_SESSIONS
+              value: "10000"
+            - name: USAGE_SCAN_TIMEOUT_SECONDS
+              value: "15"
+            - name: MAX_RESPONSE_BYTES
+              value: "4194304"
             - name: PYTHONDONTWRITEBYTECODE
               value: "1"
           ports:

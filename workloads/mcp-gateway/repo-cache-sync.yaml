@@ -1,12 +1,14 @@
 ---
-# Read-only cache of the public makeitworkcloud repositories, synced with
+# Read-only cache of the makeitworkcloud repositories, synced with
 # the Kubernetes SIG git-sync image. This is the read/discovery surface for
 # OpenCode agents: it removes per-file GitHub API round trips (private-repo
 # code search is also unreliable for this org) in exchange for staleness
-# bounded by --period plus one sync. agent-knowledge is deliberately
-# excluded: it is private and its agent subtrees may hold personal or
-# operational data, so it stays GitHub-MCP-only. Adding a private repo here
-# later requires credentials and a fresh owner review.
+# bounded by --period plus one sync. The containers defined in this file are
+# the public, credential-free sources. The only private sources are the two
+# owner-approved, credentialed containers in repo-cache-sync-private.yaml
+# (agent-knowledge and channel-project); private repositories are never
+# added automatically. See docs/repo-cache-auto-discovery.md for the
+# public-only automatic discovery design.
 #
 # Writes never flow through this cache; agents keep using the GitHub MCP for
 # mutations and for anything they just pushed.
@@ -47,7 +49,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: sync-charts
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/charts
             - --ref=HEAD
@@ -102,7 +104,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-cflan
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/cflan
             - --ref=HEAD
@@ -157,7 +159,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-dotgithub
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/.github
             - --ref=HEAD
@@ -212,7 +214,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-images
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/images
             - --ref=HEAD
@@ -267,7 +269,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-kustomize-cluster
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/kustomize-cluster
             - --ref=HEAD
@@ -322,7 +324,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-shared-workflows
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/shared-workflows
             - --ref=HEAD
@@ -377,7 +379,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-terraform-libvirt-domain
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/terraform-libvirt-domain
             - --ref=HEAD
@@ -432,7 +434,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-tfroot-aws
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/tfroot-aws
             - --ref=HEAD
@@ -487,7 +489,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-tfroot-cloudflare
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/tfroot-cloudflare
             - --ref=HEAD
@@ -542,7 +544,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-tfroot-gcp
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/tfroot-gcp
             - --ref=HEAD
@@ -597,7 +599,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-tfroot-github
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/tfroot-github
             - --ref=HEAD
@@ -652,7 +654,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-tfroot-libvirt
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/tfroot-libvirt
             - --ref=HEAD
@@ -707,7 +709,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-tfroot-namecheap
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/tfroot-namecheap
             - --ref=HEAD
@@ -762,7 +764,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync-www
-          image: registry.k8s.io/git-sync/git-sync:v4.7.1
+          image: registry.k8s.io/git-sync/git-sync:v4.8.0
           args:
             - --repo=https://github.com/makeitworkcloud/www
             - --ref=HEAD

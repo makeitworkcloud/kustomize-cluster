@@ -1,9 +1,8 @@
----
-# Backing store for the read-only repository cache consumed by the
-# repo-search MCP backend (repo-cache-sync writes, makeitwork-repo-search
-# reads). RWO relies on the cluster being single-node so the writer and
-# reader pods co-locate; if nodes are added, pin them together or move this
-# claim to RWX-capable storage.
+# Backing store for the read-only repository cache consumed by
+# the codebase-memory MCP backend (repo-cache-sync writes,
+# makeitwork-codebase-memory reads). RWO relies on the cluster being
+# single-node so the writer and reader pods co-locate; if nodes are added,
+# pin them together or move this claim to RWX-capable storage.
 #
 # Sync wave 1, shared with the consumers: the k3s local-path StorageClass
 # uses WaitForFirstConsumer, so this claim stays Pending until a pod mounts

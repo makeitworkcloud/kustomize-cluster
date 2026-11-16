@@ -1,0 +1,29 @@
+# Tool surface for the codebase-memory backend. Index maintenance is
+# allowed (index_repository) because the index is derived state that agents
+# must be able to build and refresh; delete_project is excluded as a
+# destructive index operation, manage_adr because ADR writes belong to
+# repositories (mounted read-only here regardless), and ingest_traces as an
+# unneeded write surface. query_graph is upstream's read-only Cypher subset.
+# semantic_query is included defensively: upstream documents 15 tools but
+# tabulates 14, so the filter tolerates either runtime shape.
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPToolConfig
+metadata:
+  name: codebase-memory-tools
+  namespace: mcp
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  toolsFilter:
+    - index_repository
+    - list_projects
+    - index_status
+    - search_graph
+    - semantic_query
+    - trace_path
+    - detect_changes
+    - query_graph
+    - get_graph_schema
+    - get_code_snippet
+    - get_architecture
+    - search_code

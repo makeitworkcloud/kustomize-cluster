@@ -8,6 +8,8 @@ resources:
   - warp-app.yaml
   - arc-app.yaml
   - grafana-app.yaml
+  - loki-app.yaml
+  - alloy-app.yaml
   - kubectl-tunnel-app.yaml
   - mcp-gateway-app.yaml
   - gotenberg-app.yaml

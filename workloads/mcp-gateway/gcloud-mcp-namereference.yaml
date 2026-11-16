@@ -1,0 +1,11 @@
+# Kustomize does not infer references inside ToolHive's RawExtension. Teach it
+# to update generated ConfigMap names in the MCPServer pod template, so policy
+# or WIF credential-configuration changes roll the backend.
+nameReference:
+  - kind: ConfigMap
+    version: v1
+    fieldSpecs:
+      - group: toolhive.stacklok.dev
+        version: v1beta1
+        kind: MCPServer
+        path: spec/podTemplateSpec/spec/volumes/configMap/name

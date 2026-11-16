@@ -1,15 +1,14 @@
 # The Grafana MCP backend runs with its operator-owned token in the grafana
-# namespace. This proxy preserves the existing external gateway exposure.
+# namespace. This proxy exposes it externally through the dedicated direct
+# route (mcp-grafana.makeitwork.cloud, tunnel-binding.yaml).
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPRemoteProxy
 metadata:
-  name: makeitwork-grafana
+  name: grafana
   namespace: mcp
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
-  groupRef:
-    name: gateway
   # This is a deliberately selected in-cluster ToolHive Service. ToolHive
   # blocks private endpoints by default, so permit this single upstream.
   allowPrivateEndpoint: true

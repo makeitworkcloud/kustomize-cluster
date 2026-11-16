@@ -1,0 +1,15 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: reloader
+  namespace: argocd
+spec:
+  source:
+    helm:
+      valuesObject:
+        reloader:
+          namespaces:
+            - grafana
+            - opencode
+            - logging

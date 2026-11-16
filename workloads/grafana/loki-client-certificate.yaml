@@ -1,0 +1,24 @@
+---
+# Grafana mTLS client certificate for querying Loki, issued by the dedicated
+# logging CA (operators/cert-manager/logging-pki.yaml). 90-day leaf with
+# private key rotation on every renewal.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: grafana-loki-client
+  namespace: grafana
+spec:
+  secretName: loki-grafana-client
+  commonName: grafana-client.logging
+  usages:
+    - client auth
+  duration: 2160h # 90 days
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: logging-ca
+    kind: ClusterIssuer
+    group: cert-manager.io

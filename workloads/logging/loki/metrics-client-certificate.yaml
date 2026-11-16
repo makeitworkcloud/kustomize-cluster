@@ -1,0 +1,27 @@
+---
+# Prometheus mTLS client certificate for scraping Loki metrics on port 3100,
+# issued by the dedicated logging CA (operators/cert-manager/logging-pki.yaml).
+# Same approved leaf profile as the Alloy client (90-day leaf, ECDSA P-256,
+# private key rotation on every renewal); the Prometheus Operator watches its
+# ServiceMonitor TLS Secret references and rolls the scrape configuration
+# itself, so no Reloader annotation is needed for this client Secret.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: prometheus-client
+  namespace: logging
+spec:
+  secretName: loki-prometheus-client
+  commonName: prometheus.logging
+  usages:
+    - client auth
+  duration: 2160h # 90 days
+  renewBefore: 360h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: logging-ca
+    kind: ClusterIssuer
+    group: cert-manager.io

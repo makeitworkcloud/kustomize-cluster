@@ -1,0 +1,8 @@
+---
+# Staged, inactive overlay; see README.md. application.yaml is
+# intentionally not a resource here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - persistent-volume-claim.yaml
+  - service.yaml

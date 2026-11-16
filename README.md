@@ -92,15 +92,25 @@ and Kubernetes RBAC validate.
 Install `kubectl` and the `kubectl oidc-login` plugin. Confirm both commands are
 available before continuing.
 
-Create a dedicated kubeconfig such as `~/.kube/makeitworkcloud-k3s.yaml`, mode
-`0600`. Its cluster entry points to `https://api.makeitwork.cloud`; the public
-Cloudflare certificate uses normal system CA trust. The kubeconfig must not
-contain a token, client certificate, client key, or private cluster CA. Do not
-copy `/etc/rancher/k3s/k3s.yaml` off the node: it contains cluster-admin client
+Add the cluster to the default kubeconfig (`~/.kube/config`) with a context
+named `k3s`; do not create a dedicated per-cluster kubeconfig file. The cluster
+entry points to `https://api.makeitwork.cloud`; the public Cloudflare
+certificate uses normal system CA trust. The kubeconfig must not contain a
+token, client certificate, client key, or private cluster CA. Do not copy
+`/etc/rancher/k3s/k3s.yaml` off the node: it contains cluster-admin client
 credentials.
 
-Copy `docs/kubeconfig.example.yaml` to that dedicated path and set mode `0600`.
-Its user exec credential is:
+Merge the stanzas from `docs/kubeconfig.example.yaml` into the default
+kubeconfig, keeping the file mode `0600`:
+
+```bash
+cp ~/.kube/config ~/.kube/config.bak
+KUBECONFIG="$HOME/.kube/config:docs/kubeconfig.example.yaml" \
+  kubectl config view --flatten > ~/.kube/config.new
+chmod 600 ~/.kube/config.new && mv ~/.kube/config.new ~/.kube/config
+```
+
+The user exec credential is:
 
 ```yaml
 user:
@@ -119,24 +129,22 @@ user:
       - --token-cache-storage=keyring
 ```
 
-Give this cluster a distinct context name such as `makeitworkcloud-k3s`; never
-reuse an unrelated production or staging context. First confirm the dedicated
-file's current context, server, and user name without displaying credentials:
+The context is named `k3s`; never reuse an unrelated production or staging
+context name. First confirm the context's server and user name without
+displaying credentials:
 
 ```bash
-export KUBECONFIG="$HOME/.kube/makeitworkcloud-k3s.yaml"
-kubectl config current-context
-kubectl config view --minify \
+kubectl config view --minify --context=k3s \
   -o jsonpath='{.clusters[0].cluster.server}{"\n"}{.users[0].name}{"\n"}'
 ```
 
-The expected context is `makeitworkcloud-k3s`, the server is
-`https://api.makeitwork.cloud`, and the user is the dedicated OIDC exec user. Then
-verify the authenticated identity before performing any change:
+The expected server is `https://api.makeitwork.cloud` and the user is the
+dedicated OIDC exec user `makeitworkcloud-oidc`. Then verify the authenticated
+identity before performing any change:
 
 ```bash
-kubectl --context makeitworkcloud-k3s auth whoami
-kubectl --context makeitworkcloud-k3s auth can-i '*' '*' --all-namespaces
+kubectl --context k3s auth whoami
+kubectl --context k3s auth can-i '*' '*' --all-namespaces
 ```
 
 `auth whoami` should show your email and the `makeitworkcloud:admins` group;
