@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - persistent-volume-claim.yaml
   - artifacts-persistent-volume-claim.yaml
+  - agent-pipe-uploader-alert.yaml
   - service.yaml
   - tunnel-binding.yaml
   - session-metrics.yaml
