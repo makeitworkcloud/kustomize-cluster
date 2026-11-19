@@ -4,7 +4,7 @@
 
 `kustomize-cluster` is live GitOps desired state for the Make IT Work Cloud k3s cluster. Argo CD reconciles `bootstrap/secrets`, `operators`, and `workloads/apps` using KSOPS. Treat every manifest change as potentially production-affecting.
 
-Use GitHub MCP for repository work and Argo CD, Kubernetes, and Grafana MCPs for read-only diagnosis. Do not use local `kubectl`, `sops`, `argocd`, or shell assumptions in this headless session. Do not sync, patch, restart, scale, delete, or run an Argo resource action without explicit confirmation.
+Keep live cluster diagnosis read-only. Do not sync, patch, restart, scale, delete, or run an Argo resource action without explicit confirmation.
 
 ## Structure and ordering
 
