@@ -4,9 +4,9 @@
 # (owner third-party-images policy, 2026-09-09); the package's postinstall
 # fetches and checksum-verifies the static native binary at container start,
 # so the pod needs the network permission profile and npm+GitHub egress on
-# every start. npm is pinned to the exact published version because the
-# registry's `latest` dist-tag lags upstream releases (0.8.1 vs 0.10.8 on
-# 2026-09-09).
+# every start. Pin the exact npm release rather than relying on the registry's
+# `latest` tag. Releases since 0.11.0 report the failing daemon startup stage
+# and OS error instead of masking failures behind a generic timeout.
 #
 # --ui=false is mandatory: upstream auto-enables the embedded graph-UI HTTP
 # listener (loopback :9749) on first run when the cache dir has no UI config,
@@ -84,7 +84,7 @@ spec:
     - npm
     - exec
     - --yes
-    - --package=codebase-memory-mcp@0.10.8
+    - --package=codebase-memory-mcp@0.12.1
     - --
     - codebase-memory-mcp
     - --ui=false
